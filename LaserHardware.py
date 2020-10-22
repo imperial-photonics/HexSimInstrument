@@ -91,7 +91,7 @@ class Laser488HW(HardwareComponent):
             self.current.read_from_hardware()
             self.laser_alarm.read_from_hardware()
             self.operating_status.read_from_hardware()
-            print('Thread activate')
+            # print('Thread activate')
 
 
 class Laser561HW(HardwareComponent):
@@ -153,4 +153,4 @@ class Laser561HW(HardwareComponent):
             self.power.read_from_hardware()
             self.laser_alarm.read_from_hardware()
             self.operating_status.read_from_hardware()
-            print('Thread activate')
+            # print('Thread activate')
