@@ -71,7 +71,7 @@ operating_status = {1: 'Warm up',
                     10:'Error in detection'}
 
 
-class OxxiusController:
+class OxxiusController(object):
 
     def __init__(self):
         self.comportName = ""
