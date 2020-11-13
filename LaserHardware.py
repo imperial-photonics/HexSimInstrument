@@ -1,3 +1,11 @@
+"""
+Intro:  Hardware interface for laser control with serial commands.
+        Laser models: Oxxius LBX Diode laser, LCX DPSS laser
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+"""
+
 from ScopeFoundry import HardwareComponent
 from LaserDevice import OxxiusController
 from threading import Thread,currentThread

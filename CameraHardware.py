@@ -1,7 +1,15 @@
-""" Written by Michele Castriotta, Alessandro Zecchi, Andrea Bassi (Polimi).
-   Code for creating the hardware class of ScopeFoundry for the Orca Flash 4V3.
-   
-   11/18
+"""
+Intro:  Hardware interface of Hamamatsu camera.
+        Camera model: Orca Fusion
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+Address:Imperial College London
+
+Modified from:
+    Written by Michele Castriotta, Alessandro Zecchi, Andrea Bassi (Polimi).
+    Code for creating the app class of ScopeFoundry for the Orca Flash 4V3
+    11/18
 """
 
 from ScopeFoundry import HardwareComponent

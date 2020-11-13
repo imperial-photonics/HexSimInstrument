@@ -1,8 +1,17 @@
-""" Written by Michele Castriotta, Alessandro Zecchi, Andrea Bassi (Polimi).
-   Code for creating the device class of ScopeFoundry for the Orca Flash 4V3
-   
-   11/18
 """
+Intro:  Device driver of Hamamatsu camera.
+        Camera model: Orca Fusion
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+Address:Imperial College London
+
+Modified from:
+    Written by Michele Castriotta, Alessandro Zecchi, Andrea Bassi (Polimi).
+    Code for creating the app class of ScopeFoundry for the Orca Flash 4V3
+    11/18
+"""
+
 import ctypes
 import ctypes.util
 import numpy as np
@@ -899,8 +908,8 @@ class HamamatsuDevice(object):
 
         self.stopAcquisition()
 
-        if self.acquisition_mode is "fixed_length" or \
-                self.acquisition_mode is "run_till_abort":
+        if self.acquisition_mode == "fixed_length" or \
+                self.acquisition_mode == "run_till_abort":
             self.acquisition_mode = mode
             self.number_frames = number_frames
         else:
@@ -1297,12 +1306,12 @@ class HamamatsuDevice(object):
         # We allocate enough to buffer 2 seconds of data or the specified 
         # number of frames for a fixed length acquisition
         
-        if self.acquisition_mode is "run_till_abort":
+        if self.acquisition_mode == "run_till_abort":
             #n_buffers = int(20.0*self.getPropertyValue("internal_frame_rate")[0])
             n_buffers = self.number_frames
         
         
-        elif self.acquisition_mode is "fixed_length":
+        elif self.acquisition_mode == "fixed_length":
             n_buffers = self.number_frames
 
         self.number_image_buffers = n_buffers
@@ -1312,12 +1321,12 @@ class HamamatsuDevice(object):
                          "dcambuf_alloc")
 
         # Start acquisition.
-        if self.acquisition_mode is "run_till_abort":
+        if self.acquisition_mode == "run_till_abort":
             self.checkStatus(self.dcam.dcamcap_start(self.camera_handle,
                                     DCAMCAP_START_SEQUENCE),
                              "dcamcap_start")
         
-        if self.acquisition_mode is "fixed_length":
+        if self.acquisition_mode == "fixed_length":
             self.checkStatus(self.dcam.dcamcap_start(self.camera_handle,
                                     DCAMCAP_START_SNAP),
                              "dcamcap_start")
@@ -1330,23 +1339,23 @@ class HamamatsuDevice(object):
         # We allocate enough to buffer 2 seconds of data or the specified 
         # number of frames for a fixed length acquisition
         
-        if self.acquisition_mode is "run_till_abort":
+        if self.acquisition_mode == "run_till_abort":
             #n_buffers = int(20.0*self.getPropertyValue("internal_frame_rate")[0])
             n_buffers = self.number_frames
         
         
-        elif self.acquisition_mode is "fixed_length":
+        elif self.acquisition_mode == "fixed_length":
             n_buffers = self.number_frames
 
         self.number_image_buffers = n_buffers
 
         # Start acquisition.
-        if self.acquisition_mode is "run_till_abort":
+        if self.acquisition_mode == "run_till_abort":
             self.checkStatus(self.dcam.dcamcap_start(self.camera_handle,
                                     DCAMCAP_START_SEQUENCE),
                              "dcamcap_start")
         
-        if self.acquisition_mode is "fixed_length":
+        if self.acquisition_mode == "fixed_length":
             self.checkStatus(self.dcam.dcamcap_start(self.camera_handle,
                                     DCAMCAP_START_SNAP),
                              "dcamcap_start")
@@ -1595,8 +1604,8 @@ class HamamatsuDeviceMR(HamamatsuDevice):
         # be long enough.
         #
         #backslash is used to escape the newline
-        if (self.old_frame_bytes != self.frame_bytes) and (self.acquisition_mode is not "run_till_abort") or \
-                (self.acquisition_mode is "fixed_length"):
+        if (self.old_frame_bytes != self.frame_bytes) and (self.acquisition_mode !=  "run_till_abort") or \
+                (self.acquisition_mode == "fixed_length"):
             
             #n_buffers = min(int((2.0 * 1024 * 1024 * 1024)/self.frame_bytes), 2000)
                 
@@ -1637,14 +1646,14 @@ class HamamatsuDeviceMR(HamamatsuDevice):
                 self.hcam_ptr, self.number_image_buffers)
         paramattach.size = ctypes.sizeof(paramattach)
 
-        if self.acquisition_mode is "run_till_abort":
+        if self.acquisition_mode == "run_till_abort":
             self.checkStatus(self.dcam.dcambuf_attach(self.camera_handle,
                                     paramattach),
                              "dcam_attachbuffer")
             self.checkStatus(self.dcam.dcamcap_start(self.camera_handle,
                                     DCAMCAP_START_SEQUENCE),
                              "dcamcap_start")
-        if self.acquisition_mode is "fixed_length":
+        if self.acquisition_mode == "fixed_length":
             paramattach.buffercount = self.number_frames
             self.checkStatus(self.dcam.dcambuf_attach(self.camera_handle,
                                     paramattach),

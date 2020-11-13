@@ -1,3 +1,12 @@
+"""
+Intro:  Hardware interface for stage control with serial commands.
+        Stage model: Prior NanoScanZ
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+Address:Imperial College London
+"""
+
 from ScopeFoundry import HardwareComponent
 from NanoScanDevice import NanoScan
 

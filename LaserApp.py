@@ -1,8 +1,15 @@
+"""
+Intro:  GUI application for laser control with serial commands.
+        Laser models: Oxxius LBX Diode laser, LCX DPSS laser
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+"""
+
 from ScopeFoundry import BaseMicroscopeApp
 
 class LaserMicroscopeApp(BaseMicroscopeApp):
-    # this is the name of the microscope that ScopeFoundry uses
-    # when storing data
+
     name = 'laser_control'
     def setup(self):
         print("Adding Hardware Components")
@@ -15,6 +22,5 @@ class LaserMicroscopeApp(BaseMicroscopeApp):
 
 if __name__ == '__main__':
     import sys
-
     app = LaserMicroscopeApp(sys.argv)
     sys.exit(app.exec_())

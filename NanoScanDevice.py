@@ -1,9 +1,11 @@
-'''
-Control interface of Prior NanoScanZ stage
-author: Hai Gong
-Created on Oct, 2020
-Imperial College London
-'''
+"""
+Intro:  Device driver for stage control with serial commands.
+        Stage model: Prior NanoScanZ
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+Address:Imperial College London
+"""
 
 # from __future__ import division, absolute_import, print_function
 import serial

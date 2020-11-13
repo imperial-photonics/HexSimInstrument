@@ -1,3 +1,11 @@
+"""
+Intro:  Device driver for laser control with serial commands.
+        Laser models: Oxxius LBX Diode laser, LCX DPSS laser
+Author: Hai Gong
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+"""
+
 import serial
 import sys
 from time import sleep
@@ -106,8 +114,8 @@ class OxxiusController(object):
                                                 parity=serial.PARITY_NONE,
                                                 stopbits=serial.STOPBITS_ONE,
                                                 bytesize=serial.EIGHTBITS,
-                                                timeout=0.5,
-                                                write_timeout=0.5,
+                                                timeout=0.05,
+                                                write_timeout=0.05,
                                                 inter_byte_timeout=None,
                                                 exclusive=True)
                 self.isopen = self.serialport.isOpen()
@@ -130,7 +138,7 @@ class OxxiusController(object):
                 newmessage = message.strip()
                 newmessage += '\n'
                 self.serialport.write(newmessage.encode('utf-8'))
-                sleep(0.005)
+                # sleep(0.005)
             except:
                 print("Error sending message: ", sys.exc_info()[0], message)
             else:
@@ -143,7 +151,7 @@ class OxxiusController(object):
             message = '?' + self.command[query_name]
             self.Send(message)
             res = self.serialport.read_until('\r\n')
-            sleep(0.005)
+            # sleep(0.005)
             res = res.decode('utf-8')
             return res.replace('\r\n', '')
         else:

@@ -1,7 +1,12 @@
-""" Code for instrument control of the HexSIM system. The GUI is based on the framework of ScopeFoundry.
+""" 
+Intro:  GUI for instrument control of the HexSIM system. 
+        The GUI is based on the framework of ScopeFoundry.
+        The hardware includes: Oxxius Lasers, Hamamatsu Camera,
+        SLM with display card, Prior NanoScanZ stage...
 Author: Hai Gong
-Email: h.gong@imperial.ac.uk
-Oct 2020
+Email:  h.gong@imperial.ac.uk
+Time:   Oct 2020
+Address:Imperial College London
 """
 from ScopeFoundry import BaseMicroscopeApp
 
@@ -27,11 +32,13 @@ class HexSimApp(BaseMicroscopeApp):
         from CameraHardware import HamamatsuHardware
         from LaserHardware import Laser488HW,Laser561HW
         from ScreenHardware import ScreenHW
+        from NanoScanHardware import NanoScanHW
 
         self.add_hardware(ScreenHW(self))
         self.add_hardware(HamamatsuHardware(self))
         self.add_hardware(Laser488HW(self))
         self.add_hardware(Laser561HW(self))
+        self.add_hardware(NanoScanHW(self))
 
         print("Adding measurement components")
         from CameraMeasurement import HamamatsuMeasurement
