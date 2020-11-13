@@ -35,7 +35,6 @@ class HexSimApp(BaseMicroscopeApp):
 
         print("Adding measurement components")
         from CameraMeasurement import HamamatsuMeasurement
-
         self.add_measurement(HamamatsuMeasurement(self))
 
         # show ui

@@ -83,7 +83,6 @@ class ScreenDisplay(QMainWindow):
         return np.require(img, np.uint8, 'C')
 
 
-
     def keyPressEvent(self, input):
         if input.key() ==Qt.Key_Escape:
             self.close()
