@@ -29,7 +29,7 @@ class HamamatsuMeasurement(Measurement):
     def setup(self):
         
         "..."
-
+        # Load user interface file
         self.ui_filename = sibling_path(__file__, "form.ui")
         
     

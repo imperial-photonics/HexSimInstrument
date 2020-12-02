@@ -4,9 +4,11 @@ from numpy import pi
 from ScreenDevice import ScreenDisplay
 
 class ScreenHW(HardwareComponent):
-    name = 'screen_display'
+    name = 'screenHardware'
 
     def setup(self):
+        # self.counterPattern = 0
+
         self.binning = self.add_logged_quantity('monitor_number', dtype=int, ro=0,
                                                 choices=[0, 1, 2], initial=1)
         self.settings.New(name='update_time', dtype=float,ro=0,initial=100,unit = 'ms', vmin = 0)
@@ -19,6 +21,13 @@ class ScreenHW(HardwareComponent):
 
         self.screen_width = self.add_logged_quantity('Width', dtype=str, si=False, ro=1,unit = 'px')
         self.screen_height = self.add_logged_quantity('Height', dtype=str, si=False, ro=1, unit = 'px')
+        self.add_operation(name='Open SLM',op_func=self.openSLM)
+        self.add_operation(name='Close SLM',op_func=self.closeSLM)
+        self.add_operation(name='Start displaying',op_func=self.startDisplay)
+        self.add_operation(name='Stop displaying',op_func=self.stopDisplay)
+        self.add_operation(name='manual display',op_func=self.manualDisplay)
+        self.add_operation(name='Previous pattern',op_func=self.previousPattern)
+        self.add_operation(name='Next pattern',op_func=self.nextPattern)
 
     def connect(self):
         # open connection to the SLM
@@ -26,18 +35,10 @@ class ScreenHW(HardwareComponent):
                                   shift_orientation = self.settings['shift_orientation'],
                                   scale = self.settings['scale'], update_time=self.settings['update_time'])
 
-        self.slm_dev.showFullScreen()
-        print('slm started')
-
         # connect settings to the SLM
-        self.slm_dev.enableTimer()
-
         self.settings.update_time.connect_to_hardware(write_func=self.slm_dev.writeUpdateTime)
-        # self.updatetime.hardware_read_func=self.slm_dev.writeUpdateTime()
-        self.slm_dev.timer.start()
         self.screen_width.hardware_read_func=self.slm_dev.getScreenWidth
         self.screen_height.hardware_read_func=self.slm_dev.getScreenHeight
-
         self.settings.update_time.hardware_set_func = self.slm_dev.changeTimer
 
         self.read_from_hardware()
@@ -48,3 +49,40 @@ class ScreenHW(HardwareComponent):
             self.slm_dev.disableTimer()
             self.settings.disconnect_all_from_hardware()
             print('run disconnect')
+
+    # define operations
+    def openSLM(self):
+        if hasattr(self, 'slm_dev'):
+            self.slm_dev.showFullScreen()
+            print('slm started')
+
+    def closeSLM(self):
+        if hasattr(self, 'slm_dev'):
+            self.slm_dev.close()
+
+    def startDisplay(self):
+        if hasattr(self, 'slm_dev'):
+            self.read_from_hardware()
+            self.slm_dev.writeUpdateTime(self.settings.update_time.value)
+            # self.slm_dev.timer.start()
+            self.slm_dev.enableTimer()
+
+    def stopDisplay(self):
+        if hasattr(self, 'slm_dev'):
+            self.slm_dev.disableTimer()
+
+    def manualDisplay(self):
+        if hasattr(self, 'slm_dev'):
+            self.slm_dev.displayFrameN(self.slm_dev.counter%7)
+
+    def previousPattern(self):
+        if hasattr(self, 'slm_dev'):
+            self.slm_dev.counter -= 1
+            self.slm_dev.counter = self.slm_dev.counter%7
+            self.slm_dev.displayFrameN(self.slm_dev.counter)
+
+    def nextPattern(self):
+        if hasattr(self, 'slm_dev'):
+            self.slm_dev.counter += 1
+            self.slm_dev.counter = self.slm_dev.counter%7
+            self.slm_dev.displayFrameN(self.slm_dev.counter)

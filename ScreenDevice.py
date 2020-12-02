@@ -5,6 +5,9 @@ from numpy import pi,sin,cos,sqrt,floor
 from PyQt5 import QtGui
 from PyQt5.QtWidgets import QDesktopWidget,QMainWindow,QLabel,QApplication
 from PyQt5.QtCore import QTimer,Qt
+from PIL import Image
+from skimage.transform import resize
+from skimage import img_as_bool
 
 class ScreenDisplay(QMainWindow):
     def __init__(self,monitor_number = 1, shift_orientation = pi/9, scale = pi/16, update_time=100):
@@ -16,11 +19,13 @@ class ScreenDisplay(QMainWindow):
         self.counter = 0
         self.monitor = QDesktopWidget().screenGeometry(self.monitor_number)
         self.move(self.monitor.left(), self.monitor.top())
-        self.img = self.imgGenerate()
+        #self.img = self.imgGenerate()
+        self.img = self.imgRead()
         self.screen = QLabel(self)
         self.setCentralWidget(self.screen)
         self.timer = QTimer(self)
-        self.timer.stop()
+        self.timer.timeout.connect(self.displayFrame)
+        # self.timer.stop()
 
     def writeUpdateTime(self,update_time):
         self._update_time = update_time
@@ -32,7 +37,8 @@ class ScreenDisplay(QMainWindow):
         return self.monitor.height()
 
     def enableTimer(self):
-        self.timer.timeout.connect(self.displayFrame)
+        self.counter = 0
+
         self.timer.start(self._update_time)
         print('Display once')
 
@@ -59,6 +65,15 @@ class ScreenDisplay(QMainWindow):
         self.screen.setPixmap(QtGui.QPixmap(img_buffer))
         self.counter += 1
 
+    # def runningFrame(self,update_time):
+    #     'Display the patterns in a sequential mode'
+    #     if self.counter >= self.img.shape[2]:
+    #         self.counter = 0
+    #     print(self.counter)
+    #     img_n = self.img[:,:,self.counter]
+    #     img_buffer = QtGui.QImage(img_n.data.tobytes(), img_n.shape[1], img_n.shape[0], QtGui.QImage.Format_Grayscale8)
+    #     self.screen.setPixmap(QtGui.QPixmap(img_buffer))
+    #     self.counter += 1
 
     def imgGenerate(self):
         'Generate the polka pattern'
@@ -82,10 +97,24 @@ class ScreenDisplay(QMainWindow):
 
         return np.require(img, np.uint8, 'C')
 
+    def imgRead(self):
+        w = self.monitor.width()
+        h = self.monitor.height()
+
+        img = np.zeros((h, w,7))
+
+        for i in range(7):
+            name_tmp = str(i).zfill(3)
+            file_name = './patterns/'+name_tmp + '.bmp'
+            img_tmp = Image.open(file_name)
+            img[ :, :,i] = resize(np.sum(np.array(img_tmp), axis=2) / 3,(h,w))
+
+        return np.require(img,np.uint8,'C')
 
     def keyPressEvent(self, input):
         if input.key() ==Qt.Key_Escape:
             self.close()
+
 
 if __name__=='__main__':
     app = QApplication(sys.argv)

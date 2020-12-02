@@ -12,7 +12,7 @@ from threading import Thread,currentThread
 
 
 class Laser488HW(HardwareComponent):
-    name = 'Laser 488nm'
+    name = 'Laser488Hardware'
 
     def setup(self):
         # Laser status check
@@ -103,7 +103,7 @@ class Laser488HW(HardwareComponent):
 
 
 class Laser561HW(HardwareComponent):
-    name = 'Laser 561nm'
+    name = 'Laser561Hardware'
 
     def setup(self):
         # Laser status check

@@ -11,7 +11,7 @@ from ScopeFoundry import HardwareComponent
 from NanoScanDevice import NanoScan
 
 class NanoScanHW(HardwareComponent):
-    name = 'NanoScanZ'
+    name = 'NanoScanHardware'
 
     def setup(self):
         #self.settings.alarm = self.add_logged_quantity(name='Alarm', dtype=str, initial='None')
