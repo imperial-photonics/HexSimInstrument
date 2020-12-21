@@ -1369,7 +1369,7 @@ class HamamatsuDevice(object):
         self.checkStatus(self.dcam.dcamcap_stop(self.camera_handle),
                          "dcamcap_stop")
 
-        print("max camera backlog was", self.max_backlog, "of", self.number_image_buffers)
+        # print("max camera backlog was", self.max_backlog, "of", self.number_image_buffers)
         self.max_backlog = 0
 
         # Free image buffers.
@@ -1383,7 +1383,7 @@ class HamamatsuDevice(object):
         self.checkStatus(self.dcam.dcamcap_stop(self.camera_handle),
                          "dcamcap_stop")
 
-        print("max camera backlog was", self.max_backlog, "of", self.number_image_buffers)
+        # print("max camera backlog was", self.max_backlog, "of", self.number_image_buffers)
         self.max_backlog = 0
     
     def releaseBuffer(self):
@@ -1679,14 +1679,9 @@ class HamamatsuDeviceMR(HamamatsuDevice):
                                                 DCAMBUF_ATTACHKIND_FRAME),
                          "dcambuf_release")
 
-        print("max camera backlog was:", self.max_backlog)
+        # print("max camera backlog was:", self.max_backlog)
         self.max_backlog = 0
     
-    
-        
-    
-
-
 
 if __name__ == "__main__":
     

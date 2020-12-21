@@ -139,7 +139,7 @@ class HamamatsuHardware(HardwareComponent):
         self.subarrayv_pos.hardware_read_func = self.hamamatsu.getSubarrayVpos
         self.internal_frame_rate.hardware_read_func = self.hamamatsu.getInternalFrameRate
         self.binning.hardware_read_func = self.hamamatsu.getBinning
-        
+
         self.subarrayh.hardware_set_func = self.hamamatsu.setSubarrayH
         self.subarrayv.hardware_set_func = self.hamamatsu.setSubarrayV
         self.subarrayh_pos.hardware_set_func = self.hamamatsu.setSubarrayHpos
@@ -193,4 +193,18 @@ class HamamatsuHardware(HardwareComponent):
             self.subarrayh_pos.change_readonly(False)
             self.subarrayv_pos.change_readonly(False)
 
-            
+    def updateCameraSettings(self):
+        self.hamamatsu.frame_x = self.subarrayh.val
+        self.hamamatsu.frame_y = self.subarrayv.val
+        self.hamamatsu.acquisition_mode = self.acquisition_mode.val
+        self.hamamatsu.number_frames = self.number_frames.val
+        self.hamamatsu.exposure = self.exposure_time.val
+        self.hamamatsu.trsource = self.trsource.val
+        self.hamamatsu.trmode = self.trmode.val
+        self.hamamatsu.trpolarity = self.trpolarity.val
+        self.hamamatsu.tractive = self.tractive.val
+        self.hamamatsu.subarrayh_pos = self.subarrayh_pos.val
+        self.hamamatsu.subarrayv_pos = self.subarrayv_pos.val
+        self.hamamatsu.binning = self.binning.val
+
+        # print('Camera setting updated')

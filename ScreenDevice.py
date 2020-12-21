@@ -3,13 +3,14 @@ import numpy as np
 import time
 from numpy import pi,sin,cos,sqrt,floor
 from PyQt5 import QtGui
-from PyQt5.QtWidgets import QDesktopWidget,QMainWindow,QLabel,QApplication
+from PyQt5.QtWidgets import QDesktopWidget,QMainWindow,QLabel,QApplication,QWidget
 from PyQt5.QtCore import QTimer,Qt
 from PIL import Image
 from skimage.transform import resize
 from skimage import img_as_bool
 
 class ScreenDisplay(QMainWindow):
+# class ScreenDisplay(QWidget):
     def __init__(self,monitor_number = 1, shift_orientation = pi/9, scale = pi/16, update_time=100):
         super().__init__()
         self.writeUpdateTime(update_time)
@@ -54,6 +55,8 @@ class ScreenDisplay(QMainWindow):
         img_buffer = QtGui.QImage(img_n.data.tobytes(), img_n.shape[1], img_n.shape[0], QtGui.QImage.Format_Grayscale8)
         self.screen.setPixmap(QtGui.QPixmap(img_buffer))
         self.showFullScreen()
+        self.show()
+
 
     def displayFrame(self):
         'Display the patterns in a sequential mode'

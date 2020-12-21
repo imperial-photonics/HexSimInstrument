@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1200</width>
-    <height>800</height>
+    <width>1202</width>
+    <height>805</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -22,7 +22,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
-     <widget class="QTabWidget" name="tabWidget">
+     <widget class="QTabWidget" name="imgStreamTabW">
       <property name="font">
        <font>
         <pointsize>8</pointsize>
@@ -35,6 +35,53 @@
        <attribute name="title">
         <string>Camera</string>
        </attribute>
+       <layout class="QGridLayout" name="gridLayout_8">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="imgStreamLayout"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item row="0" column="2">
+     <widget class="QTabWidget" name="imgCaptured_2">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="font">
+       <font>
+        <pointsize>8</pointsize>
+       </font>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="imgCapturedTab">
+       <attribute name="title">
+        <string>RAW</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_10">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="rawImageLayout"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QSlider" name="rawImageSlider">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="imgReconstructedTab">
+       <attribute name="title">
+        <string>SIM</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="simImageLayout"/>
+        </item>
+       </layout>
       </widget>
      </widget>
     </item>
@@ -190,6 +237,12 @@
                  <pointsize>8</pointsize>
                 </font>
                </property>
+               <property name="maximum">
+                <number>560</number>
+               </property>
+               <property name="value">
+                <number>280</number>
+               </property>
               </widget>
              </item>
             </layout>
@@ -239,31 +292,6 @@
       </widget>
      </widget>
     </item>
-    <item row="0" column="2">
-     <widget class="QTabWidget" name="imgCaptured_2">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="font">
-       <font>
-        <pointsize>8</pointsize>
-       </font>
-      </property>
-      <property name="currentIndex">
-       <number>1</number>
-      </property>
-      <widget class="QWidget" name="imgCapturedTab">
-       <attribute name="title">
-        <string>RAW</string>
-       </attribute>
-      </widget>
-      <widget class="QWidget" name="imgReconstructedTab">
-       <attribute name="title">
-        <string>SIM</string>
-       </attribute>
-      </widget>
-     </widget>
-    </item>
     <item row="1" column="0">
      <widget class="QGroupBox" name="groupBox_3">
       <property name="sizePolicy">
@@ -290,7 +318,7 @@
        <property name="geometry">
         <rect>
          <x>13</x>
-         <y>64</y>
+         <y>65</y>
          <width>36</width>
          <height>16</height>
         </rect>
@@ -352,7 +380,7 @@
        <property name="geometry">
         <rect>
          <x>13</x>
-         <y>33</y>
+         <y>35</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -382,6 +410,55 @@
        </property>
        <property name="text">
         <string>ON</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="snapshotButton">
+       <property name="geometry">
+        <rect>
+         <x>152</x>
+         <y>34</y>
+         <width>82</width>
+         <height>25</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Snapshot</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="snapshotSeqButton">
+       <property name="geometry">
+        <rect>
+         <x>245</x>
+         <y>34</y>
+         <width>83</width>
+         <height>24</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Snapshot Seq.</string>
+       </property>
+      </widget>
+      <widget class="QSpinBox" name="intervalTimeInput">
+       <property name="geometry">
+        <rect>
+         <x>487</x>
+         <y>34</y>
+         <width>72</width>
+         <height>22</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label">
+       <property name="geometry">
+        <rect>
+         <x>354</x>
+         <y>38</y>
+         <width>127</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Acquisition interval (ms)</string>
        </property>
       </widget>
      </widget>

@@ -59,12 +59,11 @@ class ScreenHW(HardwareComponent):
     def closeSLM(self):
         if hasattr(self, 'slm_dev'):
             self.slm_dev.close()
-
+    # continuous display
     def startDisplay(self):
         if hasattr(self, 'slm_dev'):
             self.read_from_hardware()
             self.slm_dev.writeUpdateTime(self.settings.update_time.value)
-            # self.slm_dev.timer.start()
             self.slm_dev.enableTimer()
 
     def stopDisplay(self):
