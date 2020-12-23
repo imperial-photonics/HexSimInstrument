@@ -98,22 +98,19 @@ class HexSimMeasurement(Measurement):
 
         self.image = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
         self.image[0, 0] = 1  # Otherwise we get the "all zero pixels" error (we should modify pyqtgraph...)
+        # self.imageRaw = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+        # self.imageRaw[0, 0] = 1
 
         self.cameraRun()
-        print('run here')
-            # if self.settings['save_h5']:
-            #     self.h5file.close()  # close h5 file
-            # self.settings.save_h5.update_value(new_val=False)
+
 
 ############ Actions ########################
     def camButtonPressed(self):
         if self.ui.camButton.text()=='ON':
-            # self.screen.slm_dev
             self.start()
             self.ui.camButton.setText('OFF')
             print('Camera ON')
         elif self.ui.camButton.text()=='OFF':
-            # self.camera.hamamatsu.stopAcquisition()
             self.interrupt()
             self.ui.camButton.setText('ON')
             print('Camera OFF')
@@ -121,25 +118,25 @@ class HexSimMeasurement(Measurement):
     def slmButtonPressed(self):
         if self.ui.slmButton.text()=='ON':
             self.screen.openSLM()
-            # self.screen.startDisplay()
             self.screen.manualDisplay()
             self.ui.slmButton.setText('OFF')
             print('OFF')
         elif self.ui.slmButton.text()=='OFF':
-            # self.screen.stopDisplay()
             self.screen.closeSLM()
             self.ui.slmButton.setText('ON')
             print('ON')
 
     def captureStandardButtonPressed(self):
-        self.ui.rawImageSlider.setMinimum(0)
-        self.ui.rawImageSlider.setMaximum(6)
-        self.ui.rawImageSlider.setValue(0)
-        self.imageRaw = np.zeros((7,int(self.camera.subarrayv.val), int(self.camera.subarrayh.val)), dtype=np.uint16)
-        self.imvRaw.setImage((self.imageRaw[int(self.ui.rawImageSlider.value()),:,:]).T, autoLevels=self.settings.autoLevels.val,
-                                                              autoRange=self.settings.autoRange.val)
+        # initialize the raw image array
+        self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+        self.imageRaw[0, 0, 0] = 1
         # acqusition
         self.standardAcquistion()
+        # display the raw images
+        self.ui.rawImageSlider.setMinimum(0)
+        self.ui.rawImageSlider.setMaximum(self.imageRaw.shape[0]-1)
+        self.ui.rawImageSlider.setValue(0)
+        self.imvRaw.setImage((self.imageRaw[0,:,:]).T)
 
     def rawImageSliderChanged(self):
         self.imvRaw.setImage((self.imageRaw[int(self.ui.rawImageSlider.value()),:,:]).T)
@@ -187,23 +184,21 @@ class HexSimMeasurement(Measurement):
 
     def standardMeasure(self):
         self.interrupt()
-        self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+        # # initialize the raw image array
+        # self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+        # project the patterns and acquire raw images
         for i in range(7):
             self.screen.slm_dev.displayFrameN(i)
-            time.sleep(0.1)
+            # time.sleep(0.1)
             self.imageRaw[i,:,:] = self.getOneFrame()
             print('Take frame:',i)
-
+        # recover camera streaming
         self.camera.updateCameraSettings()
         self.start()
 
-        self.ui.rawImageSlider.setMinimum(0)
-        self.ui.rawImageSlider.setMaximum(self.imageRaw.shape[0]-1)
-        self.ui.rawImageSlider.setValue(0)
-        self.imvRaw.setImage((self.imageRaw[0,:,:]).T, autoLevels=self.settings.autoLevels.val,
-                                                              autoRange=self.settings.autoRange.val)
+        # reconstruction
 
-
+    # def
     def getOneFrame(self):
         self.camera.hamamatsu.setACQMode("fixed_length",number_frames=1)
         self.camera.hamamatsu.startAcquisition()
@@ -217,34 +212,8 @@ class HexSimMeasurement(Measurement):
 
         return self.last_image[np.newaxis, :, :]
 
-    # def snapshot
-        # self.standardMeasureThread.daemon()
-        # self.standardMeasureThread.join()
-        # Stop the camera streaming
-        # self.camera.hamamatsu.stopAcquisition()
-        # index = 0
-        # self.camera.hamamatsu.startAcquisition()
-        # for index in range(7):
-        # # while index < 7:
-        #     self.screen.slm_dev.displayFrameN(index)
-        #     # self.screen.slm_dev.show()
-        #     print(index)
-        #     time.sleep(2)
-        #     index += 1
 
-        # Display one pattern on the screen
-
-        # Capture one image and save it to the stack
-
-        # while not self.interrupt_measurement_called:
-        #
-        #     [frame, dims] = self.camera.hamamatsu.getLastFrame()
-        #     self.np_data = frame.getData()
-        #     self.image = np.reshape(self.np_data, (self.eff_subarrayv, self.eff_subarrayh))
-        #
-        #             self.camera.hamamatsu.stopAcquisition()
-
-    # Camera
+    # Settings
     def setRefresh(self, refresh_period):
         self.display_update_period = refresh_period
 
@@ -399,9 +368,6 @@ class HexSimMeasurement(Measurement):
         self.image_h5[saveindex, :, :] = self.image  # saving to the h5 dataset
         self.h5file.flush()  # maybe is not necessary
         self.settings['progress'] = saveindex * 100. / self.camera.hamamatsu.number_image_buffers
-
-
-
 
     def updateIndex(self, last_frame_index):
         """
