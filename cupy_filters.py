@@ -74,7 +74,7 @@ def _correlate_or_convolve(input, weights, output, mode, cval, origin,
     return _call_kernel(kernel, input, weights, output)
 
 
-@cupy.util.memoize()
+@cupy.memoize()
 def _get_correlate_kernel(mode, wshape, int_type, origins, cval):
     return _get_nd_kernel('correlate',
                           'W sum = (W)0;',
@@ -688,7 +688,7 @@ def _max_or_min_1d(input, size, axis=-1, output=None, mode="reflect", cval=0.0,
     return _call_kernel(kernel, input, None, output, bool)
 
 
-@cupy.util.memoize()
+@cupy.memoize()
 def _get_min_or_max_kernel(mode, wshape, func, origins, cval, int_type, has_weights=True):
     return _get_nd_kernel(
         func, 'X value = x[i];',
@@ -863,7 +863,7 @@ __device__ void sort(X *array, int size) {
 }'''
 
 
-@cupy.util.memoize()
+@cupy.memoize()
 def _get_shell_gap(filter_size):
     gap = 1
     while gap < filter_size:
@@ -871,7 +871,7 @@ def _get_shell_gap(filter_size):
     return gap
 
 
-@cupy.util.memoize()
+@cupy.memoize()
 def _get_rank_kernel(filter_size, rank, mode, wshape, origins, cval, int_type):
     # Below 225 (15x15 median filter) selection sort is 1.5-2.5x faster
     # Above, shell sort does progressively better (by 3025 (55x55) it is 9x)
@@ -934,7 +934,7 @@ def generic_filter(input, function, size=None, footprint=None,
     return _call_kernel(kernel, input, footprint, output)
 
 
-@cupy.util.memoize()
+@cupy.memoize()
 def _get_generic_filter(kernel, filter_size, mode, wshape, origins, cval,
                         int_type):
     return _get_nd_kernel(
