@@ -8,3 +8,5 @@
 /.idea/.gitignore
 /TestCode/
 /log/
+/data/standardData.tif
+/data/stackData.tif
