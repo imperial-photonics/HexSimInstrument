@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 from scipy.ndimage import gaussian_filter
-from cupy_filters import gaussian_filter as gaussian_filter_cupy
+
 from numpy import exp, pi, cos, sqrt, arccos
 from pyczt import pyczt
 import multiprocessing
@@ -31,12 +31,15 @@ try:
     import cupy as cp
     import cupyx
     import cupyx.scipy.ndimage
+    from cupy_filters import gaussian_filter as gaussian_filter_cupy
     mempool = cp.get_default_memory_pool()
     pinned_mempool = cp.get_default_pinned_memory_pool()
     cupy = True
+
 except:
     cupy = False
 
+# print("CUPY:",cupy)
 
 class hexSimProcessor:
     N = 256  # points to use in fft
@@ -55,7 +58,8 @@ class hexSimProcessor:
     debug = True
     axial = False
     usemodulation = True
-
+    gpuenable = True    # enable CUDA acceleration
+    compact = True # use compact mode
     def __init__(self):
         self._lastN = 0
 
@@ -93,9 +97,9 @@ class hexSimProcessor:
                                            dtype=np.single)  # for prefilter stage, includes otf and zero order supression
             self._postfilter_ocv = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
             self._carray_ocv = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
-            self._carray_ocvU = cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC2)
+            self._carray_ocvU = cv2.UMat((int(2 * self.N), int(2 * self.N)), s=0.0, type=cv2.CV_32FC2)
             self._bigimgstoreU = cv2.UMat(self._bigimgstore)
-            self._imgstoreU = [cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC2) for i in range(7)]
+            self._imgstoreU = [cv2.UMat((int(2 * self.N), int(2 * self.N)), s=0.0, type=cv2.CV_32FC2) for i in range(7)]
         self._lastN = self.N
 
     def calibrate(self, img):
@@ -223,6 +227,7 @@ class hexSimProcessor:
             self._postfilter_cp = cp.asarray(self._postfilter)
  
     def calibrate_fast(self, img):
+
         if self.N != self._lastN:
             self._allocate_arrays()
 
@@ -353,11 +358,13 @@ class hexSimProcessor:
         return self._bigimgstore
 
     def reconstruct_rfftw(self, img):
+        self._imgstore = img
         imf = fft.rfft2(img) * self._prefilter[:, 0:self.N // 2 + 1]
         self._carray1[:, 0:self.N // 2, 0:self.N // 2 + 1] = imf[:, 0:self.N // 2, 0:self.N // 2 + 1]
         self._carray1[:, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[:, self.N // 2:self.N, 0:self.N // 2 + 1]
         img2 = np.sum(fft.irfft2(self._carray1) * self._reconfactor, 0)
-        return fft.irfft2(fft.rfft2(img2) * self._postfilter[:, 0:self.N + 1])
+        self._bigimgstore = fft.irfft2(fft.rfft2(img2) * self._postfilter[:, 0:self.N + 1])
+        return self._bigimgstore
 
     def reconstruct_ocv(self, img):
         assert opencv, "No opencv present"
@@ -369,6 +376,7 @@ class hexSimProcessor:
             self._carray_ocv[3 * self.N // 2:2 * self.N, 0:self.N] = imf[self.N // 2:self.N, 0:self.N]
             img2 = cv2.add(img2, cv2.multiply(cv2.idft(self._carray_ocv, flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT),
                                               self._reconfactor[i, :, :]))
+
         return cv2.idft(cv2.mulSpectrums(cv2.dft(img2), self._postfilter_ocv, 0),
                         flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT)
 
@@ -405,8 +413,11 @@ class hexSimProcessor:
         self._carray_cp[:, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[:, self.N // 2:self.N,
                                                                             0:self.N // 2 + 1]
         img2 = cp.sum(cp.fft.irfft2(self._carray_cp) * cp.asarray(self._reconfactor), 0)
-        return cp.fft.irfft2(cp.fft.rfft2(img2) * cp.asarray(self._postfilter[:, 0:self.N + 1]))
+        self._bigimgstore_cp = cp.fft.irfft2(cp.fft.rfft2(img2) * cp.asarray(self._postfilter[:, 0:self.N + 1]))
 
+        return self._bigimgstore_cp
+
+# streaming reconstruction functions
     def reconstructframe_fftw(self, img, i):
         diff = img - self._imgstore[i, :, :]
         imf = fft.fft2(diff) * self._prefilter
@@ -469,16 +480,19 @@ class hexSimProcessor:
 
     def reconstructframe_cupy(self, img, i):
         assert cupy, "No CuPy present"
-        self._imgstore[i, :, :] = img
         diff = cp.asarray(img) - cp.asarray(self._imgstore[i, :, :])
         imf = cp.fft.rfft2(diff) * cp.asarray(self._prefilter[:, 0:self.N // 2 + 1])
         self._carray_cp[0, 0:self.N // 2, 0:self.N // 2 + 1] = imf[0:self.N // 2, 0:self.N // 2 + 1]
         self._carray_cp[0, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[self.N // 2:self.N, 0:self.N // 2 + 1]
         img2 = cp.fft.irfft2(self._carray_cp[0, :, :]) * cp.asarray(self._reconfactor[i, :, :])
+        temp = cp.fft.irfft2(cp.fft.rfft2(img2) * cp.asarray(self._postfilter[:, 0:self.N + 1]))
+        self._imgstore[i, :, :] = img
         self._bigimgstore_cp = self._bigimgstore_cp + cp.fft.irfft2(
             cp.fft.rfft2(img2) * cp.asarray(self._postfilter[:, 0:self.N + 1]))
+
         return self._bigimgstore_cp
 
+# batch reconstruction functions
     def batchreconstruct(self, img):
         nim = img.shape[0]
         r = np.mod(nim, 14)
@@ -658,6 +672,7 @@ class hexSimProcessor:
         return kx, ky, phase, ampl
 
     def _findCarrier_cupy(self, band0, band1, mask):
+        assert cupy, "No CuPy present"
         band0 = cp.asarray(band0)
         band1 = cp.asarray(band1)
         mask = cp.asarray(mask)
@@ -717,6 +732,7 @@ class hexSimProcessor:
         return res, kxarr, kyarr
     
     def _zoomf_cupy(self, in_arr, M, kx, ky, mag, kmax):
+        assert cupy, "No CuPy present"
         resy = self._pyczt_cupy(in_arr, M, cp.exp(-1j * 2 * pi / (mag * M)), cp.exp(-1j * pi * (1 / mag - 2 * ky / kmax)))
         res = self._pyczt_cupy(resy.T, M, cp.exp(-1j * 2 * pi / (mag * M)), cp.exp(-1j * pi * (1 / mag - 2 * kx / kmax))).T
         kyarr = -kmax * (1 / mag - 2 * ky / kmax) / 2 + (kmax / (mag * (M))) * cp.arange(0, M)
@@ -754,6 +770,7 @@ class hexSimProcessor:
         return otff.reshape(kr.shape)
     
     def _pyczt_cupy(self, x, k=None, w=None, a=None):
+        assert cupy, "No CuPy present"
         olddim = x.ndim
     
         if olddim == 1:

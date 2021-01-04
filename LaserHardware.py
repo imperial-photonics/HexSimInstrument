@@ -8,7 +8,7 @@ Time:   Oct 2020
 
 from ScopeFoundry import HardwareComponent
 from LaserDevice import OxxiusController
-from threading import Thread,currentThread
+from threading import Thread, currentThread
 
 
 class Laser488HW(HardwareComponent):
@@ -34,9 +34,9 @@ class Laser488HW(HardwareComponent):
         self.current = self.add_logged_quantity('Current', dtype=str, ro=0, initial=0, unit='mA')
 
         self.analog_modulation = self.add_logged_quantity('Analog Modulation', dtype=bool, si=False, ro=0,
-                                                          initial=False,reread_from_hardware_after_write=True)
+                                                          initial=False, reread_from_hardware_after_write=True)
         self.digital_modulation = self.add_logged_quantity('Digital Modulation', dtype=bool, si=False, ro=0,
-                                                           initial=False,reread_from_hardware_after_write=True)
+                                                           initial=False, reread_from_hardware_after_write=True)
         # Temperature check
         self.interlock_state = self.add_logged_quantity('Interlock state', dtype=bool, si=False, ro=1)
         self.diode_temperature = self.add_logged_quantity('Diode temperature ' + chr(176) + 'C', dtype=str, si=False,
@@ -122,6 +122,7 @@ class Laser561HW(HardwareComponent):
         self.interlock_state = self.add_logged_quantity('Interlock state', dtype=bool, si=False, ro=1)
         self.base_temperature = self.add_logged_quantity('Base temperature ' + chr(176) + 'C', dtype=str, si=False,
                                                          ro=1)
+
     def connect(self):
         self.laser561 = OxxiusController()
         # Open connection to the laser

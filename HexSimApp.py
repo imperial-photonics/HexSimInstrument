@@ -10,6 +10,7 @@ Address:Imperial College London
 """
 from ScopeFoundry import BaseMicroscopeApp
 
+
 class HexSimApp(BaseMicroscopeApp):
     # this is the name of the microscope that ScopeFoundry uses
     # when storing data
@@ -25,12 +26,13 @@ class HexSimApp(BaseMicroscopeApp):
 
         # self.settings.save_dir.update_value(QtWidgets.QFileDialog.getExistingDirectory(directory = "D:\\Data\\temp"))
         self.settings['save_dir'] = "D:\\Data\\Test"  # PUT ALWAYS TWO SLASHES!!!!
-        self.settings.save_dir.hardware_set_func = self.setDirFunc  # calls set dir func when the save_dir widget is changed
+        # calls set dir func when the save_dir widget is changed
+        self.settings.save_dir.hardware_set_func = self.setDirFunc
 
     def setup(self):
         print("Adding Hardware Components")
         from CameraHardware import HamamatsuHardware
-        from LaserHardware import Laser488HW,Laser561HW
+        from LaserHardware import Laser488HW, Laser561HW
         from ScreenHardware import ScreenHW
         from NanoScanHardware import NanoScanHW
 
