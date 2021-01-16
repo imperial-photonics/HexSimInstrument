@@ -43,10 +43,10 @@ class HexSimApp(BaseMicroscopeApp):
         self.add_hardware(NanoScanHW(self))
 
         print("Adding measurement components")
-        from CameraMeasurement import HamamatsuMeasurement
-        from HexSimMeasurement import HexSimMeasurement
+        # from CameraMeasurement import HamamatsuMeasurement
+        from HexSimMeasurement2 import HexSimMeasurement
 
-        self.add_measurement(HamamatsuMeasurement(self))
+        # self.add_measurement(HamamatsuMeasurement(self))
         self.add_measurement(HexSimMeasurement(self))
 
         # show ui

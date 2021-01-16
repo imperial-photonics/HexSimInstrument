@@ -103,6 +103,10 @@ class NanoScanHW(HardwareComponent):
         if hasattr(self, 'nanoscanz'):
             return str(self.nanoscanz.getPositionRel())+' um'
 
+    def getPositionABS(self):
+        if hasattr(self, 'nanoscanz'):
+            return float(self.nanoscanz.getPositionAbs())
+
     def setPostionZeroHW(self):
         if hasattr(self, 'nanoscanz'):
             self.nanoscanz.setPosition(0)

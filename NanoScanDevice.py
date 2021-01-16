@@ -115,8 +115,11 @@ class NanoScan(object):
     def getPositionRel(self):
         """Report current relative position: unit 'micrometer'
         """
-        self._position_rel = float(self.getCmd('PZ'))
-        return self._position_rel
+        try:
+            self._position_rel = float(self.getCmd('PZ'))
+            return self._position_rel
+        except:
+            return 0.0
 
     def getPositionAbs(self):
         """Report current absolute position: unit 'micrometer'

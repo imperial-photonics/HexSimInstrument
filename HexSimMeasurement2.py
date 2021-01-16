@@ -1,7 +1,8 @@
 import os
 import time
 from datetime import datetime
-from threading import Thread
+from threading import Thread, currentThread, Event
+from multiprocessing import Process
 
 import numpy as np
 import pyqtgraph as pg
@@ -12,13 +13,7 @@ from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 from hexSimProcessor import *
 
 from PyQt5.QtWidgets import QFileDialog
-import ctypes.util
-from PyQt5.QtGui import QImage
-import cupy as cp
-
-# libname = "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2/bin\cudart64_102.dll"
-# libcudart = ctypes.windll.LoadLibrary(libname)
-# cudaDeviceReset = libcudart.cudaDeviceReset
+from PyQt5.QtCore import QTimer
 
 class HexSimMeasurement(Measurement):
     name = 'hexsim_measurement'
@@ -28,9 +23,6 @@ class HexSimMeasurement(Measurement):
         # load ui file
         self.ui_filename = sibling_path(__file__, "hexsim_measurement.ui")
         self.ui = load_qt_ui_file(self.ui_filename)
-
-        # create reconstructor
-        self.h = hexSimProcessor()
 
         # camera settings
         self.settings.New('record', dtype=bool, initial=False, hardware_set_func=self.setRecord,
@@ -60,6 +52,12 @@ class HexSimMeasurement(Measurement):
         self.isStreamRun = False
         self.isUpdateImageViewer = False
         self.isCameraRun = False
+        self.isStandardProcessing = False
+        self.isBatchProcessing = False
+        self.standardProcessEvent = Event()
+        self.standardProcessEvent.clear()
+        self.batchProcessEvent = Event()
+        self.batchProcessEvent.clear()
 
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
@@ -68,7 +66,6 @@ class HexSimMeasurement(Measurement):
         self.imv = pg.ImageView()
         self.imvRaw = pg.ImageView()
         self.imvSIM = pg.ImageView()
-        # self.imvStream =
 
         self.ui.imgStreamLayout.addWidget(self.imv)
         self.ui.rawImageLayout.addWidget(self.imvRaw)
@@ -92,17 +89,38 @@ class HexSimMeasurement(Measurement):
         self.ui.nextPatternButton.clicked.connect(self.screen.nextPattern)
 
         # Stage
-
         self.ui.stagePositionIncrease.clicked.connect(self.stage.moveUpHW)
         self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
 
         # Measure
         self.ui.captureStandardButton.clicked.connect(self.standardAcquisition)
-        self.ui.startStreamingButton.clicked.connect(self.streamAcquisition)
-        # self.ui.stopStreamingButton.cliicked.connect()
 
-        self.ui.captureBatchButton.clicked.connect(self.batchAcquisiton)
+        self.ui.startStreamingButton.clicked.connect(self.streamAcquisitionTimer)
+        self.ui.stopStreamingButton.clicked.connect(self.streamAcquisitionTimerStop)
 
+        self.ui.captureBatchButton.clicked.connect(self.batchAcquisition)
+
+        # region Reconstructor settings
+        self.ui.debugCheck.stateChanged.connect(self.setReconstructor)
+        self.ui.cleanupCheck.stateChanged.connect(self.setReconstructor)
+        self.ui.gpuCheck.stateChanged.connect(self.setReconstructor)
+        self.ui.axialCheck.stateChanged.connect(self.setReconstructor)
+        self.ui.usemodulationCheck.stateChanged.connect(self.setReconstructor)
+        self.ui.compactCheck.stateChanged.connect(self.setReconstructor)
+
+        self.ui.magnificationValue.valueChanged.connect(self.setReconstructor)
+        self.ui.naValue.valueChanged.connect(self.setReconstructor)
+        self.ui.nValue.valueChanged.connect(self.setReconstructor)
+        self.ui.wavelengthValue.valueChanged.connect(self.setReconstructor)
+        self.ui.pixelsizeValue.valueChanged.connect(self.setReconstructor)
+
+        self.ui.alphaValue.valueChanged.connect(self.setReconstructor)
+        self.ui.betaValue.valueChanged.connect(self.setReconstructor)
+        self.ui.wValue.valueChanged.connect(self.setReconstructor)
+        self.ui.etaValue.valueChanged.connect(self.setReconstructor)
+        # endregion
+
+        # Display
         self.ui.rawImageSlider.valueChanged.connect(self.rawImageSliderChanged)
         self.ui.simImageSlider.valueChanged.connect(self.simImageSliderChanged)
 
@@ -156,12 +174,27 @@ class HexSimMeasurement(Measurement):
         self.image = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
         self.image[0, 0] = 1  # Otherwise we get the "all zero pixels" error (we should modify pyqtgraph...)
 
+        if not hasattr(self,'h'):
+            # create reconstructor
+            self.h = hexSimProcessor()
+            # Initialize the raw image array
+            self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+            self.setReconstructor()
+            self.h.N = self.eff_subarrayh
+
+        if not hasattr(self,'standardProcessThread'):
+            self.standardProcessThread = Thread(target=self.standardProcessor)
+            self.standardProcessThread.start()
+
+        if not hasattr(self,'batchProcessThread'):
+            self.batchProcessThread = Thread(target=self.batchProcessor)
+            self.batchProcessThread.start()
+
         while not self.interrupt_measurement_called:
             if self.isCameraRun:
                 self.cameraRunTest()
-                # print('still running')
 
-############ Control ########################
+################   Control  ################
     def camButtonPressed(self):
         if self.ui.camButton.text() == 'ON':
             # self.start()
@@ -185,7 +218,7 @@ class HexSimMeasurement(Measurement):
             self.ui.slmButton.setText('ON')
             print('ON')
 
-############## Display ########################
+    # region Display Functions
     def rawImageSliderChanged(self):
         self.ui.rawImageSlider.setMinimum(0)
         self.ui.rawImageSlider.setMaximum(self.imageRaw.shape[0] - 1)
@@ -207,19 +240,20 @@ class HexSimMeasurement(Measurement):
     def updateImageViewer(self):
         self.rawImageSliderChanged()
         self.simImageSliderChanged()
+    # endregion
 
-############## HexSIM #############################
+################    HexSIM  ################
     # Standard reconstruction
     def standardAcquisition(self):
         self.standardMeasureThread = Thread(target=self.standardMeasure)
         self.standardMeasureThread.start()
-        # self.standardMeasureThread.join()
 
     def standardMeasure(self):
         # Stop the camera
         self.cameraInterrupt()
-        self.interrupt()
 
+        # print(self.camera.hamamatsu.isCapturing())
+        self.interrupt()
         # Initialize the raw image array
         self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
 
@@ -227,74 +261,143 @@ class HexSimMeasurement(Measurement):
         for i in range(7):
             self.screen.slm_dev.displayFrameN(i)
             time.sleep(self.getAcquisitionInterval()/1000.0)
+            start_time = time.time()
             self.imageRaw[i, :, :] = self.getOneFrame()
+            print('Time of acquisition:',time.time()-start_time)
             print('Capture frame:', i)
 
-        # Reconstruct the SIM image
-        self.standardReconstruction()
+        self.screen.slm_dev.displayFrameN(0)
         # Recover camera streaming
         self.camera.updateCameraSettings()
         # Restart camera
         self.cameraStart()
         self.start()
+        # Reconstruct the SIM image
+        # self.standardReconstruction()
+        self.standardProcessEvent.set()
 
+    def standardProcessor(self):
+        cThread = currentThread()
+        while getattr(cThread,"isThreadRun",True):
+            self.standardProcessEvent.wait()
+            print('Start standard processing...')
+            startTime = time.time()
+            if self.h.gpuenable:
+                self.h.calibrate_fast(self.imageRaw)
+                self.imageSIM = self.h.reconstruct_cupy(self.imageRaw).get()
 
-    # Streaming reconstruction
+            elif not self.h.gpuenable:
+                self.h.calibrate(self.imageRaw)
+                self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+
+            self.imageSIM = self.imageSIM[np.newaxis, :, :]
+            self.isUpdateImageViewer = True
+            # self.isStandardProcessing = False
+            print('One SIM image is processed in:', time.time()-startTime,'s')
+            self.standardProcessEvent.clear()
+
+    def batchProcessor(self):
+        cThread = currentThread()
+        while getattr(cThread,"isThreadRun",True):
+            self.batchProcessEvent.wait()
+            print('Start batch processing...')
+            startTime = time.time()
+            nStack = len(self.imageRaw)
+            # calibrate & reconstruction
+            if self.h.gpuenable:
+                self.h.calibrate_fast(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :])
+                if self.h.compact:
+                    self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw).get()
+                elif not self.h.compact:
+                    self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw).get()
+
+            elif not self.h.gpuenable:
+                self.h.calibrate(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :])
+                if self.h.compact:
+                    self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+                elif not self.h.compact:
+                    self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+
+            ## update display
+            self.isUpdateImageViewer = True
+            # self.isBatchProcessing = False
+            print('Batch reconstruction finished', time.time()-startTime,'s')
+            self.batchProcessEvent.clear()
+
+    # region Streaming reconstruction
     def streamAcquisition(self):
         self.streamMeasureThread = Thread(target=self.streamMeasure)
         self.streamMeasureThread.start()
 
-    def streamMeasure(self):
+    def streamAcquisitionTimer(self):
         # Initialization
         self.isStreamRun = True
         self.streamIndex = 0
         self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-
-        # Calibration
+        # Calibration should be done by standard measurement first.
         self.cameraInterrupt()
         self.interrupt()
+        self.streamTimer = QTimer(self)
+        self.streamTimer.timeout.connect(self.streamMeasureTimer)
+        self.streamTimer.start(self.getAcquisitionInterval())
 
-        # Project the patterns and acquire raw images
-        for i in range(7):
-            self.screen.slm_dev.displayFrameN(i)
-            time.sleep(self.getAcquisitionInterval()/1000.0)
-            self.imageRaw[i, :, :] = self.getOneFrame()
-            print('Capture frame:', i)
-            self.streamIndex +=1
-
-        # Reconstruct the SIM image
-        self.standardReconstruction()
-
-        while self.isStreamRun:
-            self.streamIndex +=1
-            self.screen.slm_dev.displayFrameN(self.streamIndex % 7)
-            time.sleep(self.getAcquisitionInterval() / 1000.0)
-            newFrame = self.getOneFrame()
-            self.streamReconstruction(newFrame[0,:,:], self.streamIndex % 7)
-            self.updateImageViewer()
-            print(self.streamIndex)
-
+    def streamAcquisitionTimerStop(self):
+        self.streamTimer.stop()
+        self.isStreamRun = True
         # Recover camera streaming
         self.camera.updateCameraSettings()
         self.cameraStart()
         self.start()
-        # create reconstruction object
-        # calibration from the first 7 images
-        # self.streamIndex = 0
 
-        # for i in range(7):
-        #     self.imageRaw[i,:,:] = self.imageRawStack[i, :, :]
-        #     self.streamIndex +=1
-        #     time.sleep(0.5)
-        #     print(self.streamIndex)
-        #
-        # self.standardReconstruction()
-        # self.updateImageViewer()
-        #
-        # self.streamSimuThread = Thread(target=self.streamReconstructionLoop)
-        # self.streamSimuThread.start()
 
-    def batchAcquisiton(self):
+    # def streamMeasure(self):
+    #     # Initialization
+    #     self.isStreamRun = True
+    #     self.streamIndex = 0
+    #     self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+    #
+    #     # Calibration
+    #     self.cameraInterrupt()
+    #     self.interrupt()
+    #
+    #     # Project the patterns and acquire raw images
+    #     for i in range(7):
+    #         self.screen.slm_dev.displayFrameN(i)
+    #         time.sleep(self.getAcquisitionInterval()/1000.0)
+    #         self.imageRaw[i, :, :] = self.getOneFrame()
+    #         print('Capture frame:', i)
+    #         self.streamIndex +=1
+    #
+    #     # Reconstruct the SIM image
+    #     self.standardReconstruction()
+    #
+    #     while self.isStreamRun:
+    #         self.streamIndex +=1
+    #         self.screen.slm_dev.displayFrameN(self.streamIndex % 7)
+    #         time.sleep(self.getAcquisitionInterval() / 1000.0)
+    #         newFrame = self.getOneFrame()
+    #         self.streamReconstruction(newFrame[0,:,:], self.streamIndex % 7)
+    #         self.updateImageViewer()
+    #         print(self.streamIndex)
+    #
+    #     # Recover camera streaming
+    #     self.camera.updateCameraSettings()
+    #     self.cameraStart()
+    #     self.start()
+
+    def streamMeasureTimer(self):
+        print(self.streamIndex)
+        self.screen.slm_dev.displayFrameN((self.streamIndex) % 7)
+        newFrame = self.getOneFrame()
+        self.imageRaw[(self.streamIndex % 7),:,:] = newFrame
+        self.streamReconstruction(newFrame[0,:,:], (self.streamIndex % 7))
+        self.updateImageViewer()
+        self.streamIndex +=1
+
+    # endregion
+
+    # region Batch reconstruction
+    def batchAcquisition(self):
         self.batchMeasureThread = Thread(target=self.batchMeasure)
         self.batchMeasureThread.start()
         # self.batchMeasureThread.join()
@@ -308,22 +411,22 @@ class HexSimMeasurement(Measurement):
         n_stack = self.ui.nStack.value()
         self.imageRaw = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
 
-
         # Project the patterns and acquire raw images
         for i in range(n_stack):
             self.screen.slm_dev.displayFrameN(i % 7)
-            time.sleep(self.getAcquisitionInterval()/1000.0)
+            time.sleep(self.getAcquisitionInterval() / 1000.0)
             self.imageRaw[i, :, :] = self.getOneFrame()
             print('Capture frame:', i)
 
-
         # Reconstruct the SIM image
-        self.batchReconstruction()
+        self.batchProcessEvent.set()
+        # self.batchReconstruction()
         # Recover camera streaming
         self.camera.updateCameraSettings()
         # Restart camera
         self.cameraStart()
         self.start()
+    # endregion
 
 ############## Test #################################
     def standardSimuButtonPressed(self):
@@ -334,28 +437,24 @@ class HexSimMeasurement(Measurement):
         self.standardReconstructionUpdate()
 
     def standardReconstructionUpdate(self):
+        self.standardProcessEvent.set()
+        # self.isStandardProcessing = True
         # self.standardReconstruction()
-        try:
-            self.standardSimuThread.join()
-            self.standardSimuThread = Thread(target=self.standardReconstruction)
-            self.standardSimuThread.start()
-        except:
-            self.standardSimuThread = Thread(target=self.standardReconstruction)
-            self.standardSimuThread.start()
+        # try:
+        #     self.standardSimuThread.join()
+        #     self.standardSimuThread = Thread(target=self.standardReconstruction)
+        #     self.standardSimuThread.start()
+        # except:
+        #     self.standardSimuThread = Thread(target=self.standardReconstruction)
+        #     self.standardSimuThread.start()
 
         # self.standardSimuThread.join()
 
     def standardReconstruction(self):
-        # cudaDeviceReset(0)
-        # create reconstruction object
-        self.setReconstructor(self.imageRaw)
-
         # calibrate & reconstruction
         if self.h.gpuenable:
             self.h.calibrate_fast(self.imageRaw)
             self.imageSIM = self.h.reconstruct_cupy(self.imageRaw).get()
-            # cp._default_memory_pool.free_all_blocks()
-
 
         elif not self.h.gpuenable:
             self.h.calibrate(self.imageRaw)
@@ -399,9 +498,9 @@ class HexSimMeasurement(Measurement):
 
     def streamReconstruction(self,newFrame,index):
         if self.h.gpuenable:
-            self.imageSIM = (self.h.reconstructframe_cupy(newFrame,index)).get()
+            self.imageSIM = (self.h.reconstructframe_cupy(newFrame, index)).get()
         elif not self.h.gpuenable:
-            print(newFrame.shape)
+            # print(newFrame.shape)
             self.imageSIM = self.h.reconstructframe_rfftw(newFrame, index)
 
         self.imageSIM = self.imageSIM[np.newaxis, :, :]
@@ -410,22 +509,29 @@ class HexSimMeasurement(Measurement):
         self.isStreamRun = False
 
     def batchSimuButtonPressed(self):
-        # read data
         # filename = "./data/stackData.tif"
         filename, _ = QFileDialog.getOpenFileName(directory="./data")
         self.imageRaw = np.single(tif.imread(filename))
+        # Nsize = 256
+        # self.imageRaw = np.single(self.imageRaw[:, 256 - Nsize // 2: 256 + Nsize // 2, 256 - Nsize // 2: 256 + Nsize // 2])
+        # self.h.N = 256
+        # self.h._allocate_arrays()
         self.batchReconstructionUpdate()
+        # print('start batch processing')
+        # print(self.imageRaw.shape)
 
     def batchReconstructionUpdate(self):
-        self.batchSimuThread = Thread(target=self.batchReconstruction)
-        self.batchSimuThread.start()
-        self.batchSimuThread.join()
+        self.batchProcessEvent.set()
+        # self.isBatchProcessing = True
+        # self.batchSimuThread = Thread(target=self.batchReconstruction)
+        # self.batchSimuThread.start()
+        # self.batchSimuThread.join()
         # self.updateImageViewer()
         # print('One SIM stack is processed.')
 
     def batchReconstruction(self):
         # create reconstruction object
-        self.setReconstructor(self.imageRaw)
+        self.setReconstructor()
         nStack = len(self.imageRaw)
 
         # calibrate & reconstruction
@@ -466,42 +572,9 @@ class HexSimMeasurement(Measurement):
     def snapshotSeqButtonPressed(self):
         self.standardSnapshotsThread = Thread(target=self.standardSnapshots)
         self.standardSnapshotsThread.start()
-        # self.standardAcquistion()
-        # self.cameraInterrupt()
-        # self.interrupt()
-        # self.standardAcquistion()
-        # print('camera stopped')
-        # self.camera.updateCameraSettings()
-        # time.sleep(2)
-        # self.start()
-        # self.cameraStart()
-        # self.isUpdateImageViewer = True
 
     ############ Methods ############
-    def setReconstructor(self,imgStack):
-
-        self.h.debug = self.ui.debugCheck.isChecked()
-        self.h.cleanup = self.ui.cleanupCheck.isChecked()
-        self.h.gpuenable = self.ui.gpuCheck.isChecked()
-        self.h.axial = self.ui.axialCheck.isChecked()
-        self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
-        self.h.compact = self.ui.compactCheck.isChecked()
-
-        self.h.N = len(imgStack[0,:,:])
-        self.h.magnification =self.ui.magnificationValue.value()
-        self.h.NA = self.ui.naValue.value()
-        self.h.n = self.ui.nValue.value()
-        self.h.wavelength = self.ui.wavelengthValue.value()
-        self.h.pixelsize = self.ui.pixelsizeValue.value()
-
-        self.h.alpha = self.ui.alphaValue.value()
-        self.h.beta = self.ui.betaValue.value()
-        self.h.w = self.ui.wValue.value()
-        self.h.eta = self.ui.etaValue.value()
-
     ## Acqusition
-
-
     def standardSnapshots(self):
         # Stop the camera
         self.cameraInterrupt()
@@ -537,7 +610,47 @@ class HexSimMeasurement(Measurement):
 
         return self.last_image[np.newaxis, :, :]
 
-    # Settings
+    # <editor-fold desc="Settings">
+    def setReconstructor(self):
+        self.h.debug = self.ui.debugCheck.isChecked()
+        self.h.cleanup = self.ui.cleanupCheck.isChecked()
+        self.h.gpuenable = self.ui.gpuCheck.isChecked()
+        self.h.axial = self.ui.axialCheck.isChecked()
+        self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
+        self.h.compact = self.ui.compactCheck.isChecked()
+
+        # self.h.N = len(imgStack[0,:,:])
+        self.h.magnification =self.ui.magnificationValue.value()
+        self.h.NA = self.ui.naValue.value()
+        self.h.n = self.ui.nValue.value()
+        self.h.wavelength = self.ui.wavelengthValue.value()
+        self.h.pixelsize = self.ui.pixelsizeValue.value()
+
+        self.h.alpha = self.ui.alphaValue.value()
+        self.h.beta = self.ui.betaValue.value()
+        self.h.w = self.ui.wValue.value()
+        self.h.eta = self.ui.etaValue.value()
+
+    def setMagnification(self):
+        self.h.magnification =self.ui.magnificationValue.value()
+    def setDebug(self):
+        self.h.debug = self.ui.debugCheck.isChecked()
+
+    def setCleanup(self):
+        self.h.cleanup = self.ui.cleanupCheck.isChecked()
+
+    def setGpuEnable(self):
+        self.h.gpuenable = self.ui.gpuCheck.isChecked()
+
+    def setAxial(self):
+        self.h.axial = self.ui.axialCheck.isChecked()
+
+    def setUseModulation(self):
+        self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
+
+    def setCompact(self):
+        self.h.compact = self.ui.compactCheck.isChecked()
+
     def getAcquisitionInterval(self):
         return float(self.ui.intervalTime.value())
 
@@ -580,6 +693,9 @@ class HexSimMeasurement(Measurement):
         if self.settings['save_h5']:
             self.settings.record = False
         return self.settings.record
+
+    # </editor-fold>
+
 
     def initH5(self):
         """
@@ -708,114 +824,6 @@ class HexSimMeasurement(Measurement):
 
         return last_frame_index
 
-    def cameraRun(self):
-        try:
-            self.camera.read_from_hardware()
-            self.camera.hamamatsu.startAcquisition()
-
-            index = 0
-
-            if self.camera.acquisition_mode.val == "fixed_length":
-
-                if self.settings['save_h5']:
-                    self.initH5()
-                    print("\n \n ******* \n \n Saving :D !\n \n *******")
-
-                while index < self.camera.hamamatsu.number_image_buffers:
-
-                    # Get frames.
-                    # The camera stops acquiring once the buffer is terminated (in snapshot mode)
-                    [frames, dims] = self.camera.hamamatsu.getFrames()
-
-                    # Save frames.
-                    for aframe in frames:
-
-                        self.np_data = aframe.getData()
-                        self.image = np.reshape(self.np_data, (self.eff_subarrayv, self.eff_subarrayh))
-                        if self.settings['save_h5']:
-                            self.image_h5[index, :, :] = self.image  # saving to the h5 dataset
-                            self.h5file.flush()  # maybe is not necessary
-
-                        if self.interrupt_measurement_called:
-                            break
-                        index += 1
-                        print(index)
-
-                    if self.interrupt_measurement_called:
-                        break
-                        # index = index + len(frames)
-                    # np_data.tofile(bin_fp)
-                    self.settings['progress'] = index * 100. / self.camera.hamamatsu.number_image_buffers
-
-            elif self.camera.acquisition_mode.val == "run_till_abort":
-
-                save = True
-
-                while not self.interrupt_measurement_called:
-                    # print('runing loop')
-                    [frame, dims] = self.camera.hamamatsu.getLastFrame()
-                    self.np_data = frame.getData()
-                    self.image = np.reshape(self.np_data, (self.eff_subarrayv, self.eff_subarrayh))
-
-                    if self.settings['record']:
-                        self.camera.hamamatsu.stopAcquisition()
-                        self.camera.hamamatsu.startRecording()
-                        self.camera.hamamatsu.stopRecording()
-                        self.interrupt()
-
-                    if self.settings['save_h5']:
-
-                        if save:
-                            self.initH5()
-                            save = False  # at next cycle, we don't do initH5 again (we have already created the file)
-
-                        mean_value = np.mean(self.np_data)
-                        last_frame_index = self.camera.hamamatsu.buffer_index
-                        # print(self.camera.hamamatsu.last_frame_number)
-                        if self.debug:
-                            print("The mean is: ", mean_value)
-
-                        if mean_value > self.settings['threshold']:
-
-                            print("\n \n ******* \n \n Saving :D !\n \n *******")
-                            j = 0
-                            # starting_index=last_frame_index
-                            stalking_number = 0
-                            remaining = False
-                            while j < self.camera.number_frames.val:
-
-                                self.get_and_save_Frame(j, last_frame_index)
-                                last_frame_index = self.updateIndex(last_frame_index)
-
-                                if self.debug:
-                                    print("The last_frame_index is: ", last_frame_index)
-
-                                j += 1
-
-                                if not remaining:
-                                    upgraded_last_frame_index = self.camera.hamamatsu.getTransferInfo()[
-                                        0]  # upgrades the transfer information
-                                    # The stalking_number represents the relative steps the camera has made in acquisition with respect to the saving.
-                                    stalking_number = stalking_number + self.camera.hamamatsu.backlog - 1
-
-                                    if self.debug:
-                                        print('upgraded_last_frame_index: ', upgraded_last_frame_index)
-                                        print('stalking_number: ', stalking_number)
-                                        print('The camera is at {} passes from you'.format(
-                                            self.camera.hamamatsu.number_image_buffers - stalking_number))
-
-                                    if stalking_number + self.camera.hamamatsu.backlog > self.camera.hamamatsu.number_image_buffers:
-                                        self.camera.hamamatsu.stopAcquisitionNotReleasing()  # stop acquisition when we know that at next iteration, some images may be rewritten
-                                        remaining = True  # if the buffer reach us, we execute the "while" without the "if not remaining" block.
-
-                            self.interrupt()
-                            self.camera.hamamatsu.stopAcquisition()
-                            if self.debug:
-                                print("The last_frame_number is: ", self.camera.hamamatsu.last_frame_number)
-
-        finally:
-            self.camera.hamamatsu.stopAcquisition()
-
     def cameraRunTest(self):
 
         try:
@@ -937,17 +945,3 @@ class HexSimMeasurement(Measurement):
     def cameraStart(self):
         self.isCameraRun = True
 
-#------------------------------------------------------------------------------------------
-    # def captureStandardButtonPressed(self):
-        # initialize the raw image array
-        # self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-        # self.imageRaw[0, 0, 0] = 1
-        # acqusition
-        # self.standardAcquistion()
-        # self.standardReconstructionUpdate()
-        # display the raw images
-        # self.isUpdateImageViewer = True
-        # self.ui.rawImageSlider.setMinimum(0)
-        # self.ui.rawImageSlider.setMaximum(self.imageRaw.shape[0] - 1)
-        # self.ui.rawImageSlider.setValue(0)
-        # self.imvRaw.setImage((self.imageRaw[0, :, :]).T)
