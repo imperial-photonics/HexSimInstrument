@@ -44,7 +44,7 @@ class NanoScan(object):
         if not self.isPortOpen():
             try:
                 self.ser = serial.Serial(port=self.port, baudrate=9600, bytesize=8,
-                                         parity='N', stopbits=1, timeout=0.05)
+                                         parity='N', stopbits=1, timeout=0.02)
 
                 print("NanoScanZ is connected to:",self.port)
             except:
@@ -62,10 +62,13 @@ class NanoScan(object):
         if self.isPortOpen():
             try:
                 command += '\r'
+                # print('Send:',command)
                 self.ser.write(command.encode('ascii'))
-                self._resp_buffer = self.ser.read_until('\r')
+                # self._resp_buffer = self.ser.read_until('\r')
+                # self._resp_buffer = self.ser.read_until('\n')
+                self._resp_buffer = self.ser.readline()
+                # print('Read after sending:',self._resp_buffer,'Over')
                 # self._resp_buffer = self.ser.readlines()
-                # self._resp_buffer = self.ser.read_until('\r0\r')
             except:
                 print("Error sending message: ", sys.exc_info()[0], command)
             else:
@@ -76,9 +79,11 @@ class NanoScan(object):
     def getCmd(self, command):
         if self.isPortOpen():
             command = '<' + command+'\r'
+            # print('Send command:',command)
             self.sendCmd(command)
             resp = self._resp_buffer.decode('ascii')
             newresp = resp.splitlines()
+            # print('Response:',newresp)
             #newresp = resp.replace('\r','')
             #newresp = resp.replace('\r0\r','')
             return newresp[0].replace('<', '')
@@ -107,16 +112,19 @@ class NanoScan(object):
     def setTravelRange(self,value):
         self.setCmd('PIEZORANGE','{:0.3f}'.format(value))    
         
-    def getInfo(self):
-        """Identification of the device
-        """
-        return str(self.getCmd('SERIAL')) +'\n'+str(self.getCmd('DATE')) # + ' ' + +# str(self.getCmd('PIEZORANGE'))
+    # def getInfo(self):
+    #     """Identification of the device
+    #     """
+    #     return str(self.getCmd('SERIAL')) +'\n'+str(self.getCmd('DATE')) # + ' ' + +# str(self.getCmd('PIEZORANGE'))
 
     def getPositionRel(self):
         """Report current relative position: unit 'micrometer'
         """
         try:
-            self._position_rel = float(self.getCmd('PZ'))
+            temp = self.getCmd('PZ')
+            # print(temp)
+            # self._position_rel = float(self.getCmd('PZ'))
+            self._position_rel = float(temp)
             return self._position_rel
         except:
             return 0.0

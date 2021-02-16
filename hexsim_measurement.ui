@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1000</width>
-    <height>674</height>
+    <width>1339</width>
+    <height>818</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -56,7 +56,7 @@
          </font>
         </property>
         <property name="currentIndex">
-         <number>1</number>
+         <number>0</number>
         </property>
         <widget class="QWidget" name="imgCapturedTab">
          <attribute name="title">
@@ -133,6 +133,67 @@
                 <height>0</height>
                </size>
               </property>
+              <property name="styleSheet">
+               <string notr="true">QSlider::groove:horizontal {
+border: 1px solid #bbb;
+background: white;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal {
+background: qlineargradient(x1: 0, y1: 0,    x2: 0, y2: 1,
+    stop: 0 #66e, stop: 1 #bbf);
+background: qlineargradient(x1: 0, y1: 0.2, x2: 1, y2: 1,
+    stop: 0 #bbf, stop: 1 #55f);
+border: 1px solid #777;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::add-page:horizontal {
+background: #fff;
+border: 1px solid #777;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #eee, stop:1 #ccc);
+border: 1px solid #777;
+width: 35px;
+margin-top: -2px;
+margin-bottom: -2px;
+border-radius: 4px;
+}
+
+QSlider::handle:horizontal:hover {
+background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #fff, stop:1 #ddd);
+border: 1px solid #444;
+border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal:disabled {
+background: #bbb;
+border-color: #999;
+}
+
+QSlider::add-page:horizontal:disabled {
+background: #eee;
+border-color: #999;
+}
+
+QSlider::handle:horizontal:disabled {
+background: #eee;
+border: 1px solid #aaa;
+border-radius: 4px;
+}</string>
+              </property>
+              <property name="maximum">
+               <number>500</number>
+              </property>
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -199,6 +260,67 @@
                 <height>0</height>
                </size>
               </property>
+              <property name="styleSheet">
+               <string notr="true">QSlider::groove:horizontal {
+border: 1px solid #bbb;
+background: white;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal {
+background: qlineargradient(x1: 0, y1: 0,    x2: 0, y2: 1,
+    stop: 0 #66e, stop: 1 #bbf);
+background: qlineargradient(x1: 0, y1: 0.2, x2: 1, y2: 1,
+    stop: 0 #bbf, stop: 1 #55f);
+border: 1px solid #777;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::add-page:horizontal {
+background: #fff;
+border: 1px solid #777;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #eee, stop:1 #ccc);
+border: 1px solid #777;
+width: 35px;
+margin-top: -2px;
+margin-bottom: -2px;
+border-radius: 4px;
+}
+
+QSlider::handle:horizontal:hover {
+background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #fff, stop:1 #ddd);
+border: 1px solid #444;
+border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal:disabled {
+background: #bbb;
+border-color: #999;
+}
+
+QSlider::add-page:horizontal:disabled {
+background: #eee;
+border-color: #999;
+}
+
+QSlider::handle:horizontal:disabled {
+background: #eee;
+border: 1px solid #aaa;
+border-radius: 4px;
+}</string>
+              </property>
+              <property name="maximum">
+               <number>500</number>
+              </property>
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -229,12 +351,12 @@
       <property name="title">
        <string>Test</string>
       </property>
-      <widget class="QPushButton" name="snapshotButton">
+      <widget class="QPushButton" name="resetMeasureButton">
        <property name="geometry">
         <rect>
-         <x>10</x>
-         <y>15</y>
-         <width>80</width>
+         <x>103</x>
+         <y>13</y>
+         <width>85</width>
          <height>20</height>
         </rect>
        </property>
@@ -245,15 +367,15 @@
         </size>
        </property>
        <property name="text">
-        <string>Snapshot</string>
+        <string>Reset</string>
        </property>
       </widget>
-      <widget class="QPushButton" name="snapshotSeqButton">
+      <widget class="QPushButton" name="calibrationResult">
        <property name="geometry">
         <rect>
-         <x>10</x>
-         <y>35</y>
-         <width>80</width>
+         <x>103</x>
+         <y>33</y>
+         <width>85</width>
          <height>20</height>
         </rect>
        </property>
@@ -264,7 +386,7 @@
         </size>
        </property>
        <property name="text">
-        <string>Snapshot Seq.</string>
+        <string>Result</string>
        </property>
       </widget>
       <widget class="QWidget" name="layoutWidget">
@@ -353,6 +475,19 @@
          </layout>
         </item>
        </layout>
+      </widget>
+      <widget class="QPushButton" name="calibrationButton">
+       <property name="geometry">
+        <rect>
+         <x>12</x>
+         <y>15</y>
+         <width>85</width>
+         <height>35</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Calibration</string>
+       </property>
       </widget>
      </widget>
     </item>
@@ -531,7 +666,7 @@
          </widget>
         </item>
         <item row="1" column="0">
-         <widget class="QLCDNumber" name="lcdNumber">
+         <widget class="QLCDNumber" name="stagePositionDisplay">
           <property name="minimumSize">
            <size>
             <width>70</width>
@@ -796,6 +931,9 @@
              <property name="maximum">
               <double>1.500000000000000</double>
              </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
              <property name="value">
               <double>0.300000000000000</double>
              </property>
@@ -826,8 +964,11 @@
              <property name="maximum">
               <double>1.500000000000000</double>
              </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
              <property name="value">
-              <double>0.999000000000000</double>
+              <double>0.950000000000000</double>
              </property>
             </widget>
            </item>
@@ -851,10 +992,13 @@
            <item>
             <widget class="QDoubleSpinBox" name="wValue">
              <property name="maximum">
-              <double>1.500000000000000</double>
+              <double>10.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
              </property>
              <property name="value">
-              <double>0.300000000000000</double>
+              <double>2.000000000000000</double>
              </property>
             </widget>
            </item>
@@ -879,6 +1023,9 @@
             <widget class="QDoubleSpinBox" name="etaValue">
              <property name="maximum">
               <double>1.500000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
              </property>
              <property name="value">
               <double>0.750000000000000</double>
@@ -940,7 +1087,7 @@
             <string>Modulation</string>
            </property>
            <property name="checked">
-            <bool>true</bool>
+            <bool>false</bool>
            </property>
           </widget>
          </item>
@@ -969,7 +1116,7 @@
             <string>GPU</string>
            </property>
            <property name="checked">
-            <bool>false</bool>
+            <bool>true</bool>
            </property>
            <property name="tristate">
             <bool>false</bool>
@@ -980,6 +1127,9 @@
           <widget class="QCheckBox" name="compactCheck">
            <property name="text">
             <string>Compact</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -993,9 +1143,9 @@
        <widget class="QPushButton" name="saveButton">
         <property name="geometry">
          <rect>
-          <x>8</x>
-          <y>110</y>
-          <width>73</width>
+          <x>268</x>
+          <y>91</y>
+          <width>167</width>
           <height>26</height>
          </rect>
         </property>
@@ -1011,8 +1161,8 @@
        <widget class="QWidget" name="layoutWidget">
         <property name="geometry">
          <rect>
-          <x>10</x>
-          <y>10</y>
+          <x>92</x>
+          <y>58</y>
           <width>148</width>
           <height>23</height>
          </rect>
@@ -1043,56 +1193,30 @@
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="layoutWidget">
+       <widget class="QWidget" name="">
         <property name="geometry">
          <rect>
-          <x>220</x>
-          <y>10</y>
-          <width>221</width>
-          <height>24</height>
+          <x>91</x>
+          <y>3</y>
+          <width>174</width>
+          <height>48</height>
          </rect>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_13">
+        <layout class="QVBoxLayout" name="verticalLayout_2">
          <item>
-          <widget class="QLabel" name="label_15">
+          <widget class="QLabel" name="label_4">
            <property name="text">
-            <string>Progress</string>
+            <string>Streaming Mode</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QProgressBar" name="progressBar">
-           <property name="value">
-            <number>24</number>
+          <layout class="QHBoxLayout" name="horizontalLayout_19">
+           <property name="spacing">
+            <number>0</number>
            </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QWidget" name="layoutWidget">
-        <property name="geometry">
-         <rect>
-          <x>5</x>
-          <y>39</y>
-          <width>433</width>
-          <height>57</height>
-         </rect>
-        </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_20">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout">
            <item>
-            <widget class="QLabel" name="label_3">
-             <property name="text">
-              <string>Standard Mode</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="captureStandardButton">
+            <widget class="QPushButton" name="startStreamingButton">
              <property name="minimumSize">
               <size>
                <width>80</width>
@@ -1111,155 +1235,158 @@
               </font>
              </property>
              <property name="text">
-              <string>Capture</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <widget class="Line" name="line">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
-            <widget class="QLabel" name="label_4">
-             <property name="text">
-              <string>Streaming Mode</string>
+              <string>Start</string>
              </property>
             </widget>
            </item>
            <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_19">
-             <property name="spacing">
-              <number>0</number>
-             </property>
-             <item>
-              <widget class="QPushButton" name="startStreamingButton">
-               <property name="minimumSize">
-                <size>
-                 <width>80</width>
-                 <height>25</height>
-                </size>
-               </property>
-               <property name="maximumSize">
-                <size>
-                 <width>80</width>
-                 <height>16777215</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <pointsize>8</pointsize>
-                </font>
-               </property>
-               <property name="text">
-                <string>Start</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="stopStreamingButton">
-               <property name="minimumSize">
-                <size>
-                 <width>80</width>
-                 <height>25</height>
-                </size>
-               </property>
-               <property name="text">
-                <string>Stop</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <widget class="Line" name="line_2">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout_7">
-           <property name="spacing">
-            <number>0</number>
-           </property>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_2">
-             <item>
-              <widget class="QLabel" name="label_5">
-               <property name="text">
-                <string>Batch Mode</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QLabel" name="nStackLabel">
-               <property name="minimumSize">
-                <size>
-                 <width>40</width>
-                 <height>0</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <pointsize>8</pointsize>
-                </font>
-               </property>
-               <property name="text">
-                <string>Frames</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QSpinBox" name="nStack">
-               <property name="minimumSize">
-                <size>
-                 <width>60</width>
-                 <height>0</height>
-                </size>
-               </property>
-               <property name="font">
-                <font>
-                 <pointsize>8</pointsize>
-                </font>
-               </property>
-               <property name="maximum">
-                <number>560</number>
-               </property>
-               <property name="value">
-                <number>280</number>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QPushButton" name="captureBatchButton">
+            <widget class="QPushButton" name="stopStreamingButton">
              <property name="minimumSize">
               <size>
                <width>80</width>
                <height>25</height>
               </size>
              </property>
-             <property name="font">
-              <font>
-               <pointsize>8</pointsize>
-              </font>
-             </property>
              <property name="text">
-              <string>Capture</string>
+              <string>Stop</string>
              </property>
             </widget>
            </item>
           </layout>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QPushButton" name="captureBatchButton">
+        <property name="geometry">
+         <rect>
+          <x>268</x>
+          <y>26</y>
+          <width>170</width>
+          <height>25</height>
+         </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>80</width>
+          <height>25</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>8</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>Capture</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_5">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="geometry">
+         <rect>
+          <x>269</x>
+          <y>5</y>
+          <width>56</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Batch Mode</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="captureStandardButton">
+        <property name="geometry">
+         <rect>
+          <x>6</x>
+          <y>26</y>
+          <width>80</width>
+          <height>25</height>
+         </rect>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>80</width>
+          <height>25</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>80</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="font">
+         <font>
+          <pointsize>8</pointsize>
+         </font>
+        </property>
+        <property name="text">
+         <string>Capture</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_3">
+        <property name="geometry">
+         <rect>
+          <x>7</x>
+          <y>4</y>
+          <width>73</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Standard Mode</string>
+        </property>
+       </widget>
+       <widget class="QWidget" name="">
+        <property name="geometry">
+         <rect>
+          <x>269</x>
+          <y>58</y>
+          <width>108</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QLabel" name="nStackLabel">
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>8</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>Frames</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="nStack">
+           <property name="minimumSize">
+            <size>
+             <width>60</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>8</pointsize>
+            </font>
+           </property>
+           <property name="maximum">
+            <number>560</number>
+           </property>
+           <property name="value">
+            <number>70</number>
+           </property>
+          </widget>
          </item>
         </layout>
        </widget>

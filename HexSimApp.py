@@ -8,13 +8,14 @@ Email:  h.gong@imperial.ac.uk
 Time:   Oct 2020
 Address:Imperial College London
 """
+import os
 from ScopeFoundry import BaseMicroscopeApp
 
 
 class HexSimApp(BaseMicroscopeApp):
     # this is the name of the microscope that ScopeFoundry uses
     # when storing data
-    name = 'hex_sim_control'
+    name = 'pyHexSIM'
 
     def __init__(self, *kwds):
         """
@@ -48,8 +49,6 @@ class HexSimApp(BaseMicroscopeApp):
 
         # self.add_measurement(HamamatsuMeasurement(self))
         self.add_measurement(HexSimMeasurement(self))
-
-        # show ui
         self.ui.show()
         self.ui.activateWindow()
 
@@ -82,6 +81,9 @@ class HexSimApp(BaseMicroscopeApp):
 
 if __name__ == '__main__':
     import sys
+    from PyQt5.QtGui import QIcon
 
     app = HexSimApp(sys.argv)
+    logo_icon = QIcon('icon_attribute_pixel_perfect.png')
+    app.ui.setWindowIcon(logo_icon)
     sys.exit(app.exec_())

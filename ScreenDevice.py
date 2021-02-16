@@ -11,7 +11,8 @@ from skimage import img_as_bool
 
 class ScreenDisplay(QMainWindow):
 # class ScreenDisplay(QWidget):
-    def __init__(self,monitor_number = 1, shift_orientation = pi/9, scale = pi/16, update_time=100):
+    def __init__(self,monitor_number = 2, shift_orientation = pi/18, scale = 1.0, update_time=100,
+                 wavelength = 0.532, NA = 0.75, magnification = 40, tune_scale = 40):
         super().__init__()
         self.writeUpdateTime(update_time)
         self.monitor_number = monitor_number
@@ -20,13 +21,17 @@ class ScreenDisplay(QMainWindow):
         self.counter = 0
         self.monitor = QDesktopWidget().screenGeometry(self.monitor_number)
         self.move(self.monitor.left(), self.monitor.top())
-        #self.img = self.imgGenerate()
-        self.img = self.imgRead()
+        self.wavelength = wavelength
+        self.NA = NA
+        self.M = magnification
+        self.factor = tune_scale
+
+        self.img = self.imgGenerate()
+        # self.img = self.imgRead()
         self.screen = QLabel(self)
         self.setCentralWidget(self.screen)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.displayFrame)
-        # self.timer.stop()
 
     def writeUpdateTime(self,update_time):
         self._update_time = update_time
@@ -83,21 +88,23 @@ class ScreenDisplay(QMainWindow):
         w = self.monitor.width()
         h = self.monitor.height()
         X, Y = np.meshgrid(np.linspace(0, w, w), np.linspace(0, h, h))
-        p = 4 * pi / sqrt(3) / self.scale
+        scalefactor = self.factor*self.NA*self.scale/self.wavelength/self.M
+        p = 4 * pi / sqrt(3) / scalefactor
         r0 = 0.33 * p
         img = np.ones([h,w,7])
-
+        # 40. * NA * scalefactor / 0.532 / M
+        print("Orientation:",self.orientation,"Scalefactor:",scalefactor)
         for i in range (7):
             phase = i * 2 * pi / 7
-            xr = -X * sin(self.orientation) + Y * cos(self.orientation) - 1.0 * p * phase / (2 * pi)
-            yr = -X * cos(self.orientation) - Y * sin(self.orientation) + 2.0 / sqrt(3) * p * phase / (2 * pi)
+            xr = -X * sin(-self.orientation) + Y * cos(-self.orientation) - 1.0 * p * phase / (2 * pi)
+            yr = -X * cos(-self.orientation) - Y * sin(-self.orientation) + 2.0 / sqrt(3) * p * phase / (2 * pi)
             yi = floor(yr / (p * sqrt(3) / 2) + 0.5)
             xi = floor((xr / p) - (yi % 2.0) / 2.0 + 0.5) + (yi % 2.0) / 2.0
             y0 = yi * p * sqrt(3) / 2
             x0 = xi * p
             r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
             img[:, :, i] = 255*(r < r0)
-
+            # img = np.flipud(img)
         return np.require(img, np.uint8, 'C')
 
     def imgRead(self):
@@ -121,7 +128,7 @@ class ScreenDisplay(QMainWindow):
 
 if __name__=='__main__':
     app = QApplication(sys.argv)
-    hex_slm = ScreenDisplay(monitor_number=1, shift_orientation=pi/9, scale=pi/16,update_time=100)
+    hex_slm = ScreenDisplay(monitor_number=1, shift_orientation=pi/9, scale=1,update_time=100)
 
     hex_slm.showFullScreen()
 

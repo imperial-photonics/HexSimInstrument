@@ -9,6 +9,7 @@ Address:Imperial College London
 
 from ScopeFoundry import HardwareComponent
 from NanoScanDevice import NanoScan
+import time
 
 class NanoScanHW(HardwareComponent):
     name = 'NanoScanHardware'
@@ -18,13 +19,13 @@ class NanoScanHW(HardwareComponent):
         self.settings.com_port = self.add_logged_quantity(name='COM port', dtype=str, initial='COM8')
 
         self.settings.relative_position = self.add_logged_quantity(name='Relative position', dtype=str, ro=True)
-        self.settings.absolute_position = self.add_logged_quantity(name='Absolute position', dtype=float, unit='um', vmin=0, vmax=100, ro=False)
+        self.settings.absolute_position = self.add_logged_quantity(name='Absolute position', dtype=float, unit='um', vmin=0, vmax=50, ro=False)
 
         self.add_operation(name='Set to Zero', op_func=self.setPostionZeroHW)
         self.add_operation(name='Return to Zero', op_func=self.moveZeroPositionHW)
 
         self.settings.move_distance = self.add_logged_quantity(name='Move distance',dtype=float,initial=0.0,ro=False)
-        self.settings.stepsize = self.add_logged_quantity(name='Step size',dtype=float,vmin=0,vmax=50,initial=0.1,ro=False,
+        self.settings.stepsize = self.add_logged_quantity(name='Step size',dtype=float,vmin=0,vmax=50,initial=0.05,ro=False,
                                                           reread_from_hardware_after_write=True)
 
         self.add_operation(name='UP', op_func=self.moveUpHW)
@@ -33,8 +34,8 @@ class NanoScanHW(HardwareComponent):
         self.add_operation(name='Reset',op_func=self.resetStageHW)
 
         self.settings.travel_range = self.add_logged_quantity(name='Travel range', dtype=str, ro=True)
-        self.settings.info = self.add_logged_quantity(name='Stage Information', dtype=str)
-
+        # self.settings.info = self.add_logged_quantity(name='Stage Information', dtype=str)
+        # self.stage_absolute_position = 0.0
         # self.settings.set_current_position = self.add_logged_quantity('Set current position',dtype=float,unit='um',
         #                   ro=False)
         # self.settings.unit = self.add_logged_quantity(name='Unit', dtype=str, choices=["microns", "steps"], initial="microns",
@@ -43,12 +44,13 @@ class NanoScanHW(HardwareComponent):
     def connect(self):
         # print(self.settings.com_port.val)
         self.nanoscanz = NanoScan(port=self.settings.com_port.val,debug=self.settings['debug_mode'])
+
         self.settings.travel_range.connect_to_hardware(
             read_func=self.getTravelRangeHW
         )
-        self.settings.info.connect_to_hardware(
-            read_func=self.nanoscanz.getInfo
-        )
+        # self.settings.info.connect_to_hardware(
+        #     read_func=self.nanoscanz.getInfo
+        # )
 
         self.settings.relative_position.connect_to_hardware(
              read_func=self.getPositionHW
@@ -144,9 +146,14 @@ class NanoScanHW(HardwareComponent):
     def updateHardware(self):
         if hasattr(self, 'nanoscanz'):
             self.settings.relative_position.read_from_hardware()
+            # time.sleep(0.5)
             self.settings.absolute_position.read_from_hardware()
-            print('REL position: ',self.nanoscanz.getPositionRel(),' um')
-            print('ABS position: ',self.nanoscanz.getPositionAbs(),' um')
+            # time.sleep(0.5)
+            # self.stage_absolute_position = self.nanoscanz.getPositionAbs()
+            # time.sleep(0.5)
+            print('REL position: ',self.settings.relative_position.val)
+            # time.sleep(0.5)
+            print('ABS position: ',self.settings.absolute_position.val,'um')
 
 
 
