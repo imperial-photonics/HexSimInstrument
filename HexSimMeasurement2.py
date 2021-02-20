@@ -657,7 +657,12 @@ class HexSimMeasurement(Measurement):
         self.isStreamRun = False
 
     def batchSimuButtonPressed(self):
-        self.interrupt()
+        self.runningStateStored = self.interrupt_measurement_called
+        print(self.runningStateStored)
+
+        if not self.interrupt_measurement_called:
+            self.interrupt()
+
         filename, _ = QFileDialog.getOpenFileName(directory="./data")        # filename = "./data/stackData.tif"
         self.imageRaw = np.single(tif.imread(filename))
         self.batchSimulationEvent.set()
@@ -671,6 +676,9 @@ class HexSimMeasurement(Measurement):
 
             self.batchProcessFinished.wait()
             self.start()
+            time.sleep(self.display_update_period)
+            if self.runningStateStored:
+                self.interrupt()
             self.batchProcessFinished.clear()
 
     def batchReconstructionUpdate(self):

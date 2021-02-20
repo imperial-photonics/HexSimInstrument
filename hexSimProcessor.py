@@ -1,13 +1,11 @@
 import multiprocessing
-import matplotlib.pyplot as plt
+
 import numpy as np
 import scipy
 import scipy.io
+import tifffile as tif
 from numpy import exp, pi, sqrt, log2, arccos
 from scipy.ndimage import gaussian_filter
-import tifffile as tif
-from PyQt5.QtWidgets import QApplication, QWidget
-import pyqtgraph as pg
 
 try:
     import pyfftw
@@ -107,13 +105,11 @@ class HexSimProcessor:
         self._res = self.wavelength / (2 * self.NA)
         self._oversampling = self._res / self._dx
         self._dk = self._oversampling / (self.N / 2)  # Sampling in frequency plane
-        # self._kx = np.linspace(-self._dk * self.N / 2, self._dk * self.N / 2 - self._dk, self.N, dtype=np.single)
+
         self._kx = np.arange(-self._dk * self.N / 2, self._dk * self.N / 2, self._dk, dtype=np.single)
         [self._kx, self._ky] = np.meshgrid(self._kx, self._kx)
         self._dx2 = self._dx / 2
 
-
-        # print(self.N)
         if self.N != self._lastN:
             self._allocate_arrays()
 
@@ -150,6 +146,10 @@ class HexSimProcessor:
             print(f'a  = {ampl[0]}, {ampl[1]}, {ampl[2]}')
 
 
+        self.ckx = ckx
+        self.cky = cky
+        self.p = p
+        self.ampl = ampl
 
         ph = np.single(2 * pi * self.NA / self.wavelength)
 
@@ -244,11 +244,7 @@ class HexSimProcessor:
 
         self.isCalibrated = True
 
-        self.ckx = ckx
-        self.cky = cky
-        self.p = p
-        self.ampl = ampl
-        # self.wienerfilter = wienerfilter
+
 
     def calibrate_cupy(self, img):
         assert cupy, "No CuPy present"

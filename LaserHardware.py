@@ -83,7 +83,7 @@ class Laser488HW(HardwareComponent):
 
     def disconnect(self):
         if hasattr(self, 'laser488'):
-            self.laser488.LaserOFF()
+            # self.laser488.LaserOFF()
             self.measureLaser.do_run = False
             self.measureLaser.join()
             self.laser488.Disconnect()
@@ -148,7 +148,7 @@ class Laser561HW(HardwareComponent):
 
     def disconnect(self):
         if hasattr(self, 'laser561'):
-            self.laser561.LaserOFF()
+            # self.laser561.LaserOFF()
             self.measureLaser.do_run = False
             self.measureLaser.join()
             self.laser561.Disconnect()

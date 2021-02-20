@@ -19,7 +19,7 @@ class ScreenHW(HardwareComponent):
         # self.settings.New(name='monitor_number', initial=1, dtype=int, ro=False)
         self.settings.New(name='shift_orientation', initial=pi / 18.0, spinbox_decimals=4, dtype=float, ro=False)
         self.settings.New(name='scale', initial=1.25, spinbox_decimals=4, dtype=float, ro=False)
-        self.settings.New(name='wavelength', initial=0.532, dtype=float, spinbox_decimals=3, ro=False, unit='um')
+        self.settings.New(name='wavelength', initial=0.561,choices=[0.488, 0.561], dtype=float, spinbox_decimals=3, ro=False, unit='um')
         self.settings.New(name='NA', initial=0.75, dtype=float, ro=False)
         self.settings.New(name='magnification', initial=40, dtype=int, ro=False)
         self.settings.New(name='tune_scale', initial=40, dtype=int, ro=False)
@@ -52,7 +52,7 @@ class ScreenHW(HardwareComponent):
         self.screen_width.hardware_read_func = self.slm_dev.getScreenWidth
         self.screen_height.hardware_read_func = self.slm_dev.getScreenHeight
         self.settings.update_time.hardware_set_func = self.slm_dev.changeTimer
-
+        self.settings.wavelength.hardware_set_func = self.slm_dev.setPatterns
         self.read_from_hardware()
         # )
 
@@ -66,6 +66,7 @@ class ScreenHW(HardwareComponent):
     # define operations
     def openSLM(self):
         if hasattr(self, 'slm_dev'):
+            # self.slm_dev.setPatterns()
             self.slm_dev.showFullScreen()
             print('slm started')
 
@@ -78,6 +79,7 @@ class ScreenHW(HardwareComponent):
         if hasattr(self, 'slm_dev'):
             self.read_from_hardware()
             self.slm_dev.writeUpdateTime(self.settings.update_time.value)
+            # self.slm_dev.setPatterns()
             self.slm_dev.enableTimer()
 
     def stopDisplay(self):
@@ -86,19 +88,27 @@ class ScreenHW(HardwareComponent):
 
     def manualDisplay(self):
         if hasattr(self, 'slm_dev'):
+            # self.slm_dev.setPatterns()
             self.slm_dev.displayFrameN(self.slm_dev.counter % 7)
 
     def previousPattern(self):
         if hasattr(self, 'slm_dev'):
+            # self.slm_dev.setPatterns()
             self.slm_dev.counter -= 1
             self.slm_dev.counter = self.slm_dev.counter % 7
             self.slm_dev.displayFrameN(self.slm_dev.counter)
 
     def nextPattern(self):
         if hasattr(self, 'slm_dev'):
+            # self.slm_dev.setPatterns()
             self.slm_dev.counter += 1
             self.slm_dev.counter = self.slm_dev.counter % 7
             self.slm_dev.displayFrameN(self.slm_dev.counter)
+
+    # def setPatternHW(self):
+    #     self.slm_dev.wavelength = self.settings['wavelength']
+    #     self.slm_dev.setPatterns()
+    #     print(self.slm_dev.wavelength)
 
     # def updatePattern(self):
     #     if hasattr(self, 'slm_dev'):

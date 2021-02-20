@@ -12,7 +12,7 @@ from skimage import img_as_bool
 class ScreenDisplay(QMainWindow):
 # class ScreenDisplay(QWidget):
     def __init__(self,monitor_number = 2, shift_orientation = pi/18, scale = 1.0, update_time=100,
-                 wavelength = 0.532, NA = 0.75, magnification = 40, tune_scale = 40):
+                 wavelength = 0.561, NA = 0.75, magnification = 40, tune_scale = 40):
         super().__init__()
         self.writeUpdateTime(update_time)
         self.monitor_number = monitor_number
@@ -26,7 +26,11 @@ class ScreenDisplay(QMainWindow):
         self.M = magnification
         self.factor = tune_scale
 
-        self.img = self.imgGenerate()
+        # self.img = self.imgGenerate()
+        self.img = np.zeros([self.monitor.height(),self.monitor.width(),7])
+        self.img488 = self.imgGenerator(0.488)
+        self.img561 = self.imgGenerator(0.561)
+        self.setPatterns(wavelength)
         # self.img = self.imgRead()
         self.screen = QLabel(self)
         self.setCentralWidget(self.screen)
@@ -104,7 +108,30 @@ class ScreenDisplay(QMainWindow):
             x0 = xi * p
             r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
             img[:, :, i] = 255*(r < r0)
-            # img = np.flipud(img)
+
+        return np.require(img, np.uint8, 'C')
+
+    def imgGenerator(self, wavelength):
+        'Generate the polka pattern'
+        w = self.monitor.width()
+        h = self.monitor.height()
+        X, Y = np.meshgrid(np.linspace(0, w, w), np.linspace(0, h, h))
+        scalefactor = self.factor*self.NA*self.scale/wavelength/self.M
+        p = 4 * pi / sqrt(3) / scalefactor
+        r0 = 0.33 * p
+        img = np.ones([h,w,7])
+        print("Orientation:",self.orientation,"Scalefactor:",scalefactor)
+        for i in range (7):
+            phase = i * 2 * pi / 7
+            xr = -X * sin(-self.orientation) + Y * cos(-self.orientation) - 1.0 * p * phase / (2 * pi)
+            yr = -X * cos(-self.orientation) - Y * sin(-self.orientation) + 2.0 / sqrt(3) * p * phase / (2 * pi)
+            yi = floor(yr / (p * sqrt(3) / 2) + 0.5)
+            xi = floor((xr / p) - (yi % 2.0) / 2.0 + 0.5) + (yi % 2.0) / 2.0
+            y0 = yi * p * sqrt(3) / 2
+            x0 = xi * p
+            r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
+            img[:, :, i] = 255*(r < r0)
+
         return np.require(img, np.uint8, 'C')
 
     def imgRead(self):
@@ -120,6 +147,15 @@ class ScreenDisplay(QMainWindow):
             img[ :, :,i] = resize(np.sum(np.array(img_tmp), axis=2) / 3,(h,w))
 
         return np.require(img,np.uint8,'C')
+
+    def setPatterns(self,wavelength):
+        self.wavelength = wavelength
+
+        if self.wavelength == 0.488:
+            self.img = self.img488
+
+        elif self.wavelength == 0.561:
+            self.img = self.img561
 
     def keyPressEvent(self, input):
         if input.key() ==Qt.Key_Escape:
