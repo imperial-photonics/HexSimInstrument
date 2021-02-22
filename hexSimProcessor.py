@@ -60,12 +60,16 @@ class HexSimProcessor:
     def __init__(self):
         self._lastN = 0
         self.isCalibrated = False
+        self.usePreCalibration = False
+        self.ckx_in = np.zeros((3, 1), dtype=np.single)
+        self.cky_in = np.zeros((3, 1), dtype=np.single)
+        self.p_in = np.zeros((3, 1), dtype=np.single)
+        self.ampl_in = np.zeros((3, 1), dtype=np.single)
+
+        self._allocate_arrays()
 
     def _allocate_arrays(self):
-
-        self.calibrationRes = None #h results
-
-        ''' define matrix '''
+        # define matrix
         self._reconfactor = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)  # for reconstruction
 
         self._prefilter = np.zeros((self.N, self.N),
@@ -73,7 +77,7 @@ class HexSimProcessor:
         self._postfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         self._carray = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.complex64)
         self._carray1 = np.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex64)
-        self._imgstore = np.zeros((7,self.N,self.N),dtype=np.single)
+        self._imgstore = np.zeros((7, self.N, self.N), dtype=np.single)
         # self._imgbig = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
         self._bigimgstore = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if cupy:
@@ -83,8 +87,8 @@ class HexSimProcessor:
             # self._reconfactor_cp = cp.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
             self._bigimgstore_cp = cp.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         if opencv:
-            self._prefilter_ocv = np.zeros((self.N, self.N),
-                                           dtype=np.single)  # for prefilter stage, includes otf and zero order supression
+            self._prefilter_ocv = np.zeros((self.N, self.N), dtype=np.single)
+            # for prefilter stage, includes otf and zero order supression
             self._postfilter_ocv = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
             self._carray_ocv = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
             self._carray_ocvU = cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC2)
@@ -92,15 +96,18 @@ class HexSimProcessor:
             self._imgstoreU = [cv2.UMat((2 * self.N, 2 * self.N), s=0.0, type=cv2.CV_32FC2) for i in range(7)]
         self._lastN = self.N
 
-        self.ckx = None
-        self.cky = None
-        self.p = None
-        self.ampl = None
-        self.wienerfilter = None
+        self.wienerfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
+
+        self.ckx = np.zeros((3, 1), dtype=np.single)
+        self.cky = np.zeros((3, 1), dtype=np.single)
+        self.p = np.zeros((3, 1), dtype=np.single)
+        self.ampl = np.zeros((3, 1), dtype=np.single)
+
+
 
     def calibrate(self, img):
-        ''' define grids '''
-        self.N = len(img[0,:,:])
+        # define grids
+        self.N = len(img[0, :, :])
         self._dx = self.pixelsize / self.magnification  # Sampling in image plane
         self._res = self.wavelength / (2 * self.NA)
         self._oversampling = self._res / self._dx
@@ -130,26 +137,25 @@ class HexSimProcessor:
         # minimum search radius in k-space
         mask1 = (kr > 1.8 * self.eta)
 
-        # find parameters
-        ckx = np.zeros((3, 1), dtype=np.single)
-        cky = np.zeros((3, 1), dtype=np.single)
-        p = np.zeros((3, 1), dtype=np.single)
-        ampl = np.zeros((3, 1), dtype=np.single)
+        if self.usePreCalibration:
+            for i in range(0, 3):
+                self.ckx[i], self.cky[i], self.p[i], self.ampl[i] = self._refindCarrier(sum_prepared_comp[0, :, :],
+                                                               sum_prepared_comp[i + 1, :, :], self.ckx_in[i], self.cky_in[i])
+        else:
+            for i in range(0, 3):
+                self.ckx[i], self.cky[i], self.p[i], self.ampl[i] = self._findCarrier(sum_prepared_comp[0, :, :],
+                                                                  sum_prepared_comp[i + 1, :, :], mask1)
 
-        for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._findCarrier(sum_prepared_comp[0, :, :],
-                                                              sum_prepared_comp[i + 1, :, :], mask1)
+        ckx = self.ckx
+        cky = self.cky
+        p = self.p
+        ampl = self.ampl
+
         if self.debug:
-            print(f'kx = {ckx[0]}, {ckx[1]}, {ckx[2]}')
-            print(f'ky = {cky[0]}, {cky[1]}, {cky[2]}')
-            print(f'p  = {p[0]}, {p[1]}, {p[2]}')
-            print(f'a  = {ampl[0]}, {ampl[1]}, {ampl[2]}')
-
-
-        self.ckx = ckx
-        self.cky = cky
-        self.p = p
-        self.ampl = ampl
+            print(f'kx = {self.ckx[0]}, {self.ckx[1]}, {self.ckx[2]}')
+            print(f'ky = {self.cky[0]}, {self.cky[1]}, {self.cky[2]}')
+            print(f'p  = {self.p[0]}, {self.p[1]}, {self.p[2]}')
+            print(f'a  = {self.ampl[0]}, {self.ampl[1]}, {self.ampl[2]}')
 
         ph = np.single(2 * pi * self.NA / self.wavelength)
 
@@ -211,7 +217,7 @@ class HexSimProcessor:
             # plt.figure()
             # plt.title('WienerFilter')
             # plt.imshow(wienerfilter)
-            tif.imsave('WienerFilter.tif',wienerfilter)
+            tif.imsave('WienerFilter.tif', wienerfilter)
 
         kmax = 1 * (2 + sqrt(ckx[0] ** 2 + cky[0] ** 2))
         wienerfilter = mtot * (1 - kr * mtot / kmax) / (wienerfilter * mtot + self.w ** 2)
@@ -244,12 +250,10 @@ class HexSimProcessor:
 
         self.isCalibrated = True
 
-
-
     def calibrate_cupy(self, img):
         assert cupy, "No CuPy present"
         ''' define grids '''
-        self.N = len(img[0,:,:])
+        self.N = len(img[0, :, :])
         self._dx = self.pixelsize / self.magnification  # Sampling in image plane
         self._res = self.wavelength / (2 * self.NA)
         self._oversampling = self._res / self._dx
@@ -279,15 +283,29 @@ class HexSimProcessor:
         # minimum search radius in k-space
         mask1 = (kr > 1.8 * self.eta)
 
-        # find parameters
-        ckx = np.zeros((3, 1), dtype=np.single)
-        cky = np.zeros((3, 1), dtype=np.single)
-        p = np.zeros((3, 1), dtype=np.single)
-        ampl = np.zeros((3, 1), dtype=np.single)
+        if self.usePreCalibration:
+            for i in range(0, 3):
+                self.ckx[i], self.cky[i], self.p[i], self.ampl[i] = self._refindCarrier_cupy(sum_prepared_comp[0, :, :],
+                                                               sum_prepared_comp[i + 1, :, :], self.ckx_in[i], self.cky_in[i])
+        else:
+            for i in range(0, 3):
+                self.ckx[i], self.cky[i], self.p[i], self.ampl[i] = self._findCarrier_cupy(sum_prepared_comp[0, :, :],
+                                                                  sum_prepared_comp[i + 1, :, :], mask1)
 
-        for i in range(0, 3):
-            ckx[i], cky[i], p[i], ampl[i] = self._findCarrier_cupy(sum_prepared_comp[0, :, :],
-                                                                   sum_prepared_comp[i + 1, :, :], mask1)
+        ckx = self.ckx
+        cky = self.cky
+        p = self.p
+        ampl = self.ampl
+
+        # # find parameters
+        # ckx = np.zeros((3, 1), dtype=np.single)
+        # cky = np.zeros((3, 1), dtype=np.single)
+        # p = np.zeros((3, 1), dtype=np.single)
+        # ampl = np.zeros((3, 1), dtype=np.single)
+
+        # for i in range(0, 3):
+        #     ckx[i], cky[i], p[i], ampl[i] = self._findCarrier_cupy(sum_prepared_comp[0, :, :],
+        #                                                            sum_prepared_comp[i + 1, :, :], mask1)
         # print(ckx,cky,p,ampl)
         ph = np.single(2 * pi * self.NA / self.wavelength)
 
@@ -522,7 +540,7 @@ class HexSimProcessor:
 
     def reconstructframe_cupy(self, img, i):
         assert cupy, "No CuPy present"
-        diff = cp.asarray(img,dtype=np.single) - cp.asarray(self._imgstore[i, :, :],dtype=np.single)
+        diff = cp.asarray(img, dtype=np.single) - cp.asarray(self._imgstore[i, :, :], dtype=np.single)
         imf = cp.fft.rfft2(diff) * cp.asarray(self._prefilter[:, 0:self.N // 2 + 1])
         self._carray_cp[0, 0:self.N // 2, 0:self.N // 2 + 1] = imf[0:self.N // 2, 0:self.N // 2 + 1]
         self._carray_cp[0, 3 * self.N // 2:2 * self.N, 0:self.N // 2 + 1] = imf[self.N // 2:self.N, 0:self.N // 2 + 1]
@@ -531,6 +549,7 @@ class HexSimProcessor:
             cp.fft.rfft2(img2) * self._postfilter_cp[:, 0:self.N + 1])
         self._imgstore[i, :, :] = img
         return self._bigimgstore_cp.get()
+
     # endregion
 
     def batchreconstruct(self, img):
@@ -748,7 +767,7 @@ class HexSimProcessor:
         kr = cp.sqrt(cp.asarray(self._kx) ** 2 + cp.asarray(self._ky) ** 2)
 
         m = (kr < 2)
-        otf = cp.fft.fftshift(self._tfm(kr, m) + (1 - m))
+        otf = cp.fft.fftshift(self._tfm_cupy(kr, m) + (1 - m))
 
         otf_mask = (kr > otf_exclude_min_radius) & (kr < otf_exclude_max_radius)
         otf_mask_for_band_common_freq = cp.fft.fftshift(
@@ -766,6 +785,90 @@ class HexSimProcessor:
         scaling = 1 / cp.sum(band0_common * cp.conj(band0_common))
 
         cross_corr_result = cp.sum(band0_common * band1_common) * scaling
+
+        ampl = cp.abs(cross_corr_result) * 2
+        phase = cp.angle(cross_corr_result)
+        return kx.get(), ky.get(), phase.get(), ampl.get()
+
+    def _refindCarrier(self, band0, band1, kx_in, ky_in):
+
+        pxc0 = np.int(np.round(kx_in/self._dk)+self.N//2+1)
+        pyc0 = np.int(np.round(ky_in/self._dk)+self.N//2+1)
+
+        otf_exclude_min_radius = 0.5
+        otf_exclude_max_radius = 1.5
+
+        kr = sqrt(self._kx ** 2 + self._ky ** 2)
+
+        m = (kr < 2)
+        otf = fft.fftshift(self._tfm(kr, m) + (1 - m))
+
+        otf_mask = (kr > otf_exclude_min_radius) & (kr < otf_exclude_max_radius)
+        otf_mask_for_band_common_freq = fft.fftshift(
+            otf_mask & scipy.ndimage.shift(otf_mask, (pyc0 - (self.N // 2 + 1), pxc0 - (self.N // 2 + 1)), order=0))
+
+        band0_common = fft.ifft2(fft.fft2(band0) / otf * otf_mask_for_band_common_freq)
+        band1_common = fft.ifft2(fft.fft2(band1) / otf * otf_mask_for_band_common_freq)
+
+        ix = band0_common*band1_common
+
+        ixfz, Kx, Ky = self._zoomf(ix, self.N, self._kx[pyc0, pxc0], self._ky[pyc0, pxc0], 25, self._dk * self.N)
+        pyc, pxc = self._findPeak(abs(ixfz))
+
+        kx = Kx[pxc]
+        ky = Ky[pyc]
+
+        xx = np.arange(-self.N / 2 * self._dx, self.N / 2 * self._dx, self._dx, dtype=np.single)
+        phase_shift_to_xpeak = exp(-1j * kx * xx * 2 * pi * self.NA / self.wavelength)
+        phase_shift_to_ypeak = exp(-1j * ky * xx * 2 * pi * self.NA / self.wavelength)
+
+        scaling = 1 / np.sum(band0_common * np.conjugate(band0_common))
+
+        cross_corr_result = np.sum(band0_common * band1_common* np.outer(
+            phase_shift_to_ypeak, phase_shift_to_xpeak)) * scaling
+
+        ampl = np.abs(cross_corr_result) * 2
+        phase = np.angle(cross_corr_result)
+        return kx, ky, phase, ampl
+
+    def _refindCarrier_cupy(self, band0, band1, kx_in, ky_in):
+        band0 = cp.asarray(band0)
+        band1 = cp.asarray(band1)
+
+        pxc0 = (np.int(np.round(kx_in/self._dk)+self.N//2+1))
+        pyc0 = (np.int(np.round(ky_in/self._dk)+self.N//2+1))
+
+        otf_exclude_min_radius = 0.5
+        otf_exclude_max_radius = 1.5
+
+        kr = cp.sqrt(cp.asarray(self._kx) ** 2 + cp.asarray(self._ky) ** 2)
+
+        m = (kr < 2)
+        otf = cp.fft.fftshift(self._tfm_cupy(kr, m) + (1 - m))
+
+        otf_mask = (kr > otf_exclude_min_radius) & (kr < otf_exclude_max_radius)
+        otf_mask_for_band_common_freq = cp.fft.fftshift(
+            otf_mask & cupyx.scipy.ndimage.shift(otf_mask, (pyc0 - (self.N // 2 + 1), pxc0 - (self.N // 2 + 1)), order=0))
+
+        band0_common = cp.fft.ifft2(fft.fft2(band0) / otf * otf_mask_for_band_common_freq)
+        band1_common = cp.fft.ifft2(fft.fft2(band1) / otf * otf_mask_for_band_common_freq)
+
+        ix = band0_common*band1_common
+
+        ixfz, Kx, Ky = self._zoomf_cupy(ix, self.N, cp.asarray(self._kx)[pyc0, pxc0], cp.asarray(self._ky)[pyc0, pxc0], 25, self._dk * self.N)
+        pyc, pxc = self._findPeak_cupy(abs(ixfz))
+
+        kx = Kx[pxc]
+        ky = Ky[pyc]
+
+        xx = cp.arange(-self.N / 2 * self._dx, self.N / 2 * self._dx, self._dx, dtype=np.single)
+        phase_shift_to_xpeak = cp.exp(-1j * kx * xx * 2 * pi * self.NA / self.wavelength)
+        phase_shift_to_ypeak = cp.exp(-1j * ky * xx * 2 * pi * self.NA / self.wavelength)
+
+        scaling = 1 / cp.sum(band0_common * cp.conjugate(band0_common))
+
+        cross_corr_result = cp.sum(band0_common * band1_common* cp.outer(
+            phase_shift_to_ypeak, phase_shift_to_xpeak)) * scaling
 
         ampl = cp.abs(cross_corr_result) * 2
         phase = cp.angle(cross_corr_result)
