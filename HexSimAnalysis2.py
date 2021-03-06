@@ -280,7 +280,7 @@ class HexSimAnalysis(Measurement):
         self.processValue = 100
 
     def standardProcessor(self):
-        self.processValue = 0
+        self.processValue = 10
 
         if self.h.isCalibrated:
             print('Start standard processing...')
@@ -304,7 +304,7 @@ class HexSimAnalysis(Measurement):
 
     def batchProcessor(self):
         print('Start batch processing...')
-        self.processValue = 0
+        self.processValue = 10
 
         if self.h.isCalibrated:
             startTime = time.time()
@@ -362,6 +362,7 @@ class HexSimAnalysis(Measurement):
         if self.isFileLoad:
             if self.imageRaw.shape[0] == 7:
                 print('standard processing')
+                self.processValue = 0
                 self.standardProcessTimer.start()
             else:
                 print('Please input the 7-frame data set.')
@@ -422,12 +423,14 @@ class HexSimAnalysis(Measurement):
     def batchSimuButtonPressed(self):
         if self.isFileLoad:
             self.batchProcessTimer.start()
+            self.processValue = 0
         else:
             print('Image is not loaded.')
             self.ui.fileInfo.setPlainText('Image is not loaded.')
 
     def batchReconstructionUpdate(self):
         self.h.isCalibrated = False
+        self.processValue = 10
         self.batchProcessTimer.start()
 
     def virtualRecording(self):
@@ -492,7 +495,7 @@ class HexSimAnalysis(Measurement):
             "amplitude":        self.h.ampl
             }
         f = open(txtname, 'w+')
-        f.write(json.dumps(savedictionary, cls=NumpyEncoder),indent=2)
+        f.write(json.dumps(savedictionary, cls=NumpyEncoder,indent=2))
         self.isCalibrationSaved = True
 
     def loadCalibrationResults(self):
