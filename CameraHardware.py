@@ -32,7 +32,7 @@ class HamamatsuHardware(HardwareComponent):
                                                     
         
         self.exposure_time = self.add_logged_quantity('exposure_time', dtype = float, si = False, ro = 0, 
-                                                       spinbox_step = 0.01, spinbox_decimals = 6, initial = 0.01, unit = 's', reread_from_hardware_after_write = True,
+                                                       spinbox_step = 0.01, spinbox_decimals = 6, initial = 0.1, unit = 's', reread_from_hardware_after_write = True,
                                                        vmin = 0)
         
         self.internal_frame_rate = self.add_logged_quantity('internal_frame_rate', dtype = float, si = False, ro = 1,
@@ -46,24 +46,24 @@ class HamamatsuHardware(HardwareComponent):
         
         #For subarray we have imposed float, since otherwise I cannot modify the step (I should modify the logged quantities script, but I prefer left it untouched)
         self.subarrayh = self.add_logged_quantity("subarray_hsize", dtype=float, si = False, ro= 0,
-                                                   spinbox_step = 4, spinbox_decimals = 0, initial = 512, vmin = 4, vmax = 2048, reread_from_hardware_after_write = True)
+                                                   spinbox_step = 4, spinbox_decimals = 0, initial = 512, vmin = 4, vmax = 2304, reread_from_hardware_after_write = True)
         
         self.subarrayv = self.add_logged_quantity("subarray_vsize", dtype=float, si = False, ro= 0, 
-                                                  spinbox_step = 4, spinbox_decimals = 0, initial = 512, vmin = 4, vmax = 2048, reread_from_hardware_after_write = True)
+                                                  spinbox_step = 4, spinbox_decimals = 0, initial = 512, vmin = 4, vmax = 2304, reread_from_hardware_after_write = True)
         
         self.submode = self.add_logged_quantity("subarray_mode", dtype=str, si = False, ro = 1, 
                                                 initial = 'ON')
         
         self.subarrayh_pos = self.add_logged_quantity('subarrayh_pos', dtype = float, si = False, ro = 0,
-                                                      spinbox_step = 4, spinbox_decimals = 0, initial = 0, vmin = 0, vmax = 2044, reread_from_hardware_after_write = True,
+                                                      spinbox_step = 4, spinbox_decimals = 0, initial = 1150, vmin = 0, vmax = 2304, reread_from_hardware_after_write = True,
                                                       description = "The default value 0 corresponds to the first pixel starting from the left")
         
         self.subarrayv_pos = self.add_logged_quantity('subarrayv_pos', dtype = float, si = False, ro = 0,
-                                                      spinbox_step = 4, spinbox_decimals = 0, initial = 0, vmin = 0, vmax = 2044, reread_from_hardware_after_write = True,
+                                                      spinbox_step = 4, spinbox_decimals = 0, initial = 1150, vmin = 0, vmax = 2304, reread_from_hardware_after_write = True,
                                                       description = "The default value 0 corresponds to the first pixel starting from the top")
         
         self.optimal_offset = self.add_logged_quantity('optimal_offset', dtype = bool, si = False, ro = 0, 
-                                                       initial = True)
+                                                       initial = False)
         
         self.binning = self.add_logged_quantity('binning', dtype = int, ro = 0,
                                                 choices = [1, 2, 4], initial = 1, reread_from_hardware_after_write = True )

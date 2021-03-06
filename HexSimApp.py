@@ -26,11 +26,16 @@ class HexSimApp(BaseMicroscopeApp):
         # the *kwds this will give a problem
 
         # self.settings.save_dir.update_value(QtWidgets.QFileDialog.getExistingDirectory(directory = "D:\\Data\\temp"))
-        self.settings['save_dir'] = "D:\\Data\\Test"  # PUT ALWAYS TWO SLASHES!!!!
+        self.settings['save_dir'] = "\\measurement"  # PUT ALWAYS TWO SLASHES!!!!
         # calls set dir func when the save_dir widget is changed
         self.settings.save_dir.hardware_set_func = self.setDirFunc
 
     def setup(self):
+
+        # self.ui.mdiArea.removeSubWindow("Log")
+
+        # self.logging_subwin.hide()
+        # self.logging_widget.hide()
         print("Adding Hardware Components")
         from CameraHardware import HamamatsuHardware
         from LaserHardware import Laser488HW, Laser561HW
@@ -46,11 +51,16 @@ class HexSimApp(BaseMicroscopeApp):
         print("Adding measurement components")
         # from CameraMeasurement import HamamatsuMeasurement
         from HexSimMeasurement2 import HexSimMeasurement
+        from HexSimAnalysis2 import HexSimAnalysis
 
         # self.add_measurement(HamamatsuMeasurement(self))
+        self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
+
+
         self.ui.show()
         self.ui.activateWindow()
+        # print(self.ui.mdiArea.subWindowList())
 
     def setDirFunc(self, val=None):
         """
