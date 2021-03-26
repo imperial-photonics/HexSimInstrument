@@ -49,7 +49,7 @@
          </font>
         </property>
         <property name="currentIndex">
-         <number>0</number>
+         <number>1</number>
         </property>
         <widget class="QWidget" name="imgStreamTab">
          <attribute name="title">
@@ -120,6 +120,133 @@
             </item>
             <item>
              <widget class="QSlider" name="rawImageSlider">
+              <property name="minimumSize">
+               <size>
+                <width>400</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">QSlider::groove:horizontal {
+border: 1px solid #bbb;
+background: white;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal {
+background: qlineargradient(x1: 0, y1: 0,    x2: 0, y2: 1,
+    stop: 0 #66e, stop: 1 #bbf);
+background: qlineargradient(x1: 0, y1: 0.2, x2: 1, y2: 1,
+    stop: 0 #bbf, stop: 1 #55f);
+border: 1px solid #777;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::add-page:horizontal {
+background: #fff;
+border: 1px solid #777;
+height: 10px;
+border-radius: 4px;
+}
+
+QSlider::handle:horizontal {
+background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #eee, stop:1 #ccc);
+border: 1px solid #777;
+width: 35px;
+margin-top: -2px;
+margin-bottom: -2px;
+border-radius: 4px;
+}
+
+QSlider::handle:horizontal:hover {
+background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #fff, stop:1 #ddd);
+border: 1px solid #444;
+border-radius: 4px;
+}
+
+QSlider::sub-page:horizontal:disabled {
+background: #bbb;
+border-color: #999;
+}
+
+QSlider::add-page:horizontal:disabled {
+background: #eee;
+border-color: #999;
+}
+
+QSlider::handle:horizontal:disabled {
+background: #eee;
+border: 1px solid #aaa;
+border-radius: 4px;
+}</string>
+              </property>
+              <property name="maximum">
+               <number>500</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tab">
+         <attribute name="title">
+          <string>Wide field</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_4">
+          <item row="0" column="0">
+           <layout class="QGridLayout" name="wfImageLayout"/>
+          </item>
+          <item row="1" column="0">
+           <layout class="QHBoxLayout" name="horizontalLayout_19">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="wfImageNth">
+              <property name="minimumSize">
+               <size>
+                <width>25</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>0</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_22">
+              <property name="text">
+               <string>/</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="wfImageNtotal">
+              <property name="minimumSize">
+               <size>
+                <width>25</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>0</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSlider" name="wfImageSlider">
               <property name="minimumSize">
                <size>
                 <width>400</width>
@@ -387,8 +514,8 @@ border-radius: 4px;
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
-         <x>456</x>
-         <y>79</y>
+         <x>840</x>
+         <y>90</y>
          <width>373</width>
          <height>89</height>
         </rect>
@@ -403,8 +530,14 @@ border-radius: 4px;
            <widget class="QPushButton" name="standardSimuButton">
             <property name="minimumSize">
              <size>
-              <width>0</width>
+              <width>165</width>
               <height>20</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>165</width>
+              <height>16777215</height>
              </size>
             </property>
             <property name="text">
@@ -424,35 +557,17 @@ border-radius: 4px;
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_17">
           <item>
-           <widget class="QPushButton" name="streamSimuButton">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>20</height>
-             </size>
-            </property>
-            <property name="text">
-             <string>Stream Simulation</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="streamSimuStop">
-            <property name="text">
-             <string>Stop</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_18">
-          <item>
            <widget class="QPushButton" name="batchSimuButton">
             <property name="minimumSize">
              <size>
-              <width>0</width>
+              <width>165</width>
               <height>20</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>165</width>
+              <height>16777215</height>
              </size>
             </property>
             <property name="text">
@@ -469,13 +584,24 @@ border-radius: 4px;
           </item>
          </layout>
         </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_18">
+          <item>
+           <widget class="QPushButton" name="resolutionEstimateButton">
+            <property name="text">
+             <string> Resolution estimate</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
-         <x>456</x>
-         <y>15</y>
+         <x>840</x>
+         <y>26</y>
          <width>373</width>
          <height>61</height>
         </rect>
@@ -485,7 +611,7 @@ border-radius: 4px;
          <widget class="QPushButton" name="loadFileButton">
           <property name="minimumSize">
            <size>
-            <width>158</width>
+            <width>160</width>
             <height>30</height>
            </size>
           </property>
@@ -561,17 +687,7 @@ border-radius: 4px;
              <bool>false</bool>
             </property>
             <property name="text">
-             <string>Use loaded</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="autoSaveCalibration">
-            <property name="text">
-             <string>Auto save</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
+             <string>Use loaded calibration results</string>
             </property>
            </widget>
           </item>
@@ -632,8 +748,8 @@ border-radius: 4px;
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
-         <x>8</x>
-         <y>16</y>
+         <x>390</x>
+         <y>40</y>
          <width>165</width>
          <height>136</height>
         </rect>
@@ -812,8 +928,8 @@ border-radius: 4px;
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
-         <x>179</x>
-         <y>17</y>
+         <x>560</x>
+         <y>40</y>
          <width>182</width>
          <height>108</height>
         </rect>
@@ -950,8 +1066,8 @@ border-radius: 4px;
       <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
-         <x>367</x>
-         <y>16</y>
+         <x>750</x>
+         <y>40</y>
          <width>82</width>
          <height>134</height>
         </rect>
@@ -1055,24 +1171,34 @@ border-radius: 4px;
       <widget class="QTextBrowser" name="fileInfo">
        <property name="geometry">
         <rect>
-         <x>840</x>
-         <y>45</y>
+         <x>10</x>
+         <y>40</y>
          <width>365</width>
-         <height>120</height>
+         <height>85</height>
         </rect>
        </property>
       </widget>
       <widget class="QLabel" name="label">
        <property name="geometry">
         <rect>
-         <x>845</x>
-         <y>25</y>
+         <x>10</x>
+         <y>20</y>
          <width>47</width>
          <height>13</height>
         </rect>
        </property>
        <property name="text">
         <string>File info:</string>
+       </property>
+      </widget>
+      <widget class="QTextEdit" name="resolutionEstimation">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>132</y>
+         <width>365</width>
+         <height>44</height>
+        </rect>
        </property>
       </widget>
      </widget>

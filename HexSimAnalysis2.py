@@ -18,6 +18,7 @@ from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 
 from QtImageViewer import QtImageViewer
 from hexSimProcessor import HexSimProcessor
+from image_decorr import measure, ImageDecorr
 
 class HexSimAnalysis(Measurement):
     name = 'HexSIM_Analysis'
@@ -39,28 +40,29 @@ class HexSimAnalysis(Measurement):
         # Initialize condition labels
         self.isUpdateImageViewer = False
         self.showCalibrationResult = False
-        self.isProcessingFinished = False
         self.isCalibrationSaved = False
         self.isFileLoad = False
-
         self.processValue = 0
         self.start_timers()
 
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
-
         # Set up pyqtgraph graph_layout in the UI
         self.imvRaw = pg.ImageView()
         self.imvSIM = pg.ImageView()
+        self.imvWF = pg.ImageView()
 
         self.ui.rawImageLayout.addWidget(self.imvRaw)
         self.ui.simImageLayout.addWidget(self.imvSIM)
+        self.ui.wfImageLayout.addWidget(self.imvWF)
 
         # Image initialization
         self.imageRaw = np.zeros((1, 512, 512), dtype=np.uint16)
         self.imageSIM = np.zeros((1, 1024,1024), dtype=np.uint16)
+        self.imageWF = np.zeros((1, 512, 512), dtype=np.uint16)
 
         self.imvRaw.setImage((self.imageRaw[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
+        self.imvWF.setImage((self.imageWF[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
         self.imvSIM.setImage((self.imageSIM[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
 
         # region Reconstructor settings
@@ -87,6 +89,7 @@ class HexSimAnalysis(Measurement):
         # Display
         self.ui.rawImageSlider.valueChanged.connect(self.rawImageSliderChanged)
         self.ui.simImageSlider.valueChanged.connect(self.simImageSliderChanged)
+        self.ui.wfImageSlider.valueChanged.connect(self.wfImageSliderChanged)
 
         # Toolbox
         self.ui.loadFileButton.clicked.connect(self.loadFile)
@@ -99,11 +102,13 @@ class HexSimAnalysis(Measurement):
         self.ui.standardSimuButton.clicked.connect(self.standardSimuButtonPressed)
         self.ui.standardSimuUpdate.clicked.connect(self.standardReconstructionUpdate)
 
-        self.ui.streamSimuButton.clicked.connect(self.streamSimuButtonPressed)
-        self.ui.streamSimuStop.clicked.connect(self.streamStopPressed)
+        # self.ui.streamSimuButton.clicked.connect(self.streamSimuButtonPressed)
+        # self.ui.streamSimuStop.clicked.connect(self.streamStopPressed)
 
         self.ui.batchSimuButton.clicked.connect(self.batchSimuButtonPressed)
         self.ui.batchSimuUpdate.clicked.connect(self.batchReconstructionUpdate)
+
+        self.ui.resolutionEstimateButton.clicked.connect(self.resolutionEstimatePressed)
 
     def update_display(self):
         """
@@ -139,7 +144,7 @@ class HexSimAnalysis(Measurement):
             self.calibrationProcessTimer.setSingleShot(True)
             self.calibrationProcessTimer.setInterval(1)
             self.calibrationProcessTimer.timeout.connect(self.calibrationProcessor)
-            print('Timer here')
+            # print('Timer here')
 
         if not hasattr(self, 'standardProcessTimer'):
             self.standardProcessTimer = QTimer(self)
@@ -153,6 +158,12 @@ class HexSimAnalysis(Measurement):
             self.batchProcessTimer.setInterval(1)
             self.batchProcessTimer.timeout.connect(self.batchProcessor)
 
+        if not hasattr(self, 'resolutionEstimateTimer'):
+            self.resolutionEstimateTimer = QTimer(self)
+            self.resolutionEstimateTimer.setSingleShot(True)
+            self.resolutionEstimateTimer.setInterval(1)
+            self.resolutionEstimateTimer.timeout.connect(self.resolutionEstimate)
+
     def run(self):
         # self.start_threads()
 
@@ -163,7 +174,10 @@ class HexSimAnalysis(Measurement):
         filename, _ = QFileDialog.getOpenFileName(directory="./measurement")
         self.imageRaw = np.single(tif.imread(filename))
         self.imageRawShape = np.shape(self.imageRaw)
-        self.imageSIM = np.zeros(self.imageRawShape)
+        self.imageSIM = np.zeros((self.imageRawShape[0]//7,self.imageRawShape[1],self.imageRawShape[2]))
+        self.imageWF = np.zeros((self.imageRawShape[0] // 7, self.imageRawShape[1], self.imageRawShape[2]))
+
+        self.raw2WideFieldImage()
 
         self.filetitle = Path(filename).stem
         self.filepath = os.path.dirname(filename)
@@ -199,11 +213,11 @@ class HexSimAnalysis(Measurement):
             except:
                 self.laserpower = 0
 
-            txtDisplay = "File name: {}\n" \
-                         "Array size: {}\n" \
-                         "Wavelength: {} um\n" \
-                         "Exposure time: {:.3f} s\n" \
-                         "Laser power: {} mW".format(self.filetitle, self.imageRawShape, \
+            txtDisplay = "File name:\t {}\n" \
+                         "Array size:\t {}\n" \
+                         "Wavelength:\t {} um\n" \
+                         "Exposure time:\t {:.3f} s\n" \
+                         "Laser power:\t {} mW".format(self.filetitle, self.imageRawShape, \
                                                                 configSet["wavelength"], \
                                                                 self.exposuretime, self.laserpower)
             self.ui.fileInfo.setPlainText(txtDisplay)
@@ -218,6 +232,12 @@ class HexSimAnalysis(Measurement):
         self.setReconstructor()
         self.h._allocate_arrays()
 
+    def raw2WideFieldImage(self):
+        for n_idx in range(self.imageRawShape[0]//7):
+            self.imageWF[n_idx,:,:] = np.sum(self.imageRaw[n_idx*7:(n_idx+1)*7,:,:],axis=0)/7
+
+        # print(self.imageWF.shape)
+
     # region Display Functions
     def rawImageSliderChanged(self):
         self.ui.rawImageSlider.setMinimum(0)
@@ -228,6 +248,16 @@ class HexSimAnalysis(Measurement):
 
         self.ui.rawImageNth.setText(str(self.ui.rawImageSlider.value() + 1))
         self.ui.rawImageNtotal.setText(str(len(self.imageRaw)))
+
+    def wfImageSliderChanged(self):
+        self.ui.wfImageSlider.setMinimum(0)
+        self.ui.wfImageSlider.setMaximum(self.imageWF.shape[0] - 1)
+
+        self.imvWF.setImage((self.imageWF[int(self.ui.wfImageSlider.value()), :, :]).T, autoRange=False,
+                             levels=(self.imageWFMin, self.imageWFMax))
+
+        self.ui.wfImageNth.setText(str(self.ui.wfImageSlider.value() + 1))
+        self.ui.wfImageNtotal.setText(str(len(self.imageWF)))
 
     def simImageSliderChanged(self):
         self.ui.simImageSlider.setMinimum(0)
@@ -241,8 +271,11 @@ class HexSimAnalysis(Measurement):
     def updateImageViewer(self):
         self.imageRawMax = np.amax(self.imageRaw)
         self.imageRawMin = np.amin(self.imageRaw)
+        self.imageWFMax = np.amax(self.imageWF)
+        self.imageWFMin = np.amin(self.imageWF)
         self.imageSIMMax = np.amax(self.imageSIM)
         self.rawImageSliderChanged()
+        self.wfImageSliderChanged()
         self.simImageSliderChanged()
 
     # endregion
@@ -465,16 +498,18 @@ class HexSimAnalysis(Measurement):
     def saveMeasurements(self):
         t0 = time.time()
         timestamp = datetime.fromtimestamp(t0)
-        timestamp = timestamp.strftime("%Y_%m%d_%H%M")
+        timestamp = timestamp.strftime("%Y%m%d%H%M")
         pathname = self.filepath + '/reprocess'
         Path(pathname).mkdir(parents=True,exist_ok=True)
         simimagename = pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.tif'
-        txtname = pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.txt'
+        txtname =      pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.txt'
         tif.imwrite(simimagename, np.float32(self.imageSIM))
+        print(type(self.imageSIM))
 
         savedictionary = {
             "exposure time (s)":self.exposuretime,
             "laser power (mW)": self.laserpower,
+            # "z stepsize (um)":  self.
             # System setup:
             "magnification" :   self.h.magnification,
             "NA":               self.h.NA,
@@ -497,6 +532,22 @@ class HexSimAnalysis(Measurement):
         f = open(txtname, 'w+')
         f.write(json.dumps(savedictionary, cls=NumpyEncoder,indent=2))
         self.isCalibrationSaved = True
+
+    def resolutionEstimate(self):
+        try:
+            pixelsizeWF = self.h.pixelsize / self.h.magnification
+            ciWF = ImageDecorr(self.imageWF[self.ui.wfImageSlider.value(),:,:], square_crop=True,pixel_size=pixelsizeWF)
+            optimWF, resWF = ciWF.compute_resolution()
+            ciSIM = ImageDecorr(self.imageSIM[self.ui.simImageSlider.value(),:,:], square_crop=True,pixel_size=pixelsizeWF/2)
+            optimSIM, resSIM = ciSIM.compute_resolution()
+            txtDisplay = f"Wide field image resolution:\t {ciWF.resolution:.3f} um \
+                  \nSIM image resolution:\t {ciSIM.resolution:.3f} um\n"
+            self.ui.resolutionEstimation.setPlainText(txtDisplay)
+        except:
+            pass
+
+    def resolutionEstimatePressed(self):
+        self.resolutionEstimateTimer.start()
 
     def loadCalibrationResults(self):
         filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory="./measurement", filter="Text files (*.txt)")
@@ -563,7 +614,6 @@ class MessageWindow(QWidget):
         self.wienerfilterWidget.aspectRatioMode = Qt.KeepAspectRatio
         im = qimage2ndarray.gray2qimage(self.h.wienerfilter, normalize=True)
         self.wienerfilterWidget.setImage(im)
-
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):

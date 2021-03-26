@@ -34,6 +34,7 @@ class HexSimMeasurement(Measurement):
         self.showCalibrationResult = False
         self.isProcessingFinished = False
         self.isCalibrationSaved = False
+        self.isSnapshot = False
         # self.isAutoSaveBatchMeasure = True
         # self.isAutoSaveCalibration = True
 
@@ -147,6 +148,7 @@ class HexSimMeasurement(Measurement):
 
         # Camera
         self.ui.camButton.clicked.connect(self.camButtonPressed)
+        self.ui.snapshot.clicked.connect(self.snapshotPressed)
 
         # Screen
         self.ui.slmButton.clicked.connect(self.slmButtonPressed)
@@ -988,6 +990,9 @@ class HexSimMeasurement(Measurement):
         self.h5file.flush()  # maybe is not necessary
         self.settings['progress'] = saveindex * 100. / self.camera.hamamatsu.number_image_buffers
 
+    def snapshotPressed(self):
+        self.isSnapshot = True
+
     def updateIndex(self, last_frame_index):
         """
         Update the index of the image to fetch from buffer.
@@ -1054,6 +1059,12 @@ class HexSimMeasurement(Measurement):
                         print('Camera read data fail.')
 
                     self.image = np.reshape(self.np_data, (self.eff_subarrayv, self.eff_subarrayh))
+
+                    if self.isSnapshot:
+                        tif.imwrite('live_image.tif', np.uint16(self.image))
+                        self.isSnapshot = False
+                        print('Saved one image.')
+
                     if self.settings['record']:
                         self.camera.hamamatsu.stopAcquisition()
                         self.camera.hamamatsu.startRecording()
@@ -1133,8 +1144,8 @@ class HexSimMeasurement(Measurement):
         simimagename = pathname + '/' + timestamp + samplename + wavelength + f'_SIM' + '.tif'
         txtname = pathname + '/'+ timestamp + samplename + wavelength + f'_calibration' + '.txt'
 
-        tif.imwrite(rawimagename, np.float32(self.imageRaw))
-        tif.imwrite(simimagename, np.float32(self.imageSIM))
+        tif.imwrite(rawimagename, np.uint16(self.imageRaw))
+        tif.imwrite(simimagename, np.single(self.imageSIM))
 
         if self.h.wavelength == 0.488:
             laserpower = np.float(self.laser488.power.val)

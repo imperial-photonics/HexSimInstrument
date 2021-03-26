@@ -71,12 +71,12 @@ class HexSimProcessor:
     def _allocate_arrays(self):
         # define matrix
         self._reconfactor = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)  # for reconstruction
-
         self._prefilter = np.zeros((self.N, self.N),
                                    dtype=np.single)  # for prefilter stage, includes otf and zero order supression
         self._postfilter = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)
         self._carray = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.complex64)
         self._carray1 = np.zeros((7, 2 * self.N, self.N + 1), dtype=np.complex64)
+
         self._imgstore = np.zeros((7, self.N, self.N), dtype=np.single)
         # self._imgbig = np.zeros((7, 2 * self.N, 2 * self.N), dtype=np.single)
         self._bigimgstore = np.zeros((2 * self.N, 2 * self.N), dtype=np.single)

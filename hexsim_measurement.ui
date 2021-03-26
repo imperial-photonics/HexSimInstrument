@@ -143,13 +143,13 @@
         </item>
        </layout>
       </widget>
-      <widget class="QWidget" name="">
+      <widget class="QWidget" name="layoutWidget">
        <property name="geometry">
         <rect>
          <x>12</x>
          <y>16</y>
          <width>322</width>
-         <height>51</height>
+         <height>61</height>
         </rect>
        </property>
        <layout class="QGridLayout" name="gridLayout_3">
@@ -504,6 +504,19 @@
          </widget>
         </item>
        </layout>
+      </widget>
+      <widget class="QPushButton" name="snapshot">
+       <property name="geometry">
+        <rect>
+         <x>300</x>
+         <y>30</y>
+         <width>75</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Snapshot</string>
+       </property>
       </widget>
      </widget>
     </item>
@@ -1092,7 +1105,7 @@ border-radius: 4px;
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="">
+       <widget class="QWidget" name="layoutWidget">
         <property name="geometry">
          <rect>
           <x>5</x>
