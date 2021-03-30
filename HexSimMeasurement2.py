@@ -17,7 +17,7 @@ from ScopeFoundry import Measurement, h5_io
 from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 
 from QtImageViewer import QtImageViewer
-from hexSimProcessor import HexSimProcessor
+from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 
 
 class HexSimMeasurement(Measurement):
