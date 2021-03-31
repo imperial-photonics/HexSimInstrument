@@ -130,8 +130,19 @@ class HexSimMeasurement(Measurement):
 
         # Set up pyqtgraph graph_layout in the UI
         self.imv = pg.ImageView()
+        # self.imv.ui.histogram.hide()
+        self.imv.ui.roiBtn.hide()
+        self.imv.ui.menuBtn.hide()
+        # self.imv.show()
+
         self.imvRaw = pg.ImageView()
+        self.imvRaw.ui.roiBtn.hide()
+        self.imvRaw.ui.menuBtn.hide()
+
         self.imvSIM = pg.ImageView()
+        self.imvSIM.ui.roiBtn.hide()
+        self.imvSIM.ui.menuBtn.hide()
+
 
         self.ui.imgStreamLayout.addWidget(self.imv)
         self.ui.rawImageLayout.addWidget(self.imvRaw)

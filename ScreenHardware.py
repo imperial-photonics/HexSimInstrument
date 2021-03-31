@@ -19,7 +19,7 @@ class ScreenHW(HardwareComponent):
         # self.settings.New(name='monitor_number', initial=1, dtype=int, ro=False)
         self.settings.New(name='shift_orientation', initial=pi / 18.0, spinbox_decimals=4, dtype=float, ro=False)
         self.settings.New(name='scale', initial=1.25, spinbox_decimals=4, dtype=float, ro=False)
-        self.settings.New(name='wavelength', initial=0.561,choices=[0.488, 0.561], dtype=float, spinbox_decimals=3, ro=False, unit='um')
+        self.settings.New(name='wavelength', initial=0.488,choices=[0.488, 0.561,2.488,2.561], dtype=float, spinbox_decimals=3, ro=False, unit='um')
         self.settings.New(name='NA', initial=0.75, dtype=float, ro=False)
         self.settings.New(name='magnification', initial=40, dtype=int, ro=False)
         self.settings.New(name='tune_scale', initial=40, dtype=int, ro=False)

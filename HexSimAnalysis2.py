@@ -49,8 +49,16 @@ class HexSimAnalysis(Measurement):
         # connect ui widgets to measurement/hardware settings or functionss
         # Set up pyqtgraph graph_layout in the UI
         self.imvRaw = pg.ImageView()
+        self.imvRaw.ui.roiBtn.hide()
+        self.imvRaw.ui.menuBtn.hide()
+
         self.imvSIM = pg.ImageView()
+        self.imvSIM.ui.roiBtn.hide()
+        self.imvSIM.ui.menuBtn.hide()
+
         self.imvWF = pg.ImageView()
+        self.imvWF.ui.roiBtn.hide()
+        self.imvWF.ui.menuBtn.hide()
 
         self.ui.rawImageLayout.addWidget(self.imvRaw)
         self.ui.simImageLayout.addWidget(self.imvSIM)
@@ -502,8 +510,10 @@ class HexSimAnalysis(Measurement):
         pathname = self.filepath + '/reprocess'
         Path(pathname).mkdir(parents=True,exist_ok=True)
         simimagename = pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.tif'
+        wfimagename = pathname + '/' + self.filetitle + timestamp + f'_widefield' + '.tif'
         txtname =      pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.txt'
-        tif.imwrite(simimagename, np.float32(self.imageSIM))
+        tif.imwrite(simimagename, np.single(self.imageSIM))
+        tif.imwrite(wfimagename,np.uint16(self.imageWF))
         print(type(self.imageSIM))
 
         savedictionary = {

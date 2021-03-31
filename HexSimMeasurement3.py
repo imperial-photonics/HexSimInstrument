@@ -88,6 +88,9 @@ class HexSimMeasurement(Measurement):
         self.streamTimer = QTimer(self)
         self.streamTimer.timeout.connect(self.streamMeasureTimer)
 
+        self.processValue = 0
+        self.start_timers()
+
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
         # Set up pyqtgraph graph_layout in the UI
@@ -156,6 +159,7 @@ class HexSimMeasurement(Measurement):
         self.ui.saveButton.clicked.connect(self.saveMeasurements)
 
         # Test
+        # self.ui.calibrationButton.clicked.connect(self.calibrationAcquisition)
         self.ui.calibrationButton.clicked.connect(self.calibrationAcquisition)
         self.ui.resetMeasureButton.clicked.connect(self.resetHexSIM)
         self.ui.calibrationResult.clicked.connect(self.showMessageWindow)
@@ -210,6 +214,35 @@ class HexSimMeasurement(Measurement):
             msg.setIcon(QMessageBox.Information)
             self.isCalibrationSaved = False
 
+    def start_timers(self):
+        if not hasattr(self, 'h'):
+            self.h = HexSimProcessor()  # create reconstruction object
+            self.setReconstructor()
+
+        if not hasattr(self, 'calibrationProcessTimer'):
+            self.calibrationProcessTimer = QTimer(self)
+            self.calibrationProcessTimer.setSingleShot(True)
+            self.calibrationProcessTimer.setInterval(1)
+            self.calibrationProcessTimer.timeout.connect(self.calibrationProcessor)
+            # print('Timer here')
+
+        if not hasattr(self, 'standardProcessTimer'):
+            self.standardProcessTimer = QTimer(self)
+            self.standardProcessTimer.setSingleShot(True)
+            self.standardProcessTimer.setInterval(1)
+            self.standardProcessTimer.timeout.connect(self.standardProcessor)
+
+        if not hasattr(self, 'batchProcessTimer'):
+            self.batchProcessTimer = QTimer(self)
+            self.batchProcessTimer.setSingleShot(True)
+            self.batchProcessTimer.setInterval(1)
+            self.batchProcessTimer.timeout.connect(self.batchProcessor)
+
+        if not hasattr(self, 'calibrationMeasureTimer'):
+            self.calibrationMeasureTimer = QTimer(self)
+            self.calibrationMeasureTimer.setSingleShot(True)
+            self.calibrationMeasureTimer.setInterval(1)
+            self.calibrationMeasureTimer.timeout.connect(self.calibrationMeasure)
 
     def start_threads(self):
 
@@ -218,20 +251,23 @@ class HexSimMeasurement(Measurement):
 
         self.image = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
 
-        if not hasattr(self, 'h'):
-            self.h = HexSimProcessor()  # create reconstruction object
-            self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh),
-                                     dtype=np.uint16)  # Initialize the raw image array
-            self.setReconstructor()
-            self.h.N = self.eff_subarrayh
+        self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh),
+                                 dtype=np.uint16)  # Initialize the raw image array
+        self.h.N = self.eff_subarrayh
+        # if not hasattr(self, 'h'):
+        #     self.h = HexSimProcessor()  # create reconstruction object
+        #     self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh),
+        #                              dtype=np.uint16)  # Initialize the raw image array
+        #     self.setReconstructor()
+        #     self.h.N = self.eff_subarrayh
 
-        if not hasattr(self, 'calibrationMeasureThread'):
-            self.calibrationMeasureThread = Thread(target=self.calibrationMeasure)
-            self.calibrationMeasureThread.start()
+        # if not hasattr(self, 'calibrationMeasureThread'):
+        #     self.calibrationMeasureThread = Thread(target=self.calibrationMeasure)
+        #     self.calibrationMeasureThread.start()
 
-        if not hasattr(self, 'calibrationProcessThread'):
-            self.calibrationProcessThread = Thread(target=self.calibrationProcessor)
-            self.calibrationProcessThread.start()
+        # if not hasattr(self, 'calibrationProcessThread'):
+        #     self.calibrationProcessThread = Thread(target=self.calibrationProcessor)
+        #     self.calibrationProcessThread.start()
 
         if not hasattr(self, 'standardMeasureThread'):
             self.standardMeasureThread = Thread(target=self.standardMeasure)
@@ -334,72 +370,124 @@ class HexSimMeasurement(Measurement):
             self.updateImageViewer()
 
     def calibrationAcquisition(self):
-        self.calibrationMeasureEvent.set()
+        # self.calibrationMeasureEvent.set()
+        self.calibrationMeasureTimer.start()
+    # def calibrationMeasure(self):
+    #     cthread = currentThread()
+    #     while getattr(cthread, "isThreadRun", True):
+    #         self.calibrationMeasureEvent.wait()
+    #         # Stop the camera and main run
+    #         self.cameraInterrupt()
+    #         self.interrupt()
+    #         # Initialize the raw image array
+    #         self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+    #
+    #         # Project the patterns and acquire 7 raw images
+    #         for i in range(7):
+    #             self.screen.slm_dev.displayFrameN(i)
+    #             time.sleep(self.getAcquisitionInterval() / 1000.0)
+    #             self.imageRaw[i, :, :] = self.getOneFrame()
+    #             print('Capture frame:', i)
+    #             # self.ui.processingBar.setValue((i+1)*5)
+    #
+    #         # Calibration
+    #         self.calibrationProcessEvent.set()
+    #         self.calibrationMeasureEvent.clear()
+    #         self.calibrationFinished.wait()
+    #         # self.ui.processingBar.setValue(80)
+    #         # Recover camera streaming
+    #         self.camera.updateCameraSettings()
+    #         self.cameraStart()
+    #         self.showCalibrationResult = True
+    #         self.start()
+    #         self.calibrationFinished.clear()
+    #
+    #         self.isProcessingFinished = True
+    #
+    #         if self.ui.autoSaveCalibration.isChecked():
+    #             self.saveMeasurements()
 
     def calibrationMeasure(self):
-        cthread = currentThread()
-        while getattr(cthread, "isThreadRun", True):
-            self.calibrationMeasureEvent.wait()
-            # Stop the camera and main run
-            self.cameraInterrupt()
-            self.interrupt()
-            # Initialize the raw image array
-            self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+        # Initialize the raw image array
+        self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
 
-            # Project the patterns and acquire 7 raw images
-            for i in range(7):
-                self.screen.slm_dev.displayFrameN(i)
-                time.sleep(self.getAcquisitionInterval() / 1000.0)
-                self.imageRaw[i, :, :] = self.getOneFrame()
-                print('Capture frame:', i)
-                # self.ui.processingBar.setValue((i+1)*5)
+        # Project the patterns and acquire 7 raw images
+        for i in range(7):
+            self.screen.slm_dev.displayFrameN(i)
+            time.sleep(self.getAcquisitionInterval() / 1000.0)
+            self.imageRaw[i, :, :] = self.getOneFrame()
+            print('Capture frame:', i)
 
-            # Calibration
-            self.calibrationProcessEvent.set()
-            self.calibrationMeasureEvent.clear()
-            self.calibrationFinished.wait()
-            # self.ui.processingBar.setValue(80)
-            # Recover camera streaming
-            self.camera.updateCameraSettings()
-            self.cameraStart()
-            self.showCalibrationResult = True
-            self.start()
-            self.calibrationFinished.clear()
+        # Calibration
+        self.calibrationProcessTimer.start()
 
-            self.isProcessingFinished = True
+        # Recover camera streaming
+        self.camera.updateCameraSettings()
+        self.cameraStart()
 
-            if self.ui.autoSaveCalibration.isChecked():
-                self.saveMeasurements()
+        self.showCalibrationResult = True
+
+        # self.start()
+        # self.calibrationFinished.clear()
+
+        self.isProcessingFinished = True
+
+        if self.ui.autoSaveCalibration.isChecked():
+            self.saveMeasurements()
 
     def calibrationProcessor(self):
-        cthread = currentThread()
-        while getattr(cthread, "isThreadRun", True):
-            self.calibrationProcessEvent.wait()
-            print('Start calibrating...')
-            # self.ui.processingBar.setValue(40)
+        print('Start calibrating...')
+        self.processValue = 0
 
-            startTime = time.time()
+        startTime = time.time()
 
-            if not self.interrupt_measurement_called:
-                self.interrupt()
+        if self.h.gpuenable:
+            self.h.calibrate_cupy(self.imageRaw)
+            self.processValue = 60
+            self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
 
-            if self.h.gpuenable:
-                self.h.calibrate_cupy(self.imageRaw)
-                self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+        elif not self.h.gpuenable:
+            self.h.calibrate(self.imageRaw)
+            self.processValue = 60
+            self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
-            elif not self.h.gpuenable:
-                self.h.calibrate(self.imageRaw)
-                self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+        print('Calibration is processed in:', time.time() - startTime, 's')
+        self.processValue = 90
 
-            print('Calibration is processed in:', time.time() - startTime, 's')
+        self.imageSIM = self.imageSIM[np.newaxis, :, :]
+        self.isUpdateImageViewer = True
 
-            self.imageSIM = self.imageSIM[np.newaxis, :, :]
-            self.isUpdateImageViewer = True
+        self.processValue = 100
 
-            self.start()
-
-            self.calibrationProcessEvent.clear()
-            self.calibrationFinished.set()
+    # def calibrationProcessor(self):
+    #     cthread = currentThread()
+    #     while getattr(cthread, "isThreadRun", True):
+    #         self.calibrationProcessEvent.wait()
+    #         print('Start calibrating...')
+    #         # self.ui.processingBar.setValue(40)
+    #
+    #         startTime = time.time()
+    #
+    #         if not self.interrupt_measurement_called:
+    #             self.interrupt()
+    #
+    #         if self.h.gpuenable:
+    #             self.h.calibrate_cupy(self.imageRaw)
+    #             self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+    #
+    #         elif not self.h.gpuenable:
+    #             self.h.calibrate(self.imageRaw)
+    #             self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+    #
+    #         print('Calibration is processed in:', time.time() - startTime, 's')
+    #
+    #         self.imageSIM = self.imageSIM[np.newaxis, :, :]
+    #         self.isUpdateImageViewer = True
+    #
+    #         self.start()
+    #
+    #         self.calibrationProcessEvent.clear()
+    #         self.calibrationFinished.set()
 
     # Standard reconstruction
     def standardAcquisition(self):
@@ -432,43 +520,104 @@ class HexSimMeasurement(Measurement):
             self.start()
             self.standardProcessFinished.clear()
 
+    # def standardProcessor(self):
+    #     cthread = currentThread()
+    #     while getattr(cthread, "isThreadRun", True):
+    #         self.standardProcessEvent.wait()
+    #
+    #         isTemp = self.interrupt_measurement_called
+    #
+    #         if not self.interrupt_measurement_called:
+    #             self.interrupt()
+    #
+    #         if self.h.isCalibrated:
+    #             print('Start standard processing...')
+    #             startTime = time.time()
+    #             if self.h.gpuenable:
+    #                 self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+    #
+    #             elif not self.h.gpuenable:
+    #                 self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+    #
+    #             print('One SIM image is processed in:', time.time() - startTime, 's')
+    #             self.imageSIM = self.imageSIM[np.newaxis, :, :]
+    #
+    #         elif not self.h.isCalibrated:
+    #             self.calibrationProcessEvent.set()
+    #
+    #         self.isUpdateImageViewer = True
+    #
+    #         if not isTemp:
+    #             self.start()
+    #
+    #         self.standardProcessEvent.clear()
+    #         self.standardProcessFinished.set()
     def standardProcessor(self):
-        cthread = currentThread()
-        while getattr(cthread, "isThreadRun", True):
-            self.standardProcessEvent.wait()
+        self.processValue = 10
 
-            isTemp = self.interrupt_measurement_called
+        if self.h.isCalibrated:
+            print('Start standard processing...')
+            startTime = time.time()
+            if self.h.gpuenable:
+                self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
 
-            if not self.interrupt_measurement_called:
-                self.interrupt()
+            elif not self.h.gpuenable:
+                self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
-            if self.h.isCalibrated:
-                print('Start standard processing...')
-                startTime = time.time()
-                if self.h.gpuenable:
-                    self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+            print('One SIM image is processed in:', time.time() - startTime, 's')
+            self.imageSIM = self.imageSIM[np.newaxis, :, :]
 
-                elif not self.h.gpuenable:
-                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+        elif not self.h.isCalibrated:
+            self.calibrationProcessTimer.start()
 
-                print('One SIM image is processed in:', time.time() - startTime, 's')
-                self.imageSIM = self.imageSIM[np.newaxis, :, :]
+        self.processValue = 90
+        self.isUpdateImageViewer = True
 
-            elif not self.h.isCalibrated:
-                self.calibrationProcessEvent.set()
-
-            self.isUpdateImageViewer = True
-
-            if not isTemp:
-                self.start()
-
-            self.standardProcessEvent.clear()
-            self.standardProcessFinished.set()
+        self.processValue = 100
 
     # region Batch reconstruction
     def batchAcquisition(self):
         self.batchMeasureEvent.set()
 
+    # def batchMeasure(self):
+    #     cthread = currentThread()
+    #     while getattr(cthread, "isThreadRun", True):
+    #         self.batchMeasureEvent.wait()
+    #         self.cameraInterrupt()
+    #         self.interrupt()
+    #
+    #         # Initialize the raw image array
+    #         n_stack = 7*self.ui.nStack.value()
+    #         stage_offset = n_stack*self.stage.settings.stepsize.val
+    #         pos = 25-stage_offset/2.0
+    #         self.stage.moveAbsolutePositionHW(pos)
+    #
+    #         self.imageRaw = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+    #
+    #         # Project the patterns and acquire raw images
+    #         for i in range(n_stack):
+    #             self.screen.slm_dev.displayFrameN(i % 7)
+    #             # time.sleep(self.getAcquisitionInterval() / 1000.0)
+    #             self.imageRaw[i, :, :] = self.getOneFrame()
+    #             print('Capture frame:', i)
+    #             pos = pos + self.stage.settings.stepsize.val
+    #             self.stage.moveAbsolutePositionHW(pos)
+    #
+    #         # self.ui.processingBar.setValue(80)
+    #         self.stage.moveAbsolutePositionHW(25)
+    #         # Reconstruct the SIM image
+    #         self.batchProcessEvent.set()
+    #         self.batchMeasureEvent.clear()
+    #         # Recover camera streaming
+    #         self.batchProcessFinished.wait()
+    #         self.camera.updateCameraSettings()
+    #         self.cameraStart()
+    #         self.start()
+    #         self.batchProcessFinished.clear()
+    #         self.isProcessingFinished = True
+    #
+    #         if self.ui.autoSaveBatchCheck.isChecked():
+    #             self.saveMeasurements()
     def batchMeasure(self):
         cthread = currentThread()
         while getattr(cthread, "isThreadRun", True):
@@ -490,7 +639,7 @@ class HexSimMeasurement(Measurement):
                 # time.sleep(self.getAcquisitionInterval() / 1000.0)
                 self.imageRaw[i, :, :] = self.getOneFrame()
                 print('Capture frame:', i)
-                pos = pos + 0.05
+                pos = pos + self.stage.settings.stepsize.val
                 self.stage.moveAbsolutePositionHW(pos)
 
             # self.ui.processingBar.setValue(80)
@@ -508,7 +657,6 @@ class HexSimMeasurement(Measurement):
 
             if self.ui.autoSaveBatchCheck.isChecked():
                 self.saveMeasurements()
-
     # endregion
 
     def batchProcessor(self):
@@ -523,6 +671,7 @@ class HexSimMeasurement(Measurement):
                 self.interrupt()
 
             if self.h.isCalibrated:
+
                 startTime = time.time()
                 # Batch reconstruction
                 if self.h.gpuenable:
@@ -652,7 +801,6 @@ class HexSimMeasurement(Measurement):
 
     def standardReconstructionUpdate(self):
         self.standardSimulationEvent.set()
-        # self.calibrationProcessEvent.set()
 
     def standardReconstruction(self):
         # calibrate & reconstruction
@@ -1130,7 +1278,6 @@ class MessageWindow(QWidget):
         self.h = h
         self.setWindowTitle('Calibration results')
         self.showCurrentTable()
-        # self.showLoadedTable()
         self.showWienerFilter()
 
         self.ui.wienerfilterLayout.addWidget(self.wienerfilterWidget)

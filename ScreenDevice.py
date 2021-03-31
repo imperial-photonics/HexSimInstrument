@@ -30,6 +30,10 @@ class ScreenDisplay(QMainWindow):
         self.img = np.zeros([self.monitor.height(),self.monitor.width(),7])
         self.img488 = self.imgGenerator(0.488)
         self.img561 = self.imgGenerator(0.561)
+
+        self.img488_2b = self.twoBeamGenerator(0.488)
+        self.img561_2b = self.twoBeamGenerator(0.561)
+
         self.setPatterns(wavelength)
         # self.img = self.imgRead()
         self.screen = QLabel(self)
@@ -134,6 +138,21 @@ class ScreenDisplay(QMainWindow):
 
         return np.require(img, np.uint8, 'C')
 
+    def twoBeamGenerator(self,wavelength):
+        w = self.monitor.width()
+        h = self.monitor.height()
+        img = np.ones([h,w,7])
+        X, Y = np.meshgrid(np.linspace(0, w, w), np.linspace(0, h, h))
+        scalefactor = self.factor * self.NA * self.scale / wavelength / self.M
+        p = 4 * pi / sqrt(3) / scalefactor
+        # for i in range(3):
+        phi = X*sin(-self.orientation)*scalefactor+Y*cos(-self.orientation)*scalefactor  # self.orientation = 1.36
+
+        img[:,:,0]= 255*(cos(phi)>0.0)
+
+        return np.require(img,np.uint8,'C')
+
+
     def imgRead(self):
         w = self.monitor.width()
         h = self.monitor.height()
@@ -156,6 +175,12 @@ class ScreenDisplay(QMainWindow):
 
         elif self.wavelength == 0.561:
             self.img = self.img561
+
+        elif self.wavelength == 2.488:
+            self.img = self.img488_2b
+
+        elif self.wavelength == 2.561:
+            self.img = self.img561_2b
 
     def keyPressEvent(self, input):
         if input.key() ==Qt.Key_Escape:
