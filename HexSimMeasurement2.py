@@ -7,7 +7,6 @@ from threading import Thread, currentThread, Event
 
 import numpy as np
 import pyqtgraph as pg
-import qimage2ndarray
 import tifffile as tif
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, QTimer
@@ -16,40 +15,38 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QWidget, QTableWidgetItem,
 from ScopeFoundry import Measurement, h5_io
 from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 
-from QtImageViewer import QtImageViewer
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 
 
 class HexSimMeasurement(Measurement):
     name = 'HexSIM_Measurement'
 
-    # def __init__(self):
-
-
     def setup(self):
-        # Initialize condition labels
+        # initialize condition labels
         self.isStreamRun = False
-        self.isUpdateImageViewer = False
         self.isCameraRun = False
-        self.showCalibrationResult = False
         self.isProcessingFinished = False
-        self.isCalibrationSaved = False
         self.isSnapshot = False
-        # self.isAutoSaveBatchMeasure = True
-        # self.isAutoSaveCalibration = True
 
-        # self.isCameraConnect = False
-        # self.isLaser488Connect = False
-        # self.isLaser561Connect = False
-        # self.isScreenConnect = False
-        # self.isStageConnect = False
+        self.isUpdateImageViewer = False
+        self.showCalibrationResult = False
+        self.isCalibrated = False
+        self.isCalibrationSaved = False
+        self.isGpuenable = True     # using GPU for accelerating
+        self.isCompact = True       # using compact mode in batch reconstruction to save memory
+        self.isFileLoad = False
+        self.isFindCarrier = True
+
+        self.kx_input = np.zeros((3, 1), dtype=np.single)
+        self.ky_input = np.zeros((3, 1), dtype=np.single)
+        self.p_input = np.zeros((3, 1), dtype=np.single)
+        self.ampl_input = np.zeros((3, 1), dtype=np.single)
+
         # Message window
         self.messageWindow = None
         # load ui file
         self.ui_filename = sibling_path(__file__, "hexsim_measurement.ui")
         self.ui = load_qt_ui_file(self.ui_filename)
-
-
 
         # Connect to hardware components
         self.camera = self.app.hardware['HamamatsuHardware']
@@ -57,29 +54,6 @@ class HexSimMeasurement(Measurement):
         self.stage = self.app.hardware['NanoScanHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
-        # try:
-        #     self.camera = self.app.hardware['HamamatsuHardware']
-        #     self.isCameraConnect = True
-        #     print('Camera is connected.')
-        # except:
-        #     self.isCameraConnect = False
-        #     print('Camera is not connected.')
-        #
-        # try:
-        #     self.screen = self.app.hardware['ScreenHardware']
-        #     self.isScreenConnect = True
-        #     print('SLM is connected.')
-        # except:
-        #     self.isScreenConnect = False
-        #     print('SLM is not connected.')
-        #
-        # try:
-        #     self.stage = self.app.hardware['NanoScanHardware']
-        #     self.isStageConnect = True
-        #     print('Stage is connected.')
-        # except:
-        #     self.isStageConnect = False
-        #     print('Stage is not connected.')
 
         # Measurement component settings
         self.settings.New('record', dtype=bool, initial=False, hardware_set_func=self.setRecord,
@@ -104,8 +78,6 @@ class HexSimMeasurement(Measurement):
         self.level_min = self.settings.level_min.val
         self.level_max = self.settings.level_max.val
 
-
-
         self.standardMeasureEvent = Event()
         self.standardProcessEvent = Event()
         self.standardProcessFinished = Event()
@@ -123,15 +95,21 @@ class HexSimMeasurement(Measurement):
         self.dlg = QMessageBox()
         self.dlg.setWindowTitle("Message")
 
-
-
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
 
         # Set up pyqtgraph graph_layout in the UI
         self.imv = pg.ImageView()
+        self.imv.ui.roiBtn.hide()
+        self.imv.ui.menuBtn.hide()
+
         self.imvRaw = pg.ImageView()
+        self.imvRaw.ui.roiBtn.hide()
+        self.imvRaw.ui.menuBtn.hide()
+
         self.imvSIM = pg.ImageView()
+        self.imvSIM.ui.roiBtn.hide()
+        self.imvSIM.ui.menuBtn.hide()
 
         self.ui.imgStreamLayout.addWidget(self.imv)
         self.ui.rawImageLayout.addWidget(self.imvRaw)
@@ -256,10 +234,10 @@ class HexSimMeasurement(Measurement):
         self.eff_subarrayv = int(self.camera.subarrayv.val / self.camera.binning.val)
 
         self.image = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-        # self.image[0, 0] = 1  # Otherwise we get the "all zero pixels" error (we should modify pyqtgraph...)
 
         if not hasattr(self, 'h'):
             self.h = HexSimProcessor()  # create reconstruction object
+            self.h.opencv =False
             self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh),
                                      dtype=np.uint16)  # Initialize the raw image array
             self.setReconstructor()
@@ -367,10 +345,9 @@ class HexSimMeasurement(Measurement):
     ################    HexSIM  ################
     def resetHexSIM(self):
         if hasattr(self, 'h'):
-            self.h.isCalibrated = False
+            self.isCalibrated = False
             self.h._allocate_arrays()
             self.imageSIM = np.zeros((1, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-            # self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
             self.updateImageViewer()
 
     def calibrationAcquisition(self):
@@ -424,24 +401,25 @@ class HexSimMeasurement(Measurement):
             if not self.interrupt_measurement_called:
                 self.interrupt()
 
-            if self.h.gpuenable:
-                self.h.calibrate_cupy(self.imageRaw)
-                # self.ui.processingBar.setValue(75)
-                self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+            try:
+                if self.isGpuenable:
+                    self.h.calibrate_cupy(self.imageRaw,self.isFindCarrier)
+                    self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
 
-            elif not self.h.gpuenable:
-                self.h.calibrate(self.imageRaw)
-                # self.ui.processingBar.setValue(75)
-                self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+                elif not self.isGpuenable:
+                    self.h.calibrate(self.imageRaw,self.isFindCarrier)
+                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
-            print('Calibration is processed in:', time.time() - startTime, 's')
-            # self.ui.processingBar.setValue(99.99999)
+                print('Calibration is processed in:', time.time() - startTime, 's')
 
-            self.imageSIM = self.imageSIM[np.newaxis, :, :]
-            self.isUpdateImageViewer = True
+                self.imageSIM = self.imageSIM[np.newaxis, :, :]
+
+                self.isUpdateImageViewer = True
+                self.isCalibrated = True
+            except:
+                print('Calibration failed.')
 
             self.start()
-
             self.calibrationProcessEvent.clear()
             self.calibrationFinished.set()
 
@@ -486,20 +464,23 @@ class HexSimMeasurement(Measurement):
             if not self.interrupt_measurement_called:
                 self.interrupt()
 
-            if self.h.isCalibrated:
-                print('Start standard processing...')
-                startTime = time.time()
-                if self.h.gpuenable:
-                    self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+            try:
+                if self.isCalibrated:
+                    print('Start standard processing...')
+                    startTime = time.time()
+                    if self.isGpuenable:
+                        self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
 
-                elif not self.h.gpuenable:
-                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+                    elif not self.isGpuenable:
+                        self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
-                print('One SIM image is processed in:', time.time() - startTime, 's')
-                self.imageSIM = self.imageSIM[np.newaxis, :, :]
+                    print('One SIM image is processed in:', time.time() - startTime, 's')
+                    self.imageSIM = self.imageSIM[np.newaxis, :, :]
 
-            elif not self.h.isCalibrated:
-                self.calibrationProcessEvent.set()
+                elif not self.isCalibrated:
+                    self.calibrationProcessEvent.set()
+            except:
+                print("Stand process failed.")
 
             self.isUpdateImageViewer = True
 
@@ -566,43 +547,47 @@ class HexSimMeasurement(Measurement):
             if not self.interrupt_measurement_called:
                 self.interrupt()
 
-            if self.h.isCalibrated:
-                startTime = time.time()
-                # Batch reconstruction
-                if self.h.gpuenable:
-                    if self.h.compact:
-                        self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
-                    elif not self.h.compact:
-                        self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
+            try:
+                if self.isCalibrated:
+                    startTime = time.time()
+                    # Batch reconstruction
+                    if self.isGpuenable:
+                        if self.isCompact:
+                            self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
+                        elif not self.isCompact:
+                            self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
 
-                elif not self.h.gpuenable:
-                    if self.h.compact:
-                        self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
-                    elif not self.h.compact:
-                        self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+                    elif not self.isGpuenable:
+                        if self.isCompact:
+                            self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+                        elif not self.isCompact:
+                            self.imageSIM = self.h.batchreconstruct(self.imageRaw)
 
-            elif not self.h.isCalibrated:
-                startTime = time.time()
-                nStack = len(self.imageRaw)
-                # calibrate & reconstruction
-                if self.h.gpuenable:
-                    self.h.calibrate_cupy(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :])
-                    # self.ui.processingBar.setValue(25)
-                    if self.h.compact:
-                        self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
-                    elif not self.h.compact:
-                        self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
+                elif not self.isCalibrated:
+                    startTime = time.time()
+                    nStack = len(self.imageRaw)
+                    # calibrate & reconstruction
+                    if self.isGpuenable:
+                        self.h.calibrate_cupy(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
+                        # self.ui.processingBar.setValue(25)
+                        if self.isCompact:
+                            self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
+                        elif not self.isCompact:
+                            self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
 
-                elif not self.h.gpuenable:
-                    self.h.calibrate(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :])
-                    # self.ui.processingBar.setValue(25)
-                    if self.h.compact:
-                        self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
-                    elif not self.h.compact:
-                        self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+                    elif not self.isGpuenable:
+                        self.h.calibrate(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
+                        # self.ui.processingBar.setValue(25)
+                        if self.isCompact:
+                            self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+                        elif not self.isCompact:
+                            self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+                    self.isCalibrated = True
 
-            print('Batch reconstruction finished', time.time() - startTime, 's')
-            # self.ui.processingBar.setValue(99.9999)
+                print('Batch reconstruction finished', time.time() - startTime, 's')
+                # self.ui.processingBar.setValue(99.9999)
+            except:
+                print("Batch process failed.")
 
             self.isUpdateImageViewer = True
 
@@ -615,7 +600,7 @@ class HexSimMeasurement(Measurement):
     # region Streaming reconstruction
     def streamAcquisitionTimer(self):
         # Calibration should be done by standard measurement firstly.
-        if self.h.isCalibrated:
+        if self.isCalibrated:
             # Initialization
             self.isStreamRun = True
             self.streamIndex = 0
@@ -625,7 +610,7 @@ class HexSimMeasurement(Measurement):
             self.streamTimer = QTimer(self)
             self.streamTimer.timeout.connect(self.streamMeasureTimer)
             self.streamTimer.start(self.getAcquisitionInterval())
-        elif not self.h.isCalibrated:
+        elif not self.isCalibrated:
             print('Run calibration first.')
 
     def streamAcquisitionTimerStop(self):
@@ -658,9 +643,9 @@ class HexSimMeasurement(Measurement):
 
     def streamReconstruction(self, newFrame, index):
         print(index)
-        if self.h.gpuenable:
+        if self.isGpuenable:
             self.imageSIM = self.h.reconstructframe_cupy(newFrame, index)
-        elif not self.h.gpuenable:
+        elif not self.isGpuenable:
             self.imageSIM = self.h.reconstructframe_rfftw(newFrame, index)
 
         self.imageSIM = self.imageSIM[np.newaxis, :, :]
@@ -701,16 +686,17 @@ class HexSimMeasurement(Measurement):
 
     def standardReconstruction(self):
         # calibrate & reconstruction
-        if self.h.gpuenable:
-            self.h.calibrate_cupy(self.imageRaw)
+        if self.isGpuenable:
+            self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
             self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
 
-        elif not self.h.gpuenable:
-            self.h.calibrate(self.imageRaw)
+        elif not self.isGpuenable:
+            self.h.calibrate(self.imageRaw, self.isFindCarrier)
             self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
         self.imageSIM = self.imageSIM[np.newaxis, :, :]
         self.isUpdateImageViewer = True
+        self.isCalibrated = True
         print('One SIM image is processed.')
 
     def streamSimuButtonPressed(self):
@@ -768,7 +754,7 @@ class HexSimMeasurement(Measurement):
             self.batchProcessFinished.clear()
 
     def batchReconstructionUpdate(self):
-        self.h.isCalibrated = False
+        self.isCalibrated = False
         self.batchProcessEvent.set()
         # self.batchSimulationEvent.set()
 
@@ -791,13 +777,14 @@ class HexSimMeasurement(Measurement):
 
     # <editor-fold desc="Settings">
     def setReconstructor(self):
+        self.isCompact = self.ui.compactCheck.isChecked()
+        self.isGpuenable = self.ui.gpuCheck.isChecked()
+        self.isFindCarrier = not self.ui.useLoadedResultsCheck.isChecked()
+
         self.h.debug = self.ui.debugCheck.isChecked()
         self.h.cleanup = self.ui.cleanupCheck.isChecked()
-        self.h.gpuenable = self.ui.gpuCheck.isChecked()
         self.h.axial = self.ui.axialCheck.isChecked()
         self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
-        self.h.compact = self.ui.compactCheck.isChecked()
-        self.h.usePreCalibration = self.ui.useLoadedResultsCheck.isChecked()
         self.h.magnification = self.ui.magnificationValue.value()
         self.h.NA = self.ui.naValue.value()
         self.h.n = self.ui.nValue.value()
@@ -809,26 +796,9 @@ class HexSimMeasurement(Measurement):
         self.h.w = self.ui.wValue.value()
         self.h.eta = self.ui.etaValue.value()
 
-    def setMagnification(self):
-        self.h.magnification = self.ui.magnificationValue.value()
-
-    def setDebug(self):
-        self.h.debug = self.ui.debugCheck.isChecked()
-
-    def setCleanup(self):
-        self.h.cleanup = self.ui.cleanupCheck.isChecked()
-
-    def setGpuEnable(self):
-        self.h.gpuenable = self.ui.gpuCheck.isChecked()
-
-    def setAxial(self):
-        self.h.axial = self.ui.axialCheck.isChecked()
-
-    def setUseModulation(self):
-        self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
-
-    def setCompact(self):
-        self.h.compact = self.ui.compactCheck.isChecked()
+        if not self.isFindCarrier:
+            self.h.kx = self.kx_input
+            self.h.ky = self.ky_input
 
     def getAcquisitionInterval(self):
         return float(self.ui.intervalTime.value())
@@ -1171,8 +1141,8 @@ class HexSimMeasurement(Measurement):
             "cleanup":          self.h.cleanup,
             "axial":            self.h.axial,
             "modulation":       self.h.usemodulation,
-            "kx":               self.h.ckx,
-            "ky":               self.h.cky,
+            "kx":               self.h.kx,
+            "ky":               self.h.ky,
             "phase":            self.h.p,
             "amplitude":        self.h.ampl
             }
@@ -1181,17 +1151,18 @@ class HexSimMeasurement(Measurement):
         self.isCalibrationSaved = True
 
     def loadCalibrationResults(self):
-        filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory="./measurement", filter="Text files (*.txt)")
-        file = open(filename,'r')
-        loadResults = json.loads(file.read())
-        self.h.ckx_in = np.asarray(loadResults["kx"])
-        self.h.cky_in = np.asarray(loadResults["ky"])
-        self.h.p_in = np.asarray(loadResults["phase"])
-        self.h.ampl_in = np.asarray(loadResults["amplitude"])
-        print('Calibration results are loaded.')
+        try:
+            filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory="./measurement", filter="Text files (*.txt)")
+            file = open(filename,'r')
+            loadResults = json.loads(file.read())
+            self.kx_input = np.asarray(loadResults["kx"])
+            self.ky_input = np.asarray(loadResults["ky"])
+            print('Calibration results are loaded.')
+        except:
+            print("Calibration results are not loaded.")
 
     def showMessageWindow(self):
-        self.messageWindow = MessageWindow(self.h)
+        self.messageWindow = MessageWindow(self.h, self.kx_input, self.ky_input)
         self.messageWindow.show()
 
 
@@ -1201,36 +1172,34 @@ class MessageWindow(QWidget):
     This window display the Winier filter and other debug data
     """
 
-    def __init__(self, h):
+    def __init__(self, h, kx, ky):
         super().__init__()
         self.ui = uic.loadUi('calibration_results.ui',self)
         self.h = h
+        self.kx = kx
+        self.ky = ky
         self.setWindowTitle('Calibration results')
         self.showCurrentTable()
-        # self.showLoadedTable()
         self.showWienerFilter()
-
         self.ui.wienerfilterLayout.addWidget(self.wienerfilterWidget)
 
     def showCurrentTable(self):
 
-        self.ui.currentTable.setItem(0, 0, QTableWidgetItem(str(self.h.ckx_in[0]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(0, 1, QTableWidgetItem(str(self.h.ckx_in[1]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(0, 2, QTableWidgetItem(str(self.h.ckx_in[2]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(0, 0, QTableWidgetItem(str(self.kx[0]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(0, 1, QTableWidgetItem(str(self.kx[1]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(0, 2, QTableWidgetItem(str(self.kx[2]).lstrip('[').rstrip(']')))
         #
-        self.ui.currentTable.setItem(1, 0, QTableWidgetItem(str(self.h.cky_in[0]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(1, 1, QTableWidgetItem(str(self.h.cky_in[1]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(1, 2, QTableWidgetItem(str(self.h.cky_in[2]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(1, 0, QTableWidgetItem(str(self.ky[0]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(1, 1, QTableWidgetItem(str(self.ky[1]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(1, 2, QTableWidgetItem(str(self.ky[2]).lstrip('[').rstrip(']')))
 
-        # self.ui.currentTable.setItem(0, 0, QTableWidgetItem("k[x]"))
-        self.ui.currentTable.setItem(2, 0, QTableWidgetItem(str(self.h.ckx[0]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(2, 1, QTableWidgetItem(str(self.h.ckx[1]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(2, 2, QTableWidgetItem(str(self.h.ckx[2]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(2, 0, QTableWidgetItem(str(self.h.kx[0]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(2, 1, QTableWidgetItem(str(self.h.kx[1]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(2, 2, QTableWidgetItem(str(self.h.kx[2]).lstrip('[').rstrip(']')))
         #
-        # # self.ui.currentTable.setItem(1, 0, QTableWidgetItem("k[y]"))
-        self.ui.currentTable.setItem(3, 0, QTableWidgetItem(str(self.h.cky[0]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(3, 1, QTableWidgetItem(str(self.h.cky[1]).lstrip('[').rstrip(']')))
-        self.ui.currentTable.setItem(3, 2, QTableWidgetItem(str(self.h.cky[2]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(3, 0, QTableWidgetItem(str(self.h.ky[0]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(3, 1, QTableWidgetItem(str(self.h.ky[1]).lstrip('[').rstrip(']')))
+        self.ui.currentTable.setItem(3, 2, QTableWidgetItem(str(self.h.ky[2]).lstrip('[').rstrip(']')))
         #
         # # self.ui.currentTable.setItem(2, 0, QTableWidgetItem("Phase"))
         self.ui.currentTable.setItem(4, 0, QTableWidgetItem(str(self.h.p[0]).lstrip('[').rstrip(']')))
@@ -1245,32 +1214,14 @@ class MessageWindow(QWidget):
         # Table will fit the screen horizontally
         self.currentTable.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-    # def showLoadedTable(self):
-    #     self.ui.loadedTable.setItem(0, 0, QTableWidgetItem(str(self.h.ckx_in[0]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(0, 1, QTableWidgetItem(str(self.h.ckx_in[1]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(0, 2, QTableWidgetItem(str(self.h.ckx_in[2]).lstrip('[').rstrip(']')))
-    #     #
-    #     self.ui.loadedTable.setItem(1, 0, QTableWidgetItem(str(self.h.cky_in[0]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(1, 1, QTableWidgetItem(str(self.h.cky_in[1]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(1, 2, QTableWidgetItem(str(self.h.cky_in[2]).lstrip('[').rstrip(']')))
-    #     #
-    #     self.ui.loadedTable.setItem(2, 0, QTableWidgetItem(str(self.h.p_in[0]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(2, 1, QTableWidgetItem(str(self.h.p_in[1]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(2, 2, QTableWidgetItem(str(self.h.p_in[2]).lstrip('[').rstrip(']')))
-    #     #
-    #     self.ui.loadedTable.setItem(3, 0, QTableWidgetItem(str(self.h.ampl_in[0]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(3, 1, QTableWidgetItem(str(self.h.ampl_in[1]).lstrip('[').rstrip(']')))
-    #     self.ui.loadedTable.setItem(3, 2, QTableWidgetItem(str(self.h.ampl_in[2]).lstrip('[').rstrip(']')))
-    #
-    #     # Table will fit the screen horizontally
-    #     self.currentTable.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
     def showWienerFilter(self):
-        self.wienerfilterWidget = QtImageViewer()
+        self.wienerfilterWidget = pg.ImageView()
         self.wienerfilterWidget.aspectRatioMode = Qt.KeepAspectRatio
-        im = qimage2ndarray.gray2qimage(self.h.wienerfilter, normalize=True)
-        self.wienerfilterWidget.setImage(im)
-
+        self.wienerfilterWidget.ui.roiBtn.hide()
+        self.wienerfilterWidget.ui.menuBtn.hide()
+        self.wienerfilterWidget.ui.histogram.hide()
+        self.wienerfilterWidget.setImage(self.h.wienerfilter, autoRange=True, autoLevels=True)
+        self.wienerfilterWidget.adjustSize()
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
