@@ -11,7 +11,6 @@ Address:Imperial College London
 import os
 from ScopeFoundry import BaseMicroscopeApp
 
-
 class HexSimApp(BaseMicroscopeApp):
     # this is the name of the microscope that ScopeFoundry uses
     # when storing data
@@ -32,10 +31,6 @@ class HexSimApp(BaseMicroscopeApp):
 
     def setup(self):
 
-        # self.ui.mdiArea.removeSubWindow("Log")
-
-        # self.logging_subwin.hide()
-        # self.logging_widget.hide()
         print("Adding Hardware Components")
         from CameraHardware import HamamatsuHardware
         from LaserHardware import Laser488HW, Laser561HW
@@ -60,7 +55,6 @@ class HexSimApp(BaseMicroscopeApp):
 
         self.ui.show()
         self.ui.activateWindow()
-        # print(self.ui.mdiArea.subWindowList())
 
     def setDirFunc(self, val=None):
         """
@@ -96,4 +90,12 @@ if __name__ == '__main__':
     app = HexSimApp(sys.argv)
     logo_icon = QIcon('icon_attribute_pixel_perfect.png')
     app.ui.setWindowIcon(logo_icon)
+
+    ################### for debugging only ##############
+    # app.settings_load_ini(".\\Settings\\settingsPROCHIP.ini")
+    # for hc_name, hc in app.hardware.items():
+    #
+    #    hc.settings['connected'] = True    # connect all the hardwares
+    #####################################################
+
     sys.exit(app.exec_())

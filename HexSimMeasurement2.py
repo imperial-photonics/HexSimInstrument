@@ -64,19 +64,19 @@ class HexSimMeasurement(Measurement):
                           hardware_set_func=self.setRefresh, vmin=0)
         self.settings.New('autoRange', dtype=bool, initial=False, hardware_set_func=self.setautoRange)
         self.settings.New('autoLevels', dtype=bool, initial=True, hardware_set_func=self.setautoLevels)
-        self.settings.New('level_min', dtype=int, initial=60, hardware_set_func=self.setminLevel,
-                          hardware_read_func=self.getminLevel)
-        self.settings.New('level_max', dtype=int, initial=150, hardware_set_func=self.setmaxLevel,
-                          hardware_read_func=self.getmaxLevel)
-        self.settings.New('threshold', dtype=int, initial=500, hardware_set_func=self.setThreshold)
+        # self.settings.New('level_min', dtype=int, initial=60, hardware_set_func=self.setminLevel,
+        #                   hardware_read_func=self.getminLevel)
+        # self.settings.New('level_max', dtype=int, initial=150, hardware_set_func=self.setmaxLevel,
+        #                   hardware_read_func=self.getmaxLevel)
+        # self.settings.New('threshold', dtype=int, initial=500, hardware_set_func=self.setThreshold)
 
         self.add_operation('terminate', self.terminate)
 
         self.autoRange = self.settings.autoRange.val
         self.display_update_period = self.settings.refresh_period.val
         self.autoLevels = self.settings.autoLevels.val
-        self.level_min = self.settings.level_min.val
-        self.level_max = self.settings.level_max.val
+        # self.level_min = self.settings.level_min.val
+        # self.level_max = self.settings.level_max.val
 
         self.standardMeasureEvent = Event()
         self.standardProcessEvent = Event()
@@ -208,8 +208,8 @@ class HexSimMeasurement(Measurement):
                 self.imv.setImage(self.image.T, autoLevels=self.settings.autoLevels.val,
                                   autoRange=self.settings.autoRange.val)
 
-                self.settings.level_min.read_from_hardware()
-                self.settings.level_max.read_from_hardware()
+                # self.settings.level_min.read_from_hardware()
+                # self.settings.level_max.read_from_hardware()
 
         # update hexsim viwer
         if self.isStreamRun or self.isUpdateImageViewer:
@@ -227,12 +227,13 @@ class HexSimMeasurement(Measurement):
             msg.setIcon(QMessageBox.Information)
             self.isCalibrationSaved = False
 
+        if hasattr(self.screen, 'slm_dev'):
+            self.ui.patternNumber.setText(str(self.screen.slm_dev.counter%7))
 
     def start_threads(self):
 
         self.eff_subarrayh = int(self.camera.subarrayh.val / self.camera.binning.val)
         self.eff_subarrayv = int(self.camera.subarrayv.val / self.camera.binning.val)
-
         self.image = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
 
         if not hasattr(self, 'h'):
@@ -281,6 +282,8 @@ class HexSimMeasurement(Measurement):
         while not self.interrupt_measurement_called:
             time.sleep(0.02)
             if self.isCameraRun:
+                self.eff_subarrayh = int(self.camera.subarrayh.val / self.camera.binning.val)
+                self.eff_subarrayv = int(self.camera.subarrayv.val / self.camera.binning.val)
                 self.cameraRunTest()
 
     ################   Control  ################
@@ -637,8 +640,8 @@ class HexSimMeasurement(Measurement):
             self.imv.setImage(newFrame.T, autoLevels=self.settings.autoLevels.val,
                               autoRange=self.settings.autoRange.val)
 
-            self.settings.level_min.read_from_hardware()
-            self.settings.level_max.read_from_hardware()
+            # self.settings.level_min.read_from_hardware()
+            # self.settings.level_max.read_from_hardware()
         self.streamIndex += 1
 
     def streamReconstruction(self, newFrame, index):
