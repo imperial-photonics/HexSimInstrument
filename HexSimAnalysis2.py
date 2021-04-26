@@ -253,8 +253,6 @@ class HexSimAnalysis(Measurement):
         for n_idx in range(self.imageRawShape[0]//7):
             self.imageWF[n_idx,:,:] = np.sum(self.imageRaw[n_idx*7:(n_idx+1)*7,:,:],axis=0)/7
 
-        # print(self.imageWF.shape)
-
     # region Display Functions
     def rawImageSliderChanged(self):
         self.ui.rawImageSlider.setMinimum(0)
@@ -312,7 +310,7 @@ class HexSimAnalysis(Measurement):
         startTime = time.time()
 
         if self.isGpuenable:
-            self.h.calibrate_cupy(self.imageRaw,self.isFindCarrier)
+            self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
             self.processValue = 60
             self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
 
@@ -344,6 +342,7 @@ class HexSimAnalysis(Measurement):
                 self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
             print('One SIM image is processed in:', time.time() - startTime, 's')
+
             self.imageSIM = self.imageSIM[np.newaxis, :, :]
 
         elif not self.isCalibrated:
