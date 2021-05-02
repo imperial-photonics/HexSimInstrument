@@ -10,24 +10,32 @@ import tifffile as tif
 from PyQt5 import uic
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QWidget, QTableWidgetItem, \
-    QHeaderView
+    QHeaderView,QLabel
+from PyQt5.QtGui import QImage,QPixmap
 from ScopeFoundry import Measurement, h5_io
 from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from image_decorr import ImageDecorr
+from StackImageViewer import StackImageViewer
+from ImageSegmentation import ImageSegmentation
 
-class HexSimAnalysis(Measurement):
-    name = 'HexSIM_Analysis'
+class HexSimAnalysisCellDetection(Measurement):
+    name = 'HexSIM_Analysis_cell_detection'
 
     def setup(self):
-
         # load ui file
-        self.ui_filename = sibling_path(__file__, "hexsim_analysis.ui")
+        self.ui_filename = sibling_path(__file__, "hexsim_analysis_cell_detection.ui")
         self.ui = load_qt_ui_file(self.ui_filename)
 
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
+        # combo lists setting
+        self.roiSizeList = [128,256,512,1024]
+        self.ui.roiSizeCombo.addItems(map(str,self.roiSizeList))
+        self.ui.roiSizeCombo.setCurrentIndex(1)
+
+        self.ui.imageTabs.setCurrentIndex(1)
         # Set up pyqtgraph graph_layout in the UI
         self.imvRaw = pg.ImageView()
         self.imvRaw.ui.roiBtn.hide()
@@ -40,19 +48,26 @@ class HexSimAnalysis(Measurement):
         self.imvWF = pg.ImageView()
         self.imvWF.ui.roiBtn.hide()
         self.imvWF.ui.menuBtn.hide()
+        
+        self.imvSeg = QLabel()
+        self.imvSeg.setScaledContents(True)
 
         self.ui.rawImageLayout.addWidget(self.imvRaw)
         self.ui.simImageLayout.addWidget(self.imvSIM)
         self.ui.wfImageLayout.addWidget(self.imvWF)
+        self.ui.cellsLayout.addWidget(self.imvSeg)
 
         # Image initialization
         self.imageRaw = np.zeros((1, 512, 512), dtype=np.uint16)
         self.imageSIM = np.zeros((1, 1024,1024), dtype=np.uint16)
         self.imageWF = np.zeros((1, 512, 512), dtype=np.uint16)
+        self.imageSeg = np.zeros((1, 512, 512), dtype=np.uint16)
 
         self.imvRaw.setImage((self.imageRaw[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
         self.imvWF.setImage((self.imageWF[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
         self.imvSIM.setImage((self.imageSIM[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
+
+        self.imageSetsTemp = [np.zeros((2,256,256)),np.zeros((2,256,256))]
 
         # region Reconstructor settings
         self.ui.debugCheck.stateChanged.connect(self.setReconstructor)
@@ -80,21 +95,19 @@ class HexSimAnalysis(Measurement):
         self.ui.simImageSlider.valueChanged.connect(self.simImageSliderChanged)
         self.ui.wfImageSlider.valueChanged.connect(self.wfImageSliderChanged)
 
-        # Toolbox
+        self.ui.wfViewerButton.clicked.connect(self.showCellWFImageSets)
+        self.ui.simViewerButton.clicked.connect(self.showCellSIMImageSets)
+
+        # Operation
         self.ui.loadFileButton.clicked.connect(self.loadFile)
+        self.ui.calibrationLoad.clicked.connect(self.loadCalibrationResults)
+        self.ui.findCellButton.clicked.connect(self.findCell)
+        self.ui.calibrationButton.clicked.connect(self.calibrationButtonPressed)
         self.ui.resetMeasureButton.clicked.connect(self.resetHexSIM)
         self.ui.calibrationResult.clicked.connect(self.showMessageWindow)
-
-        self.ui.calibrationSave.clicked.connect(self.saveMeasurements)
-        self.ui.calibrationLoad.clicked.connect(self.loadCalibrationResults)
-
-        self.ui.standardSimuButton.clicked.connect(self.standardSimuButtonPressed)
-        self.ui.standardSimuUpdate.clicked.connect(self.standardReconstructionUpdate)
-
-        self.ui.batchSimuButton.clicked.connect(self.batchSimuButtonPressed)
-        self.ui.batchSimuUpdate.clicked.connect(self.batchReconstructionUpdate)
-
+        self.ui.reconstructionButton.clicked.connect(self.reconstructionButtonPressed)
         self.ui.resolutionEstimateButton.clicked.connect(self.resolutionEstimatePressed)
+        self.ui.calibrationSave.clicked.connect(self.saveMeasurements)
 
     def update_display(self):
         """
@@ -117,7 +130,16 @@ class HexSimAnalysis(Measurement):
             msg.setIcon(QMessageBox.Information)
             self.isCalibrationSaved = False
 
-        self.ui.processingBar.setValue(self.processValue)
+        if self.isCalibrated:
+            self.ui.roiCalibrationProgress.setValue(100)
+            self.ui.roiCalibrationProgress.setFormat('Calibrated')
+            self.ui.reconstructionButton.setEnabled(True)
+            self.ui.calibrationResult.setEnabled(True)
+        else:
+            self.ui.roiCalibrationProgress.setValue(0)
+            self.ui.roiCalibrationProgress.setFormat('Uncalibrated')
+            self.ui.reconstructionButton.setEnabled(False)
+            self.ui.calibrationResult.setEnabled(False)
 
 
     def start_timers(self):
@@ -126,23 +148,24 @@ class HexSimAnalysis(Measurement):
             self.h.opencv = False
             self.setReconstructor()
 
-        if not hasattr(self, 'calibrationProcessTimer'):
-            self.calibrationProcessTimer = QTimer(self)
-            self.calibrationProcessTimer.setSingleShot(True)
-            self.calibrationProcessTimer.setInterval(1)
-            self.calibrationProcessTimer.timeout.connect(self.calibrationProcessor)
 
-        if not hasattr(self, 'standardProcessTimer'):
-            self.standardProcessTimer = QTimer(self)
-            self.standardProcessTimer.setSingleShot(True)
-            self.standardProcessTimer.setInterval(1)
-            self.standardProcessTimer.timeout.connect(self.standardProcessor)
+        if not hasattr(self, 'calibrationProcessTimerROI'):
+            self.calibrationProcessTimerROI = QTimer(self)
+            self.calibrationProcessTimerROI.setSingleShot(True)
+            self.calibrationProcessTimerROI.setInterval(1)
+            self.calibrationProcessTimerROI.timeout.connect(self.calibrationProcessorROI)
 
-        if not hasattr(self, 'batchProcessTimer'):
-            self.batchProcessTimer = QTimer(self)
-            self.batchProcessTimer.setSingleShot(True)
-            self.batchProcessTimer.setInterval(1)
-            self.batchProcessTimer.timeout.connect(self.batchProcessor)
+        if not hasattr(self, 'standardProcessTimerROI'):
+            self.standardProcessTimerROI = QTimer(self)
+            self.standardProcessTimerROI.setSingleShot(True)
+            self.standardProcessTimerROI.setInterval(1)
+            self.standardProcessTimerROI.timeout.connect(self.standardProcessorROI)
+
+        if not hasattr(self, 'batchProcessTimerROI'):
+            self.batchProcessTimerROI = QTimer(self)
+            self.batchProcessTimerROI.setSingleShot(True)
+            self.batchProcessTimerROI.setInterval(1)
+            self.batchProcessTimerROI.timeout.connect(self.batchProcessorROI)
 
         if not hasattr(self, 'resolutionEstimateTimer'):
             self.resolutionEstimateTimer = QTimer(self)
@@ -153,10 +176,12 @@ class HexSimAnalysis(Measurement):
     def pre_run(self):
         # Message window
         self.messageWindow = None
+        self.wfImageViewer = StackImageViewer(image_sets=self.imageSetsTemp,set_levels=[1,0.8],title='Wide field images')
+        self.simImageViewer = StackImageViewer(image_sets=self.imageSetsTemp,set_levels=[0,0.8],title='SIM images')
+
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02,
                           hardware_set_func=self.setRefresh, vmin=0)
 
-        # self.add_operation('terminate', self.terminate)
         self.display_update_period = self.settings.refresh_period.val
 
         # Initialize condition labels
@@ -169,27 +194,40 @@ class HexSimAnalysis(Measurement):
         self.isFileLoad = False
         self.isFindCarrier = True
 
-        self.processValue = 0
         self.kx_input = np.zeros((3, 1), dtype=np.single)
         self.ky_input = np.zeros((3, 1), dtype=np.single)
         self.p_input = np.zeros((3, 1), dtype=np.single)
         self.ampl_input = np.zeros((3, 1), dtype=np.single)
+
         self.start_timers()
 
     def run(self):
         while not self.interrupt_measurement_called:
             time.sleep(1)
 
+    def roiSize(self):
+        return int(self.ui.roiSizeCombo.currentText())
+
+    def minCellSize(self):
+        return int(self.ui.minCellSizeInput.value())
+
+    def image8bit_normalized(self,image):
+        level_min = np.amin(image)
+        level_max = np.amax(image)
+        img_thres = np.clip(image, level_min, level_max)
+        return ((img_thres - level_min + 1) / (level_max - level_min + 1) * 255).astype('uint8')
+
     def loadFile(self):
         try:
             filename, _ = QFileDialog.getOpenFileName(directory="./measurement")
             self.imageRaw = np.single(tif.imread(filename))
             self.imageRawShape = np.shape(self.imageRaw)
+
             self.imageSIM = np.zeros((self.imageRawShape[0]//7,self.imageRawShape[1],self.imageRawShape[2]))
             self.imageWF = np.zeros((self.imageRawShape[0] // 7, self.imageRawShape[1], self.imageRawShape[2]))
 
-            self.raw2WideFieldImage()
-
+            self.oSegment = ImageSegmentation(self.imageRaw,self.roiSize()//2,self.minCellSize())
+            self.imageWF = self.raw2WideFieldImage(self.imageRaw)
             self.filetitle = Path(filename).stem
             self.filepath = os.path.dirname(filename)
             self.isFileLoad = True
@@ -237,10 +275,13 @@ class HexSimAnalysis(Measurement):
             except:
                 self.ui.fileInfo.setPlainText("No information about this measurement.")
 
-        except:
+        except AssertionError as error:
+            print(error)
             self.isFileLoad = False
 
         if self.isFileLoad:
+            self.ui.findCellButton.setEnabled(True)
+            self.ui.imageTabs.setCurrentIndex(1)
             self.isUpdateImageViewer = True
             self.isCalibrated = False
             self.updateImageViewer()
@@ -249,11 +290,35 @@ class HexSimAnalysis(Measurement):
         else:
             print("File is not loaded.")
 
-    def raw2WideFieldImage(self):
-        for n_idx in range(self.imageRawShape[0]//7):
-            self.imageWF[n_idx,:,:] = np.sum(self.imageRaw[n_idx*7:(n_idx+1)*7,:,:],axis=0)/7
+    def findCell(self):
+        self.oSegment.min_cell_size = self.minCellSize()
+        self.oSegment.roi_half_side = self.roiSize()//2
+        self.oSegment.find_cell()
+        self.imageRawSets = self.oSegment.roi_creation()
+        self.imageWFSets = []# initialize the image sets
+        displayed_image = self.oSegment.draw_contours_on_image(self.oSegment.image8bit)
+        self.imageRawROILabled = QImage(displayed_image.data, displayed_image.shape[1], displayed_image.shape[0], QImage.Format_RGB888)
+        self.imvSeg.setPixmap(QPixmap.fromImage(self.imageRawROILabled))
+        self.numSets = len(self.imageRawSets)
+        self.ui.cellNumber.setValue(self.numSets)
 
-        # print(self.imageWF.shape)
+        self.ui.cellPickCombo.clear()
+        self.ui.cellPickCombo.addItems(map(str,np.arange(self.numSets)))
+        self.ui.cellPickCombo.setCurrentIndex(0)
+        self.ui.calibrationButton.setEnabled(True)
+        self.ui.imageTabs.setCurrentIndex(2)
+        for idx in range(self.numSets):
+            self.imageWFSets.append(self.raw2WideFieldImage(self.imageRawSets[idx]))
+
+        self.wfImageViewer.image_sets = self.imageWFSets
+        self.wfImageViewer.update()
+
+    def raw2WideFieldImage(self,rawImages):
+        wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
+        for idx in range(rawImages.shape[0]//7):
+            wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7,:,:],axis=0)/7
+
+        return wfImages
 
     # region Display Functions
     def rawImageSliderChanged(self):
@@ -298,185 +363,58 @@ class HexSimAnalysis(Measurement):
     # endregion
 
     ################    HexSIM  ################
+
+
+    ############## Operation #################################
+    def calibrationButtonPressed(self):
+        if self.isFileLoad:
+            self.imageRawROI = self.imageRawSets[self.ui.cellPickCombo.currentIndex()]
+            self.calibrationProcessTimerROI.start()
+            self.ui.reconstructionButton.setEnabled(True)
+        else:
+            print('Image is not loaded.')
+            self.ui.fileInfo.setPlainText('Image is not loaded.')
+
+    def reconstructionButtonPressed(self):
+        if len(self.imageRawROI)>7:
+            self.batchProcessTimerROI.start()
+        else:
+            self.standardProcessTimerROI.start()
+
+
     def resetHexSIM(self):
         if hasattr(self, 'h'):
             self.isCalibrated = False
             self.h._allocate_arrays()
-            self.imageSIM = np.zeros(self.imageRawShape, dtype=np.uint16)
             self.updateImageViewer()
 
-    def calibrationProcessor(self):
-        print('Start calibrating...')
-        self.processValue = 0
-
-        startTime = time.time()
-
-        if self.isGpuenable:
-            self.h.calibrate_cupy(self.imageRaw,self.isFindCarrier)
-            self.processValue = 60
-            self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
-
-        elif not self.isGpuenable:
-            self.h.calibrate(self.imageRaw,self.isFindCarrier)
-            self.processValue = 60
-            self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
-
-        print('Calibration is processed in:', time.time() - startTime, 's')
-
-        self.processValue = 90
-
-        self.imageSIM = self.imageSIM[np.newaxis, :, :]
-        self.isUpdateImageViewer = True
-        self.isCalibrated = True
-        self.processValue = 100
-
-    def standardProcessor(self):
-        self.processValue = 10
-
-        if self.isCalibrated:
-            print('Start standard processing...')
-            startTime = time.time()
-
-            if self.isGpuenable:
-                self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
-
-            elif not self.isGpuenable:
-                self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
-
-            print('One SIM image is processed in:', time.time() - startTime, 's')
-            self.imageSIM = self.imageSIM[np.newaxis, :, :]
-
-        elif not self.isCalibrated:
-            self.calibrationProcessTimer.start()
-
-        self.processValue = 90
-        self.isUpdateImageViewer = True
-
-        self.processValue = 100
-
-    def batchProcessor(self):
-        print('Start batch processing...')
-        self.processValue = 10
-
-        if self.isCalibrated:
-            startTime = time.time()
-            # Batch reconstruction
-            if self.isGpuenable:
-                if self.isCompact:
-                    self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
-                elif not self.isCompact:
-                    self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
-
-            elif not self.isGpuenable:
-                if self.isCompact:
-                    self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
-                elif not self.isCompactompact:
-                    self.imageSIM = self.h.batchreconstruct(self.imageRaw)
-            self.processValue = 80
-
-        elif not self.isCalibrated:
-            startTime = time.time()
-            nStack = len(self.imageRaw)
-            # calibrate & reconstruction
-            if self.isGpuenable:
-                self.h.calibrate_cupy(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
-                self.isCalibrated = True
-                self.processValue = 20
-                if self.isCompact:
-                    self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
-                elif not self.isCompact:
-                    self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
-                self.processValue = 80
-
-            elif not self.isGpuenable:
-                self.h.calibrate(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
-                self.isCalibrated = True
-                self.processValue = 20
-                if self.isCompact:
-                    self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
-                elif not self.isCompact:
-                    self.imageSIM = self.h.batchreconstruct(self.imageRaw)
-                self.processValue = 80
-
-
-        print('Batch reconstruction finished', time.time() - startTime, 's')
-
-        self.isUpdateImageViewer = True
-        self.processValue = 100
-
-    ############## Test #################################
-    def standardSimuButtonPressed(self):
-        if self.isFileLoad:
-            if self.imageRaw.shape[0] == 7:
-                print('standard processing')
-                self.processValue = 0
-                self.standardProcessTimer.start()
-            else:
-                print('Please input the 7-frame data set.')
-        else:
-            print('Image is not loaded.')
-            self.ui.fileInfo.setPlainText('Image is not loaded.')
-
-    def standardReconstructionUpdate(self):
-        self.calibrationProcessTimer.start()
-
-    def standardReconstruction(self):
-        # calibrate & reconstruction
-        if self.isGpuenable:
-            self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
-            self.isCalibrated = True
-            self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
-
-        elif not self.isGpuenable:
-            self.h.calibrate(self.imageRaw, self.isFindCarrier)
-            self.isCalibrated = True
-            self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
-
-        self.imageSIM = self.imageSIM[np.newaxis, :, :]
-        self.isUpdateImageViewer = True
-        print('One SIM image is processed.')
-
-    def batchSimuButtonPressed(self):
-        if self.isFileLoad:
-            self.batchProcessTimer.start()
-            self.processValue = 0
-        else:
-            print('Image is not loaded.')
-            self.ui.fileInfo.setPlainText('Image is not loaded.')
-
-    def batchReconstructionUpdate(self):
-        if self.isFileLoad:
-            self.isCalibrated = False
-            self.processValue = 10
-            self.batchProcessTimer.start()
-        else:
-            print('Image is not loaded.')
-            self.ui.fileInfo.setPlainText('Image is not loaded.')
 
     def setReconstructor(self):
-        self.isCompact = self.ui.compactCheck.isChecked()
-        self.isGpuenable = self.ui.gpuCheck.isChecked()
-        self.isFindCarrier = not self.ui.useLoadedResultsCheck.isChecked()
+        if not hasattr(self, 'h'):
+            print('Activate the component.')
+        else:
+            self.isCompact = self.ui.compactCheck.isChecked()
+            self.isGpuenable = self.ui.gpuCheck.isChecked()
+            self.isFindCarrier = not self.ui.useLoadedResultsCheck.isChecked()
 
-        self.h.debug = self.ui.debugCheck.isChecked()
-        self.h.cleanup = self.ui.cleanupCheck.isChecked()
-        self.h.axial = self.ui.axialCheck.isChecked()
-        self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
-        self.h.magnification = self.ui.magnificationValue.value()
-        self.h.NA = self.ui.naValue.value()
-        self.h.n = self.ui.nValue.value()
-        self.h.wavelength = self.ui.wavelengthValue.value()
-        self.h.pixelsize = self.ui.pixelsizeValue.value()
+            self.h.debug = self.ui.debugCheck.isChecked()
+            self.h.cleanup = self.ui.cleanupCheck.isChecked()
+            self.h.axial = self.ui.axialCheck.isChecked()
+            self.h.usemodulation = self.ui.usemodulationCheck.isChecked()
+            self.h.magnification = self.ui.magnificationValue.value()
+            self.h.NA = self.ui.naValue.value()
+            self.h.n = self.ui.nValue.value()
+            self.h.wavelength = self.ui.wavelengthValue.value()
+            self.h.pixelsize = self.ui.pixelsizeValue.value()
 
-        self.h.alpha = self.ui.alphaValue.value()
-        self.h.beta = self.ui.betaValue.value()
-        self.h.w = self.ui.wValue.value()
-        self.h.eta = self.ui.etaValue.value()
+            self.h.alpha = self.ui.alphaValue.value()
+            self.h.beta = self.ui.betaValue.value()
+            self.h.w = self.ui.wValue.value()
+            self.h.eta = self.ui.etaValue.value()
 
-        if not self.isFindCarrier:
-            self.h.kx = self.kx_input
-            self.h.ky = self.ky_input
-
+            if not self.isFindCarrier:
+                self.h.kx = self.kx_input
+                self.h.ky = self.ky_input
 
     def getAcquisitionInterval(self):
         return float(self.ui.intervalTime.value())
@@ -488,15 +426,17 @@ class HexSimAnalysis(Measurement):
         t0 = time.time()
         timestamp = datetime.fromtimestamp(t0)
         timestamp = timestamp.strftime("%Y%m%d%H%M")
-        pathname = self.filepath + '/reprocess'
+        pathname = self.filepath + '/segmented_analysis'
         Path(pathname).mkdir(parents=True,exist_ok=True)
-        simimagename = pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.tif'
-        wfimagename = pathname + '/' + self.filetitle + timestamp + f'_widefield' + '.tif'
-        txtname =      pathname + '/' + self.filetitle + timestamp + f'_reprocessed' + '.txt'
-        tif.imwrite(simimagename, np.single(self.imageSIM))
-        tif.imwrite(wfimagename,np.uint16(self.imageWF))
-        print(type(self.imageSIM))
 
+        for idx in range(self.numSets):
+            suffix = str(idx).zfill(3)
+            simimagename = pathname + '/' + self.filetitle + timestamp + f'_segmented_sim' + '_' + suffix + '.tif'
+            wfimagename = pathname + '/' + self.filetitle + timestamp + f'_segmented_widefield' + '_' + suffix + '.tif'
+            tif.imwrite(simimagename, np.single(self.imageSIMSets[idx]))
+            tif.imwrite(wfimagename,np.uint16(self.imageWFSets[idx]))
+
+        txtname =      pathname + '/' + self.filetitle + timestamp + f'_configuration' + '.txt'
         savedictionary = {
             "exposure time (s)":self.exposuretime,
             "laser power (mW)": self.laserpower,
@@ -537,6 +477,23 @@ class HexSimAnalysis(Measurement):
         except:
             pass
 
+    def resolutionEstimate(self):
+        try:
+            pixelsizeWF = self.h.pixelsize / self.h.magnification
+            imageWF_temp = self.imageWFSets[self.wfImageViewer.ui.cellCombo.currentIndex()]
+            ciWF = ImageDecorr(imageWF_temp[self.wfImageViewer.ui.imgSlider.value(),:,:], square_crop=True,pixel_size=pixelsizeWF)
+            optimWF, resWF = ciWF.compute_resolution()
+            imageSIM_temp = self.imageSIMSets[self.simImageViewer.ui.cellCombo.currentIndex()]
+            ciSIM = ImageDecorr(imageSIM_temp[self.simImageViewer.ui.imgSlider.value(),:,:], square_crop=True,pixel_size=pixelsizeWF/2)
+            optimSIM, resSIM = ciSIM.compute_resolution()
+            txtDisplay = f"Cell {self.wfImageViewer.ui.cellCombo.currentIndex()}" \
+                         f"\nWide field image resolution:\t {ciWF.resolution:.3f} um \
+                  \nSIM image resolution:\t {ciSIM.resolution:.3f} um\n"
+            self.ui.resolutionEstimation.setPlainText(txtDisplay)
+        except:
+            pass
+
+
     def resolutionEstimatePressed(self):
         self.resolutionEstimateTimer.start()
 
@@ -552,9 +509,93 @@ class HexSimAnalysis(Measurement):
             print("Calibration results are not loaded.")
 
     def showMessageWindow(self):
-        self.messageWindow = MessageWindow(self.h, self.kx_input, self.ky_input)
-        self.messageWindow.show()
+        try:
+            self.messageWindow = MessageWindow(self.h, self.kx_input, self.ky_input)
+            self.messageWindow.show()
+        except AssertionError as error:
+            print(error)
 
+    def showCellWFImageSets(self):
+        if not self.wfImageViewer.isVisible():
+            self.wfImageViewer.show()
+
+    def showCellSIMImageSets(self):
+        self.simImageViewer.image_sets = self.imageSIMSets
+        self.simImageViewer.update()
+        if not self.simImageViewer.isVisible():
+            self.simImageViewer.show()
+
+    # Processors
+
+    def calibrationProcessorROI(self):
+        print('Start calibrating...')
+        startTime = time.time()
+
+        if self.isGpuenable:
+            self.h.calibrate_cupy(self.imageRawROI, self.isFindCarrier)
+
+        elif not self.isGpuenable:
+            self.h.calibrate(self.imageRawROI, self.isFindCarrier)
+
+        print('Calibration is processed in:', time.time() - startTime, 's')
+
+        self.isUpdateImageViewer = True
+        self.isCalibrated = True
+
+
+
+    def standardProcessorROI(self):
+
+        if self.isCalibrated:
+            print('Start standard processing...')
+            startTime = time.time()
+            self.imageSIMSets = []
+
+            for idx in range(self.numSets):
+                self.imageRawROI = self.imageRawSets[idx]
+
+                if self.isGpuenable:
+                    self.imageSIMROI = self.h.reconstruct_cupy(self.imageRawROI)
+                elif not self.isGpuenable:
+                    self.imageSIMROI = self.h.reconstruct_rfftw(self.imageRawROI)
+
+                self.imageSIMROI = self.imageSIMROI[np.newaxis, :, :]
+                self.imageSIMSets.append(self.imageSIMROI)
+
+            print('One SIM image set is processed in:', time.time() - startTime, 's')
+
+        self.isUpdateImageViewer = True
+        self.showCellSIMImageSets()
+
+
+    def batchProcessorROI(self):
+        if self.isCalibrated:
+            print('Start batch processing...')
+            startTime = time.time()
+            self.imageSIMSets = []
+            # Batch reconstruction
+            for idx in range(self.numSets):
+                self.imageRawROI = self.imageRawSets[idx]
+
+                if self.isGpuenable:
+                    if self.isCompact:
+                        self.imageSIMROI = self.h.batchreconstructcompact_cupy(self.imageRawROI)
+                    elif not self.isCompact:
+                        self.imageSIMROI = self.h.batchreconstruct_cupy(self.imageRawROI)
+
+                elif not self.isGpuenable:
+                    if self.isCompact:
+                        self.imageSIMROI = self.h.batchreconstructcompact(self.imageRawROI)
+                    elif not self.isCompactompact:
+                        self.imageSIMROI = self.h.batchreconstruct(self.imageRawROI)
+
+                self.imageSIMSets.append(self.imageSIMROI)
+
+
+        print('Batch reconstruction is processed in', time.time() - startTime, 's')
+
+        self.isUpdateImageViewer = True
+        self.showCellSIMImageSets()
 
 class MessageWindow(QWidget):
 
@@ -616,3 +657,167 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+
+    # def standardSimuButtonPressed(self):
+    #     if self.isFileLoad:
+    #         if self.imageRaw.shape[0] == 7:
+    #             print('standard processing')
+    #             self.standardProcessTimer.start()
+    #         else:
+    #             print('Please input the 7-frame data set.')
+    #     else:
+    #         print('Image is not loaded.')
+    #         self.ui.fileInfo.setPlainText('Image is not loaded.')
+
+    # def standardReconstructionUpdate(self):
+    #     self.calibrationProcessTimer.start()
+
+    # def standardReconstruction(self):
+    #     # calibrate & reconstruction
+    #     if self.isGpuenable:
+    #         self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
+    #         self.isCalibrated = True
+    #         self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+    #
+    #     elif not self.isGpuenable:
+    #         self.h.calibrate(self.imageRaw, self.isFindCarrier)
+    #         self.isCalibrated = True
+    #         self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+    #
+    #     self.imageSIM = self.imageSIM[np.newaxis, :, :]
+    #     self.isUpdateImageViewer = True
+    #     print('One SIM image is processed.')
+    #
+    # def batchSimuButtonPressed(self):
+    #     if self.isFileLoad:
+    #         self.batchProcessTimer.start()
+    #     else:
+    #         print('Image is not loaded.')
+    #         self.ui.fileInfo.setPlainText('Image is not loaded.')
+    #
+    # def batchReconstructionUpdate(self):
+    #     if self.isFileLoad:
+    #         self.isCalibrated = False
+    #         self.batchProcessTimer.start()
+    #     else:
+    #         print('Image is not loaded.')
+    #         self.ui.fileInfo.setPlainText('Image is not loaded.')
+
+    # if not hasattr(self, 'calibrationProcessTimer'):
+    #     self.calibrationProcessTimer = QTimer(self)
+    #     self.calibrationProcessTimer.setSingleShot(True)
+    #     self.calibrationProcessTimer.setInterval(1)
+    #     self.calibrationProcessTimer.timeout.connect(self.calibrationProcessor)
+    #
+    # if not hasattr(self, 'standardProcessTimer'):
+    #     self.standardProcessTimer = QTimer(self)
+    #     self.standardProcessTimer.setSingleShot(True)
+    #     self.standardProcessTimer.setInterval(1)
+    #     self.standardProcessTimer.timeout.connect(self.standardProcessor)
+    #
+    # if not hasattr(self, 'batchProcessTimer'):
+    #     self.batchProcessTimer = QTimer(self)
+    #     self.batchProcessTimer.setSingleShot(True)
+    #     self.batchProcessTimer.setInterval(1)
+    #     self.batchProcessTimer.timeout.connect(self.batchProcessor)
+
+    # def standardProcessor(self):
+    #
+    #     if self.isCalibrated:
+    #         print('Start standard processing...')
+    #         startTime = time.time()
+    #
+    #         if self.isGpuenable:
+    #             self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+    #
+    #         elif not self.isGpuenable:
+    #             self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+    #
+    #         print('One SIM image is processed in:', time.time() - startTime, 's')
+    #         self.imageSIM = self.imageSIM[np.newaxis, :, :]
+    #
+    #     elif not self.isCalibrated:
+    #         self.calibrationProcessTimer.start()
+    #
+    #     self.isUpdateImageViewer = True
+
+    # elif not self.isCalibrated:
+    #     startTime = time.time()
+    #     nStack = len(self.imageRawROI)
+    #     # calibrate & reconstruction
+    #     if self.isGpuenable:
+    #         self.h.calibrate_cupy(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
+    #         self.isCalibrated = True
+    #         if self.isCompact:
+    #             self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
+    #         elif not self.isCompact:
+    #             self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
+    #
+    #     elif not self.isGpuenable:
+    #         self.h.calibrate(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
+    #         self.isCalibrated = True
+    #         if self.isCompact:
+    #             self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+    #         elif not self.isCompact:
+    #             self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+
+    # def batchProcessor(self):
+    #     print('Start batch processing...')
+    #
+    #     if self.isCalibrated:
+    #         startTime = time.time()
+    #         # Batch reconstruction
+    #         if self.isGpuenable:
+    #             if self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
+    #             elif not self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
+    #
+    #         elif not self.isGpuenable:
+    #             if self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+    #             elif not self.isCompactompact:
+    #                 self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+    #
+    #     elif not self.isCalibrated:
+    #         startTime = time.time()
+    #         nStack = len(self.imageRaw)
+    #         # calibrate & reconstruction
+    #         if self.isGpuenable:
+    #             self.h.calibrate_cupy(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
+    #             self.isCalibrated = True
+    #             if self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
+    #             elif not self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
+    #
+    #         elif not self.isGpuenable:
+    #             self.h.calibrate(self.imageRaw[int(nStack // 2):int(nStack // 2 + 7), :, :], self.isFindCarrier)
+    #             self.isCalibrated = True
+    #             if self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+    #             elif not self.isCompact:
+    #                 self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+    #
+    #     print('Batch reconstruction finished', time.time() - startTime, 's')
+    #
+    #     self.isUpdateImageViewer = True
+
+    # def calibrationProcessor(self):
+    #     print('Start calibrating...')
+    #
+    #     startTime = time.time()
+    #
+    #     if self.isGpuenable:
+    #         self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
+    #         self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+    #
+    #     elif not self.isGpuenable:
+    #         self.h.calibrate(self.imageRaw, self.isFindCarrier)
+    #         self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+    #
+    #     print('Calibration is processed in:', time.time() - startTime, 's')
+    #
+    #     self.imageSIM = self.imageSIM[np.newaxis, :, :]
+    #     self.isUpdateImageViewer = True
+    #     self.isCalibrated = True

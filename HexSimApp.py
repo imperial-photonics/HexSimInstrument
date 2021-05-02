@@ -47,10 +47,11 @@ class HexSimApp(BaseMicroscopeApp):
         # from CameraMeasurement import HamamatsuMeasurement
         from HexSimMeasurement2 import HexSimMeasurement
         from HexSimAnalysis2 import HexSimAnalysis
-
+        from HexSimAnalysisCellDetection import HexSimAnalysisCellDetection
         # self.add_measurement(HamamatsuMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
+        self.add_measurement(HexSimAnalysisCellDetection(self))
 
 
         self.ui.show()
@@ -90,7 +91,7 @@ if __name__ == '__main__':
     app = HexSimApp(sys.argv)
     logo_icon = QIcon('icon_attribute_pixel_perfect.png')
     app.ui.setWindowIcon(logo_icon)
-
+    app.measurements['HexSIM_Analysis_cell_detection'].start()
     ################### for debugging only ##############
     # app.settings_load_ini(".\\Settings\\settingsPROCHIP.ini")
     # for hc_name, hc in app.hardware.items():

@@ -70,7 +70,7 @@ class HexSimMeasurement(Measurement):
         #                   hardware_read_func=self.getmaxLevel)
         # self.settings.New('threshold', dtype=int, initial=500, hardware_set_func=self.setThreshold)
 
-        self.add_operation('terminate', self.terminate)
+        # self.add_operation('terminate', self.terminate)
 
         self.autoRange = self.settings.autoRange.val
         self.display_update_period = self.settings.refresh_period.val
