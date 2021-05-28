@@ -32,10 +32,10 @@ class HexSimApp(BaseMicroscopeApp):
     def setup(self):
 
         print("Adding Hardware Components")
-        from CameraHardware import HamamatsuHardware
-        from LaserHardware import Laser488HW, Laser561HW
-        from ScreenHardware import ScreenHW
-        from NanoScanHardware import NanoScanHW
+        from hardware.CameraHardware import HamamatsuHardware
+        from hardware.LaserHardware import Laser488HW, Laser561HW
+        from hardware.ScreenHardware import ScreenHW
+        from hardware.NanoScanHardware import NanoScanHW
 
         self.add_hardware(ScreenHW(self))
         self.add_hardware(HamamatsuHardware(self))
@@ -45,9 +45,9 @@ class HexSimApp(BaseMicroscopeApp):
 
         print("Adding measurement components")
         # from CameraMeasurement import HamamatsuMeasurement
-        from HexSimMeasurement2 import HexSimMeasurement
-        from HexSimAnalysis2 import HexSimAnalysis
-        from HexSimAnalysisCellDetection import HexSimAnalysisCellDetection
+        from modules.HexSimMeasurement2 import HexSimMeasurement
+        from modules.HexSimAnalysis2 import HexSimAnalysis
+        from modules.HexSimAnalysisCellDetection import HexSimAnalysisCellDetection
         # self.add_measurement(HamamatsuMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
@@ -89,14 +89,14 @@ if __name__ == '__main__':
     from PyQt5.QtGui import QIcon
 
     app = HexSimApp(sys.argv)
-    logo_icon = QIcon('icon_attribute_pixel_perfect.png')
+    logo_icon = QIcon('.\\ui\\icon_attribute_pixel_perfect.png')
     app.ui.setWindowIcon(logo_icon)
-    app.measurements['HexSIM_Analysis_cell_detection'].start()
+    # app.measurements['HexSIM_Analysis'].start()
+    # app.measurements['HexSIM_Analysis_cell_detection'].start()
     ################### for debugging only ##############
     # app.settings_load_ini(".\\Settings\\settingsPROCHIP.ini")
     # for hc_name, hc in app.hardware.items():
-    #
     #    hc.settings['connected'] = True    # connect all the hardwares
-    #####################################################
+    ####################################################
 
     sys.exit(app.exec_())
