@@ -29,8 +29,8 @@ class ScreenDisplay(QMainWindow):
         self.img = np.zeros([self.monitor.height(),self.monitor.width(),7])
         self.img488 = self.imgGenerator(0.488)
         self.img561 = self.imgGenerator(0.561)
-        self.img488_2b = self.twoBeamGenerator(0.488)
-        self.img561_2b = self.twoBeamGenerator(0.561)
+        # self.img488_2b = self.twoBeamGenerator(0.488)
+        # self.img561_2b = self.twoBeamGenerator(0.561)
 
         self.setPatterns(wavelength)
         # self.img = self.imgRead()
@@ -104,7 +104,44 @@ class ScreenDisplay(QMainWindow):
     #     print(time.time()-st)
     #     return np.require(img, np.uint8, 'C')
 
-    def imgGenerator(self, wavelength):
+
+    #''' Remove the hash to switch to original code
+    def imgGenerator(self, wavelength):  # Modified 10/06/2021
+        'Generate the polka pattern'
+        w = self.monitor.width()
+        h = self.monitor.height()
+        orientation = self.orientation
+
+        X, Y = np.meshgrid(np.linspace(0, w, w), np.linspace(0, h, h))
+        scalefactor = self.factor*self.NA*self.scale/wavelength/self.M
+        p = 4 * pi / 3 ** .5 / scalefactor
+        r0 = 0.33 * p
+        # img = np.ones([h,w,7], dtype=np.uint8)
+        img = []
+        print("Orientation:",self.orientation,"Scalefactor:",scalefactor)
+        # st = time.time()
+        Xs = X * sin(-orientation)
+        Yc = Y * cos(-orientation)
+        Xc = X * cos(-orientation)
+        Ys = Y * sin(-orientation)
+
+        for i in range (7):
+            phase = i * 2 * pi / 7
+            xr = -Xs + Yc - 1.0 * p * phase / (2 * pi)
+            yr = -Xc - Ys + 2.0 / 3 ** .5 * p * phase / (2 * pi)
+            yi = floor(yr / (p * 3 ** .5 / 2) + 0.5).astype('int')
+            # temp = yi % 2 / 2.0
+            temp = (yi & 1) / 2.0
+            xi = floor((xr / p) - temp + 0.5) + temp
+            y0 = yi * (p * 3 ** .5 / 2)
+            x0 = xi * p
+            r = (xr - x0) ** 2 + (yr - y0) ** 2
+            img.append(255*(r < r0 ** 2))
+        img = np.array(img, dtype=np.uint8).transpose((1, 2, 0))
+        return np.require(img, np.uint8, 'C')
+
+    '''  # Original
+    def o_imgGenerator(self, wavelength):
         'Generate the polka pattern'
         w = self.monitor.width()
         h = self.monitor.height()
@@ -134,8 +171,42 @@ class ScreenDisplay(QMainWindow):
             img[:, :, i] = 255*(r < r0)
         # print(time.time() - st)
         return np.require(img, np.uint8, 'C')
+    #'''
 
-    def twoBeamGenerator(self,wavelength):
+
+    #''' Remove the hash to switch to original code
+    def twoBeamGenerator(self,wavelength): # Modified 10/06/2021
+        w = self.monitor.width()
+        h = self.monitor.height()
+        img = []
+        X, Y = np.meshgrid(np.linspace(0, w, w), np.linspace(0, h, h))
+        scalefactor = self.factor * self.NA * self.scale / wavelength / self.M
+        p = 4 * pi / 3 ** .5 / scalefactor
+        r0 = 0.33 * p
+        for i in range(7):
+            if i<=2:
+                phi = (X * cos(-self.orientation - i * 2 * pi / 3 + pi / 3)
+                    * scalefactor + Y * sin(-self.orientation - i * 2 * pi / 3
+                    + pi / 3) * scalefactor)  # self.orientation = 1.36
+                img.append(255 * (cos(phi) > 0.0))
+            elif i>2:
+                phase = i * 2 * pi / 7
+                xr = (-X * sin(-self.orientation) + Y * cos(-self.orientation)
+                    - 1.0 * p * phase / (2 * pi))
+                yr = (-X * cos(-self.orientation) - Y * sin(-self.orientation)
+                    + 2.0 / 3 ** .5 * p * phase / (2 * pi))
+                yi = floor(yr / (p * 3 ** .5 / 2) + 0.5).astype('int')
+                temp = (yi & 1) / 2.0
+                xi = floor((xr / p) - temp + 0.5) + temp
+                y0 = yi * p * 3 ** .5 / 2
+                x0 = xi * p
+                r = (xr - x0) ** 2 + (yr - y0) ** 2
+                img.append(255 * (r < r0 ** 2))
+        img = np.array(img, dtype=np.uint8).transpose((1, 2, 0))
+        return np.require(img,np.uint8,'C')    
+
+    '''  # Original
+    def o_twoBeamGenerator(self,wavelength):
         w = self.monitor.width()
         h = self.monitor.height()
         img = np.ones([h,w,7])
@@ -159,6 +230,7 @@ class ScreenDisplay(QMainWindow):
                 img[:, :, i] = 255 * (r < r0)
 
         return np.require(img,np.uint8,'C')
+    #'''
 
     def imgRead(self):
         w = self.monitor.width()
@@ -183,11 +255,11 @@ class ScreenDisplay(QMainWindow):
         elif self.wavelength == 0.561:
             self.img = self.img561
 
-        elif self.wavelength == 2.488:
-            self.img = self.img488_2b
-
-        elif self.wavelength == 2.561:
-            self.img = self.img561_2b
+        # elif self.wavelength == 2.488:
+        #     self.img = self.img488_2b
+        #
+        # elif self.wavelength == 2.561:
+        #     self.img = self.img561_2b
 
     def keyPressEvent(self, input):
         if input.key() ==Qt.Key_Escape:
@@ -292,24 +364,23 @@ if __name__=='__main__':
 
     app = QApplication(sys.argv)
     # start_time = time.time()
-    hex_slm = ScreenDisplay(monitor_number=1, shift_orientation=pi/9, scale=1,update_time=100)
+    hex_slm = ScreenDisplay(monitor_number=1, shift_orientation=pi/9, scale=0.2,update_time=100)
 
+    #### Test speed ###################
     lprofile = line_profiler.LineProfiler()
     wrapper = lprofile(hex_slm.imgGenerator)
-    wrapper(0.488)
+    new = wrapper(0.488)
+    # original = hex_slm.o_twoBeamGenerator(.488)
+    # print('two beam tot difference=', np.sum(new - original))
+    # new = hex_slm.imgGenerator(.488)
+    # original = hex_slm.o_imgGenerator(.488)
+    # print('img gen tot difference=', np.sum(new - original))
     # wrapper(img2, useCupy = True) # To test cupy processing
     lprofile.disable()
     lprofile.print_stats(output_unit=1e-3)
 
-    # print(time.time()-start_time)
-
-    # start_time = time.time()
-    # hex_slm.imgGenerator(0.488)
-    # print(time.time()-start_time)
-
-    #
-    # hex_slm.showFullScreen()
-    #
+    hex_slm.showFullScreen()
+    # print(hex_slm.isVisible())
     # print('slm started')
     # hex_slm.displayFrameN(1)
     # print('slm display frame 1')

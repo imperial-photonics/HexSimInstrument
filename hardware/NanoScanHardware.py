@@ -24,7 +24,7 @@ class NanoScanHW(HardwareComponent):
         self.add_operation(name='Set to Zero', op_func=self.setPostionZeroHW)
         self.add_operation(name='Return to Zero', op_func=self.moveZeroPositionHW)
 
-        self.settings.move_distance = self.add_logged_quantity(name='Move distance',dtype=float,initial=0.0,ro=False)
+        # self.settings.move_distance = self.add_logged_quantity(name='Move distance',dtype=float,initial=0.0,ro=False)
         self.settings.stepsize = self.add_logged_quantity(name='Step size',dtype=float,vmin=0,vmax=50,initial=0.05,ro=False,
                                                           reread_from_hardware_after_write=True)
 
@@ -61,9 +61,9 @@ class NanoScanHW(HardwareComponent):
             write_func=self.moveAbsolutePositionHW
         )
 
-        self.settings.move_distance.connect_to_hardware(
-            write_func=self.moveRelativePositionHW
-        )
+        # self.settings.move_distance.connect_to_hardware(
+        #     write_func=self.moveRelativePositionHW
+        # )
         # self.settings.unit.connect_to_hardware(
         #     read_func=self.getUnitHW,
         #     write_func=self.setUnitHW

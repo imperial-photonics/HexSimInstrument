@@ -45,8 +45,6 @@ class HexSimMeasurement(Measurement):
         # Message window
         self.messageWindow = None
         # load ui file
-        # self.ui_filename = sibling_path(__file__, "hexsim_measurement.ui")
-        # self.ui = load_qt_ui_file(self.ui_filename)
         self.ui = load_qt_ui_file(".\\ui\\hexsim_measurement.ui")
 
         # Connect to hardware components
@@ -70,14 +68,11 @@ class HexSimMeasurement(Measurement):
         # self.settings.New('level_max', dtype=int, initial=150, hardware_set_func=self.setmaxLevel,
         #                   hardware_read_func=self.getmaxLevel)
         # self.settings.New('threshold', dtype=int, initial=500, hardware_set_func=self.setThreshold)
-
         # self.add_operation('terminate', self.terminate)
 
         self.autoRange = self.settings.autoRange.val
         self.display_update_period = self.settings.refresh_period.val
         self.autoLevels = self.settings.autoLevels.val
-        # self.level_min = self.settings.level_min.val
-        # self.level_max = self.settings.level_max.val
 
         self.standardMeasureEvent = Event()
         self.standardProcessEvent = Event()
@@ -98,7 +93,6 @@ class HexSimMeasurement(Measurement):
 
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
-
         # Set up pyqtgraph graph_layout in the UI
         self.imv = pg.ImageView()
         self.imv.ui.roiBtn.hide()

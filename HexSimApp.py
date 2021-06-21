@@ -48,11 +48,12 @@ class HexSimApp(BaseMicroscopeApp):
         from modules.HexSimMeasurement2 import HexSimMeasurement
         from modules.HexSimAnalysis2 import HexSimAnalysis
         from modules.HexSimAnalysisCellDetection import HexSimAnalysisCellDetection
+        from modules.HexSimMeasurementCellDetection2 import  HexSimMeasurementCellDetection
         # self.add_measurement(HamamatsuMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
         self.add_measurement(HexSimAnalysisCellDetection(self))
-
+        self.add_measurement(HexSimMeasurementCellDetection(self))
 
         self.ui.show()
         self.ui.activateWindow()

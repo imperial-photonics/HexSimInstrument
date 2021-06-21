@@ -122,13 +122,15 @@ if __name__ == '__main__':
     
     import tifffile as tif
     
-    image_cell = np.single(tif.imread('RawImage.tif'))
-     
-    h = ImageSegmentation(image_cell,128,50)
+    image_cell = np.single(tif.imread('RawImage1.tif'))
+    h = ImageSegmentation(image_cell,128,100)
     h.find_cell()
     rois_cell = h.roi_creation()
     displayed_image =h.draw_contours_on_image(h.image8bit)
     cv2.imshow('image',displayed_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    print('show')
     #h.highlight_channel(displayed_image)
     #h.draw_contours_on_image
     

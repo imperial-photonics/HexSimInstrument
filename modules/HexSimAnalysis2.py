@@ -16,6 +16,7 @@ from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
 
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.image_decorr import ImageDecorr
+from utils.StackImageViewer import StackImageViewer
 
 def add_timer(function):
     """Function decorator to mesaure the execution time of a method.
@@ -52,41 +53,25 @@ class HexSimAnalysis(Measurement):
     name = 'HexSIM_Analysis'
 
     def setup(self):
-
         # load ui file
-        # self.ui_filename = sibling_path(__file__, "hexsim_analysis.ui")
-        # self.ui = load_qt_ui_file(self.ui_filename)
         self.ui = load_qt_ui_file(".\\ui\\hexsim_analysis.ui")
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02,
                           hardware_set_func=self.setRefresh, vmin=0)
 
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
-        # Set up pyqtgraph graph_layout in the UI
-        self.imvRaw = pg.ImageView()
-        self.imvRaw.ui.roiBtn.hide()
-        self.imvRaw.ui.menuBtn.hide()
-
-        self.imvSIM = pg.ImageView()
-        self.imvSIM.ui.roiBtn.hide()
-        self.imvSIM.ui.menuBtn.hide()
-
-        self.imvWF = pg.ImageView()
-        self.imvWF.ui.roiBtn.hide()
-        self.imvWF.ui.menuBtn.hide()
-
-        self.ui.rawImageLayout.addWidget(self.imvRaw)
-        self.ui.simImageLayout.addWidget(self.imvSIM)
-        self.ui.wfImageLayout.addWidget(self.imvWF)
-
         # Image initialization
         self.imageRaw = np.zeros((1, 512, 512), dtype=np.uint16)
         self.imageSIM = np.zeros((1, 1024,1024), dtype=np.uint16)
         self.imageWF = np.zeros((1, 512, 512), dtype=np.uint16)
 
-        self.imvRaw.setImage((self.imageRaw[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
-        self.imvWF.setImage((self.imageWF[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
-        self.imvSIM.setImage((self.imageSIM[0, :, :]).T, autoRange=False, autoLevels=True, autoHistogramRange=True)
+        self.imvRaw = StackImageViewer(image_sets=self.imageRaw, set_levels=[1, 1])
+        self.imvWF = StackImageViewer(image_sets=self.imageWF, set_levels=[1, 1])
+        self.imvSIM = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8])
+
+        self.ui.rawImageLayout.addWidget(self.imvRaw)
+        self.ui.simImageLayout.addWidget(self.imvSIM)
+        self.ui.wfImageLayout.addWidget(self.imvWF)
 
         # region Reconstructor settings
         self.ui.debugCheck.stateChanged.connect(self.setReconstructor)
@@ -96,23 +81,16 @@ class HexSimAnalysis(Measurement):
         self.ui.usemodulationCheck.stateChanged.connect(self.setReconstructor)
         self.ui.compactCheck.stateChanged.connect(self.setReconstructor)
         self.ui.useLoadedResultsCheck.stateChanged.connect(self.setReconstructor)
-
         self.ui.magnificationValue.valueChanged.connect(self.setReconstructor)
         self.ui.naValue.valueChanged.connect(self.setReconstructor)
         self.ui.nValue.valueChanged.connect(self.setReconstructor)
         self.ui.wavelengthValue.valueChanged.connect(self.setReconstructor)
         self.ui.pixelsizeValue.valueChanged.connect(self.setReconstructor)
-
         self.ui.alphaValue.valueChanged.connect(self.setReconstructor)
         self.ui.betaValue.valueChanged.connect(self.setReconstructor)
         self.ui.wValue.valueChanged.connect(self.setReconstructor)
         self.ui.etaValue.valueChanged.connect(self.setReconstructor)
         # endregion
-
-        # Display
-        self.ui.rawImageSlider.valueChanged.connect(self.rawImageSliderChanged)
-        self.ui.simImageSlider.valueChanged.connect(self.simImageSliderChanged)
-        self.ui.wfImageSlider.valueChanged.connect(self.wfImageSliderChanged)
 
         # Toolbox
         self.ui.loadFileButton.clicked.connect(self.loadFile)
@@ -131,6 +109,7 @@ class HexSimAnalysis(Measurement):
         self.ui.resolutionEstimateButton.clicked.connect(self.resolutionEstimatePressed)
 
         self.settings['progress'] = 100 # indicate the measurement is activated
+
         self.pre_run()
 
     def update_display(self):
@@ -187,7 +166,6 @@ class HexSimAnalysis(Measurement):
     def pre_run(self):
         # Message window
         self.messageWindow = None
-
         # self.add_operation('terminate', self.terminate)
         self.display_update_period = self.settings.refresh_period.val
 
@@ -205,6 +183,7 @@ class HexSimAnalysis(Measurement):
         self.ky_input = np.zeros((3, 1), dtype=np.single)
         self.p_input = np.zeros((3, 1), dtype=np.single)
         self.ampl_input = np.zeros((3, 1), dtype=np.single)
+
         self.start_timers()
 
     def run(self):
@@ -284,47 +263,10 @@ class HexSimAnalysis(Measurement):
         for n_idx in range(self.imageRawShape[0]//7):
             self.imageWF[n_idx,:,:] = np.sum(self.imageRaw[n_idx*7:(n_idx+1)*7,:,:],axis=0)/7
 
-    # region Display Functions
-    def rawImageSliderChanged(self):
-        self.ui.rawImageSlider.setMinimum(0)
-        self.ui.rawImageSlider.setMaximum(self.imageRaw.shape[0] - 1)
-
-        self.imvRaw.setImage((self.imageRaw[int(self.ui.rawImageSlider.value()), :, :]).T, autoRange=False,
-                             levels=(self.imageRawMin, self.imageRawMax))
-
-        self.ui.rawImageNth.setText(str(self.ui.rawImageSlider.value() + 1))
-        self.ui.rawImageNtotal.setText(str(len(self.imageRaw)))
-
-    def wfImageSliderChanged(self):
-        self.ui.wfImageSlider.setMinimum(0)
-        self.ui.wfImageSlider.setMaximum(self.imageWF.shape[0] - 1)
-
-        self.imvWF.setImage((self.imageWF[int(self.ui.wfImageSlider.value()), :, :]).T, autoRange=False,
-                             levels=(self.imageWFMin, self.imageWFMax))
-
-        self.ui.wfImageNth.setText(str(self.ui.wfImageSlider.value() + 1))
-        self.ui.wfImageNtotal.setText(str(len(self.imageWF)))
-
-    def simImageSliderChanged(self):
-        self.ui.simImageSlider.setMinimum(0)
-        self.ui.simImageSlider.setMaximum(self.imageSIM.shape[0] - 1)
-        self.imvSIM.setImage((self.imageSIM[int(self.ui.simImageSlider.value()), :, :]).T,  autoRange=False,
-                             levels=(0, 0.7 * self.imageSIMMax))
-
-        self.ui.simImageNth.setText(str(self.ui.simImageSlider.value() + 1))
-        self.ui.simImageNtotal.setText(str(len(self.imageSIM)))
-
     def updateImageViewer(self):
-        self.imageRawMax = np.amax(self.imageRaw)
-        self.imageRawMin = np.amin(self.imageRaw)
-        self.imageWFMax = np.amax(self.imageWF)
-        self.imageWFMin = np.amin(self.imageWF)
-        self.imageSIMMax = np.amax(self.imageSIM)
-        self.rawImageSliderChanged()
-        self.wfImageSliderChanged()
-        self.simImageSliderChanged()
-
-    # endregion
+        self.imvRaw.setImageSet(self.imageRaw)
+        self.imvWF.setImageSet(self.imageWF)
+        self.imvSIM.setImageSet(self.imageSIM)
 
     ################    HexSIM  ################
     @add_update_display
@@ -338,21 +280,14 @@ class HexSimAnalysis(Measurement):
     @add_update_display
     @add_timer
     def calibrationProcessor(self):
-        # tif.imwrite('RawInput.tif',self.imageRaw)
-        # print(self.imageRaw.dtype)
         if self.isGpuenable:
             self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
             self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
-
         elif not self.isGpuenable:
             self.h.calibrate(self.imageRaw,self.isFindCarrier)
             self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
 
-        # print('Calibration is processed in:', time.time() - startTime, 's')
-
         self.imageSIM = self.imageSIM[np.newaxis, :, :]
-        # tif.imwrite('SimOutput.tif',self.imageSIM)
-        # print(self.imageSIM.dtype)
         self.isUpdateImageViewer = True
         self.isCalibrated = True
 
@@ -364,7 +299,6 @@ class HexSimAnalysis(Measurement):
                 self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
             elif not self.isGpuenable:
                 self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
-            # print('One SIM image is processed in:', time.time() - startTime, 's')
             self.imageSIM = self.imageSIM[np.newaxis, :, :]
         elif not self.isCalibrated:
             self.calibrationProcessTimer.start()
@@ -465,7 +399,6 @@ class HexSimAnalysis(Measurement):
         self.h.n = self.ui.nValue.value()
         self.h.wavelength = self.ui.wavelengthValue.value()
         self.h.pixelsize = self.ui.pixelsizeValue.value()
-
         self.h.alpha = self.ui.alphaValue.value()
         self.h.beta = self.ui.betaValue.value()
         self.h.w = self.ui.wValue.value()

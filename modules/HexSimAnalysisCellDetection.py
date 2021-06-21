@@ -12,9 +12,8 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QFileDialog, QMessageBox, QWidget, QTableWidgetItem, \
     QHeaderView,QLabel
 
-from PyQt5.QtGui import QImage,QPixmap,QPen
 from ScopeFoundry import Measurement, h5_io
-from ScopeFoundry.helper_funcs import sibling_path, load_qt_ui_file
+from ScopeFoundry.helper_funcs import load_qt_ui_file
 
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.image_decorr import ImageDecorr
@@ -55,12 +54,10 @@ def add_update_display(function):
 
 
 class HexSimAnalysisCellDetection(Measurement):
-    name = 'HexSIM_Analysis_cell_detection'
+    name = 'HexSIM_Analysis_Cell_Detection'
 
     def setup(self):
         # load ui file
-        # self.ui_filename = sibling_path(__file__, "hexsim_analysis_cell_detection.ui")
-        # self.ui = load_qt_ui_file(self.ui_filename)
         self.ui = load_qt_ui_file(".\\ui\\hexsim_analysis_cell_detection.ui")
         # self.settings.New('debug', dtype=bool, initial=False,
         #                   hardware_set_func = self.setReconstructor)
@@ -102,6 +99,7 @@ class HexSimAnalysisCellDetection(Measurement):
 
     def setup_figure(self):
         # connect ui widgets to measurement/hardware settings or functionss
+        self.rect = []
         # combo lists setting: size of roi
         self.roiSizeList = [128,256,512,1024]
         self.ui.roiSizeCombo.addItems(map(str,self.roiSizeList))
@@ -173,7 +171,6 @@ class HexSimAnalysisCellDetection(Measurement):
         self.ui.findCellButton.clicked.connect(self.findCell)
         self.ui.calibrationButton.clicked.connect(self.calibrationButtonPressed)
         self.ui.resetMeasureButton.clicked.connect(self.resetHexSIM)
-        # self.ui.calibrationResult.clicked.connect(self.showMessageWindow)
         self.ui.reconstructionButton.clicked.connect(self.reconstructionButtonPressed)
         self.ui.resolutionEstimateButton.clicked.connect(self.resolutionEstimatePressed)
         self.ui.calibrationSave.clicked.connect(self.saveMeasurements)
@@ -210,13 +207,10 @@ class HexSimAnalysisCellDetection(Measurement):
             self.ui.roiCalibrationProgress.setValue(100)
             self.ui.roiCalibrationProgress.setFormat('Calibrated')
             self.ui.reconstructionButton.setEnabled(True)
-            # self.ui.calibrationResult.setEnabled(True)
         else:
             self.ui.roiCalibrationProgress.setValue(0)
             self.ui.roiCalibrationProgress.setFormat('Uncalibrated')
             self.ui.reconstructionButton.setEnabled(False)
-            # self.ui.calibrationResult.setEnabled(False)
-
 
     def start_timers(self):
         if not hasattr(self, 'h'):
@@ -277,18 +271,6 @@ class HexSimAnalysisCellDetection(Measurement):
 
     def run(self):
         pass
-
-    def roiSize(self):
-        return int(self.ui.roiSizeCombo.currentText())
-
-    def minCellSize(self):
-        return int(self.ui.minCellSizeInput.value())
-
-    def image8bit_normalized(self,image):
-        level_min = np.amin(image)
-        level_max = np.amax(image)
-        img_thres = np.clip(image, level_min, level_max)
-        return ((img_thres - level_min + 1) / (level_max - level_min + 1) * 255).astype('uint8')
 
     @add_update_display
     def loadFile(self):
@@ -366,13 +348,26 @@ class HexSimAnalysisCellDetection(Measurement):
         else:
             self.show_text("File is not loaded.")
 
+# FUNCTIONS for ROI
+    def roiSize(self):
+        return int(self.ui.roiSizeCombo.currentText())
+
+    def minCellSize(self):
+        return int(self.ui.minCellSizeInput.value())
+
     @add_update_display
     def findCell(self):
+        # reset wide field image widget
+
+        if self.rect:
+            for item in self.rect:
+                self.imvWF.getView().removeItem(item)
+
         markpen = pg.mkPen('r', width=1)
+
         self.oSegment.min_cell_size = self.minCellSize()
         self.oSegment.roi_half_side = self.roiSize()//2
         self.oSegment.find_cell()
-        self.imageRawSets = self.oSegment.roi_creation()
         self.imageRawSets = self.oSegment.roi_creation()
         self.imageWFSets = []# initialize the image sets
         self.numSets = len(self.imageRawSets)
@@ -382,14 +377,16 @@ class HexSimAnalysisCellDetection(Measurement):
         self.ui.cellPickCombo.addItems(map(str,np.arange(self.numSets)))
         self.ui.cellPickCombo.setCurrentIndex(0)
         self.ui.calibrationButton.setEnabled(True)
+        self.rect = []
         for idx in range(self.numSets):
             self.imageWFSets.append(self.raw2WideFieldImage(self.imageRawSets[idx]))
             # mark the cells with rectangle overlay
+
             r = pg.ROI(pos = (self.oSegment.cx[idx]-self.oSegment.roi_half_side, self.oSegment.cy[idx]-self.oSegment.roi_half_side ), size=self.roiSize(), pen=markpen, movable=False)
             self.imvWF.getView().addItem(r)
+            self.rect.append(r)
 
-        self.wfImageViewer.image_sets = self.imageWFSets
-        self.wfImageViewer.update()
+        self.wfImageViewer.setImageSet(self.imageWFSets)
 
     def raw2WideFieldImage(self,rawImages):
         wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
@@ -649,7 +646,6 @@ class HexSimAnalysisCellDetection(Measurement):
     @add_timer
     def batchProcessorROI(self):
         if self.isCalibrated:
-            print('Start batch processing...')
             self.imageSIMSets = []
             self.wienerfilterSets = []
             self.kx_roi = []
@@ -681,7 +677,6 @@ class HexSimAnalysisCellDetection(Measurement):
                 self.p_roi.append(self.h.p)
                 self.wienerfilterSets.append(self.h.wienerfilter[np.newaxis, :, :])
 
-        # print('Batch reconstruction is processed in', time.time() - startTime, 's')
         self.isUpdateImageViewer = True
         self.showCellSIMImageSets()
 
@@ -751,3 +746,8 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
+    # def image8bit_normalized(self,image):
+    #     level_min = np.amin(image)
+    #     level_max = np.amax(image)
+    #     img_thres = np.clip(image, level_min, level_max)
+    #     return ((img_thres - level_min + 1) / (level_max - level_min + 1) * 255).astype('uint8')

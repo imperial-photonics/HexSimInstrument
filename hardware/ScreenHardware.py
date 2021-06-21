@@ -66,7 +66,7 @@ class ScreenHW(HardwareComponent):
         if hasattr(self, 'slm_dev'):
             # self.slm_dev.setPatterns()
             self.slm_dev.showFullScreen()
-            print('slm started')
+            # print('slm started')
 
     def closeSLM(self):
         if hasattr(self, 'slm_dev'):
