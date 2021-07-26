@@ -9,7 +9,11 @@ Time:   Oct 2020
 Address:Imperial College London
 """
 import os
+
+os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
+
 from ScopeFoundry import BaseMicroscopeApp
+
 
 class HexSimApp(BaseMicroscopeApp):
     # this is the name of the microscope that ScopeFoundry uses
@@ -25,7 +29,7 @@ class HexSimApp(BaseMicroscopeApp):
         # the *kwds this will give a problem
 
         # self.settings.save_dir.update_value(QtWidgets.QFileDialog.getExistingDirectory(directory = "D:\\Data\\temp"))
-        self.settings['save_dir'] = "\\measurement"  # PUT ALWAYS TWO SLASHES!!!!
+        self.settings['save_dir'] = "./measurement"  # PUT ALWAYS TWO SLASHES!!!!
         # calls set dir func when the save_dir widget is changed
         self.settings.save_dir.hardware_set_func = self.setDirFunc
 
@@ -45,15 +49,15 @@ class HexSimApp(BaseMicroscopeApp):
 
         print("Adding measurement components")
         # from CameraMeasurement import HamamatsuMeasurement
-        from modules.HexSimMeasurement2 import HexSimMeasurement
-        from modules.HexSimAnalysis2 import HexSimAnalysis
-        from modules.HexSimAnalysisCellDetection import HexSimAnalysisCellDetection
-        from modules.HexSimMeasurementCellDetection2 import  HexSimMeasurementCellDetection
+        # from modules.HexSimMeasurement2 import HexSimMeasurement
+        # from modules.HexSimAnalysis2 import HexSimAnalysis
+        from modules.HexSimAnalysis import HexSimAnalysis
+        from modules.HexSimMeasurement import HexSimMeasurement
         # self.add_measurement(HamamatsuMeasurement(self))
+        # self.add_measurement(HexSimAnalysis(self))
+        # self.add_measurement(HexSimMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
-        self.add_measurement(HexSimAnalysisCellDetection(self))
-        self.add_measurement(HexSimMeasurementCellDetection(self))
 
         self.ui.show()
         self.ui.activateWindow()
@@ -89,6 +93,8 @@ if __name__ == '__main__':
     import sys
     from PyQt5.QtGui import QIcon
 
+
+    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     app = HexSimApp(sys.argv)
     logo_icon = QIcon('.\\ui\\icon_attribute_pixel_perfect.png')
     app.ui.setWindowIcon(logo_icon)
@@ -99,5 +105,4 @@ if __name__ == '__main__':
     # for hc_name, hc in app.hardware.items():
     #    hc.settings['connected'] = True    # connect all the hardwares
     ####################################################
-
     sys.exit(app.exec_())

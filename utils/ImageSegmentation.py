@@ -31,12 +31,15 @@ class ImageSegmentation:
         self.image8bit = ((img_thres-level_min+1)/(level_max-level_min+1)*255).astype('uint8')
 
         # image8bit = (self.image[ch]/256).astype('uint8')
-        
+        # _ret,thresh_pre = cv2.threshold(self.image8bit,0,255,cv2.THRESH_OTSU)
         _ret,thresh_pre = cv2.threshold(self.image8bit,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        # thresh_pre = cv2.adaptiveThreshold(self.image8bit,127,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,211,2)
         # ret is the threshold that was used, thresh is the thresholded image.     
         kernel  = np.ones((3,3),np.uint8)
-        thresh = cv2.morphologyEx(thresh_pre,cv2.MORPH_OPEN, kernel, iterations = 2)
-        # morphological opening (remove noise)
+
+        thresh = cv2.morphologyEx(thresh_pre,cv2.MORPH_OPEN, kernel, iterations = 1)
+        # morphological opening (remove noise,small holes)
+        thresh = cv2.dilate(thresh,kernel,iterations = 1)
         contours, _hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
         cx = []
         cy = []            
@@ -122,8 +125,8 @@ if __name__ == '__main__':
     
     import tifffile as tif
     
-    image_cell = np.single(tif.imread('RawImage1.tif'))
-    h = ImageSegmentation(image_cell,128,100)
+    image_cell = np.single(tif.imread('2021_0611_1751_488nm_Raw.tif'))
+    h = ImageSegmentation(image_cell,128,50**2)
     h.find_cell()
     rois_cell = h.roi_creation()
     displayed_image =h.draw_contours_on_image(h.image8bit)

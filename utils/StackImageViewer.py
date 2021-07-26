@@ -9,7 +9,7 @@
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, uic
 
 
 class UiViewer(object):
@@ -148,15 +148,19 @@ class StackImageViewer(QtWidgets.QWidget):
 
     def __init__(self, image_sets, set_levels=[1, 1], title='ImageViewer'):
         super().__init__()
-        self.ui = UiViewer()
-        self.ui.setupUi(self)
+
+        try:
+            self.ui = uic.loadUi(".\\utils\\stack_image_viewer.ui", self)
+        except:
+            self.ui = UiViewer()
+            self.ui.setupUi(self)
+        self.image_sets = []
         self.setWindowTitle(title)
         # set image
-        self.imv = pg.ImageView()
+        self.imv = pg.ImageView(view=pg.PlotItem())
         self.imv.ui.roiBtn.hide()
         self.imv.ui.menuBtn.hide()
         self.ui.imageLayout.addWidget(self.imv)
-
         # operations
         self.ui.imgSlider.valueChanged.connect(self.imageSliderChanged)
         self.ui.previousButton.clicked.connect(self.previousSet)
@@ -166,17 +170,19 @@ class StackImageViewer(QtWidgets.QWidget):
         self.setImageSet(image_sets,set_levels)
 
     def setImageSet(self, images, set_levels=None):
-        image_sets = self.toList(images)
-        if image_sets:
-            self.image_sets = image_sets  # image_sets is not empty
+        # if the list is empty, output a zero array
+        # if not images:
+        #     images = np.zeros((256,256), dtype=np.uint8)
+        image_sets_tmp = self.converttoList(images)
+        try:
+            eql = all([np.array_equal(image_sets_tmp[i], self.image_sets[i]) for i in range(len(image_sets_tmp))])
+        except (IndexError, TypeError):
+            eql = False
+        if not eql:
+            self.image_sets = image_sets_tmp
             if set_levels is not None:
                 self.set_levels = set_levels  # [0,0.7] for SIM image, [1, 1] for WF image. [0]*min [1]*max
-            else:
-                pass
             self.update()
-
-        elif not image_sets:
-            print('Input image is an empty list.')
 
     def update(self):
 
@@ -184,7 +190,8 @@ class StackImageViewer(QtWidgets.QWidget):
         num_z, dim_h, dim_w = np.shape(self.image_tmp)
 
         # set slider
-        self.idx_z = 0  # current image index
+        self.idx_z = int(self.ui.imgSlider.value())  # current image index
+
         self.ui.nTotal.setText(str(num_z))
         self.ui.nCurrent.setText(str(self.idx_z+1))
         self.ui.imgSlider.setMinimum(0)
@@ -212,7 +219,7 @@ class StackImageViewer(QtWidgets.QWidget):
         self.comboList = map(str, np.arange(self.num_sets))
         self.ui.cellCombo.addItems(self.comboList)
 
-    def toList(self,input):
+    def converttoList(self,input):
         datatype = type(input)
         image_list = []
         if datatype is np.ndarray:
@@ -222,7 +229,7 @@ class StackImageViewer(QtWidgets.QWidget):
             elif n_dim == 3:# if the data set is a 3d array
                 pass
             image_list.append(input)   #
-        if datatype is list:
+        elif datatype is list:
             if input:   # if input data is not empty convert each 2d array element to 3d array
                 n_dim = input[0].ndim
                 if n_dim == 2:
@@ -239,8 +246,10 @@ class StackImageViewer(QtWidgets.QWidget):
 
     def imageSliderChanged(self):
         self.idx_z = int(self.ui.imgSlider.value())
-        self.imv.setImage((self.image_tmp[self.idx_z, :, :]).T, autoRange=False,
-                          levels=(self.set_levels[0] * self.level_min, self.set_levels[1] * self.level_max))
+        # if self.idx_z > self.image_tmp.shape[0]:
+        # self.idx_z = self.image_tmp.shape[0]
+        # self.ui.nTotal.setText(str(self.image_tmp.shape[0] + 1))
+        self.imv.setImage((self.image_tmp[self.idx_z, :, :]).T, autoRange=False,autoLevels=False)
         self.ui.nCurrent.setText(str(self.idx_z + 1))
 
     def previousSet(self):
@@ -265,8 +274,20 @@ class StackImageViewer(QtWidgets.QWidget):
 
     def displaySet(self, idx_set):
         self.image_tmp = self.image_sets[idx_set]
+        num_z, dim_h, dim_w = np.shape(self.image_tmp)
+        # set slider
+        self.idx_z = int(self.ui.imgSlider.value())  # current image index
+        if self.idx_z > len(self.image_tmp):
+            self.idx_z = len(self.image_tmp)
+
+        self.ui.nTotal.setText(str(num_z))
+        self.ui.nCurrent.setText(str(self.idx_z+1))
+        self.ui.imgSlider.setMinimum(0)
+        self.ui.imgSlider.setMaximum(num_z-1)
+
         self.level_max = np.amax(self.image_tmp)
         self.level_min = np.amin(self.image_tmp)
+        # self.update()
         self.imv.setImage((self.image_tmp[self.idx_z, :, :]).T, autoRange=False,
                           levels=(self.set_levels[0] * self.level_min, self.set_levels[1] * self.level_max))
 
@@ -276,26 +297,27 @@ if __name__ == '__main__':
     # input data as a list of 3d arrays
     image_sets_1 = [np.random.randint(0, 100, size=(3, 30, 30)), np.random.randint(0, 100, size=(3, 30, 30)),
                     np.random.randint(0, 100, size=(3, 30, 30))]
-
     # input data as a list of 2d arrays
     image_sets_2 = [np.random.randint(0, 100, size=(30, 30)), np.random.randint(0, 100, size=(30, 30)),
                     np.random.randint(0, 100, size=(30, 30))]
-
     # input data with a list of only one 3d array
     image_sets_3 = [np.random.randint(0, 100, size=(3, 30, 30))]
-
     # input data with a list of only one 2d array
     image_sets_4 = [np.random.randint(0, 100, size=(30, 30))]
-
     # input data with a 3d numpy array
     image_sets_5 = np.random.randint(0, 100, size=(3, 30, 30))
-
     # input data with a 2d numpy array
     image_sets_6 = np.random.randint(0, 100, size=(30, 30))
+    # input contain empty element
+    image_sets_7 = [[], np.random.randint(0, 100, size=(3, 30, 30)),
+                    np.random.randint(0, 100, size=(3, 30, 30))]
+    # input data as a list of 3d arrays with different dimensions
+    image_sets_8 = [np.random.randint(0, 100, size=(3, 30, 30)), np.random.randint(0, 100, size=(4, 30, 30)),
+                    np.random.randint(0, 100, size=(6, 30, 30))]
 
     app = QtWidgets.QApplication(sys.argv)
 
-    display_image_widget = StackImageViewer(image_sets=image_sets_6, set_levels=[1, 1])
+    display_image_widget = StackImageViewer(image_sets=image_sets_8, set_levels=[1, 1])
 
     display_image_widget.show()
     sys.exit(app.exec_())
