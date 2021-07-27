@@ -12,6 +12,13 @@ import pyqtgraph as pg
 from PyQt5 import QtCore, QtWidgets, uic
 
 
+def list_equal(list_a,list_b):
+    try:
+        eql = all([np.array_equal(list_a[i], list_b[i]) for i in range(len(list_a))])
+    except (IndexError, TypeError):
+        eql = False
+    return eql
+
 class UiViewer(object):
     def setupUi(self, Form):
         Form.setObjectName("Form")
@@ -170,14 +177,12 @@ class StackImageViewer(QtWidgets.QWidget):
         self.setImageSet(image_sets,set_levels)
 
     def setImageSet(self, images, set_levels=None):
-        # if the list is empty, output a zero array
-        # if not images:
-        #     images = np.zeros((256,256), dtype=np.uint8)
         image_sets_tmp = self.converttoList(images)
-        try:
-            eql = all([np.array_equal(image_sets_tmp[i], self.image_sets[i]) for i in range(len(image_sets_tmp))])
-        except (IndexError, TypeError):
-            eql = False
+        # try:
+        #     eql = all([np.array_equal(image_sets_tmp[i], self.image_sets[i]) for i in range(len(image_sets_tmp))])
+        # except (IndexError, TypeError):
+        #     eql = False
+        eql = list_equal(image_sets_tmp,self.image_sets)
         if not eql:
             self.image_sets = image_sets_tmp
             if set_levels is not None:
@@ -185,13 +190,10 @@ class StackImageViewer(QtWidgets.QWidget):
             self.update()
 
     def update(self):
-
         self.uiSetting()
         num_z, dim_h, dim_w = np.shape(self.image_tmp)
-
         # set slider
         self.idx_z = int(self.ui.imgSlider.value())  # current image index
-
         self.ui.nTotal.setText(str(num_z))
         self.ui.nCurrent.setText(str(self.idx_z+1))
         self.ui.imgSlider.setMinimum(0)
@@ -246,9 +248,6 @@ class StackImageViewer(QtWidgets.QWidget):
 
     def imageSliderChanged(self):
         self.idx_z = int(self.ui.imgSlider.value())
-        # if self.idx_z > self.image_tmp.shape[0]:
-        # self.idx_z = self.image_tmp.shape[0]
-        # self.ui.nTotal.setText(str(self.image_tmp.shape[0] + 1))
         self.imv.setImage((self.image_tmp[self.idx_z, :, :]).T, autoRange=False,autoLevels=False)
         self.ui.nCurrent.setText(str(self.idx_z + 1))
 

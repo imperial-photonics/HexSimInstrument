@@ -11,7 +11,7 @@ from ScopeFoundry.helper_funcs import load_qt_ui_file
 
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.MessageWindow import CalibrationResults
-from utils.StackImageViewer import StackImageViewer
+from utils.StackImageViewer import StackImageViewer, list_equal
 from utils.ImageSegmentation import ImageSegmentation
 from utils.image_decorr import ImageDecorr
 
@@ -58,6 +58,7 @@ def add_run(function):
     return inner
 
 class HexSimAnalysis(Measurement):
+    ''' This HexSim anaysis works on H5 file.'''
     name = 'HexSIM_Analyse'
 
     def setup(self):
@@ -109,13 +110,14 @@ class HexSimAnalysis(Measurement):
 
         self.action = None # the action in run()
 
+        self.numSets = 0
         self.kx_full = np.zeros((3, 1), dtype=np.single) # frequency of full field of view
         self.ky_full = np.zeros((3, 1), dtype=np.single)
 
         # image initialization
         v = h = 512
         # left
-        self.imageRaw = np.zeros((7, v, h), dtype=np.uint16)
+        self.imageRaw = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
         self.imageWF = np.zeros((v, h), dtype=np.uint16)
         self.imageWF_ROI = np.zeros((v, h), dtype=np.uint16)
         self.imageRaw_ROI = np.zeros((7, v, h), dtype=np.uint16)
@@ -125,15 +127,9 @@ class HexSimAnalysis(Measurement):
         self.wiener_Full = np.zeros((v, h), dtype=np.uint16)
         self.wiener_ROI = np.zeros((v, h), dtype=np.uint16)              # it can be an image or a set of images
 
-        if not hasattr(self, 'h'):
-            self.h = HexSimProcessor()  # create reconstruction object
-            self.h.opencv = False
-            self.imageRaw = np.zeros((7, v, h),dtype=np.uint16)  # Initialize the raw image array
-            self.setReconstructor()
-            self.h.N = v
-            self.h.wienerfilter_store = self.wiener_Full
-            self.h.kx_input = np.zeros((3, 1), dtype=np.single)
-            self.h.ky_input = np.zeros((3, 1), dtype=np.single)
+        self.imageSIM_store = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
+
+        self.start_sim_processor()
 
     def setup_figure(self):
         # image viewers
@@ -186,11 +182,11 @@ class HexSimAnalysis(Measurement):
         self.settings.otf_model.connect_to_widget(self.ui.otfModel)
 
         # Operation
-        self.ui.loadMeasurementButton.clicked.connect(self.loadFile)
+        self.ui.loadMeasurementButton.clicked.connect(self.loadMeasurement)
         self.ui.calibrationButton.clicked.connect(self.calibrationPressed)
         self.ui.findCellButton.clicked.connect(self.findCell)
         self.ui.reconstructionButton.clicked.connect(self.reconstructionPressed)
-        self.ui.roiProcessButton.clicked.connect(self.roiprocessPressed) # TODO add function roiprocessPressed
+        self.ui.roiProcessButton.clicked.connect(self.roiprocessPressed)
 
         self.ui.loadCalibrationButton.clicked.connect(self.loadCalibrationResults)
         self.ui.resetButton.clicked.connect(self.resetHexSIM)
@@ -261,14 +257,13 @@ class HexSimAnalysis(Measurement):
 
     @add_update_display
     def resetHexSIM(self):
-        # self.isFileLoad = False
         self.isCalibrated = False
         self.stop_sim_processor()
         cp._default_memory_pool.free_all_blocks()
         self.start_sim_processor()
         self.removeMarks()
-        self.imageWF = np.zeros(self.imageWFShape, dtype=np.uint16)
-        self.imageSIM = np.zeros(self.imageSIMShape, dtype=np.uint16)
+        self.imageWF = np.zeros_like(self.imageWF, dtype=np.uint16)
+        self.imageSIM = np.zeros_like(self.imageSIM, dtype=np.uint16)
         self.isUpdateImageViewer = True
 
     def channelChanged(self):
@@ -278,18 +273,10 @@ class HexSimAnalysis(Measurement):
         elif self.current_channel_display() == 1:
             self.settings['wavelength'] = 0.610
 
-    def channelChoose(self):
-        if hasattr(self,'imvRaw'):
-            if self.current_channel_display() == 0:
-                self.settings['wavelength'] = 0.523
-            elif self.current_channel_display() == 1:
-                self.settings['wavelength'] = 0.610
-
     def current_channel_display(self):
         return self.imvRaw.ui.cellCombo.currentIndex()
 
     def setReconstructor(self, *args):
-        self.channelChoose()
         self.isFindCarrier = self.settings['find_carrier']
         self.isGpuenable = self.settings['gpu']
         self.isCompact = self.settings['compact']
@@ -308,8 +295,11 @@ class HexSimAnalysis(Measurement):
         self.h.eta = self.settings['eta']
         self.h.a_type = self.settings['otf_model']
         if not self.isFindCarrier:
-            self.h.kx = self.kx_input
-            self.h.ky = self.ky_input
+            try:
+                self.h.kx = self.kx_input
+                self.h.ky = self.ky_input
+            except Exception as e:
+                self.show_text(f'Load pre-calibration encountered an error \n{e}')
 
 # functions for operation
     @add_run
@@ -321,9 +311,9 @@ class HexSimAnalysis(Measurement):
 
     @add_run
     def reconstructionPressed(self):
-        if len(self.imageRaw) > 7:
+        if len(self.imageRaw[self.current_channel_display()]) > 7:
             self.action = 'batch_process'
-        elif len(self.imageRaw) == 7:
+        elif len(self.imageRaw[self.current_channel_display()]) == 7:
             self.action = 'standard_process'
         else:
             self.show_text('Raw images are not acquired.')
@@ -342,15 +332,14 @@ class HexSimAnalysis(Measurement):
         self.action = 'resolution'
 
 # functions for processing
-    # TODO change the processing functions refer to measurement
     @add_timer
     def calibration(self):
         try:
             self.setReconstructor()
             if self.isGpuenable:
-                self.h.calibrate_cupy(self.imageRaw, self.isFindCarrier)
+                self.h.calibrate_cupy(self.imageRaw[self.current_channel_display()], self.isFindCarrier)
             elif not self.isGpuenable:
-                self.h.calibrate(self.imageRaw, self.isFindCarrier)
+                self.h.calibrate(self.imageRaw[self.current_channel_display()], self.isFindCarrier)
 
             self.isCalibrated = True
             self.show_text('Calibration finished.')
@@ -368,9 +357,9 @@ class HexSimAnalysis(Measurement):
         try:
             if self.isCalibrated:
                 if self.isGpuenable:
-                    self.imageSIM = self.h.reconstruct_cupy(self.imageRaw)
+                    self.imageSIM = self.h.reconstruct_cupy(self.imageRaw[self.current_channel_display()])
                 elif not self.isGpuenable:
-                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw)
+                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw[self.current_channel_display()])
             else:
                 self.calibration()
                 if self.isCalibrated:
@@ -424,14 +413,14 @@ class HexSimAnalysis(Measurement):
                 # Batch reconstruction
                 if self.isGpuenable:
                     if self.isCompact:
-                        self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw)
+                        self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw[self.current_channel_display()])
                     elif not self.isCompact:
-                        self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw)
+                        self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw[self.current_channel_display()])
                 elif not self.isGpuenable:
                     if self.isCompact:
-                        self.imageSIM = self.h.batchreconstructcompact(self.imageRaw)
+                        self.imageSIM = self.h.batchreconstructcompact(self.imageRaw[self.current_channel_display()])
                     elif not self.isCompact:
-                        self.imageSIM = self.h.batchreconstruct(self.imageRaw)
+                        self.imageSIM = self.h.batchreconstruct(self.imageRaw[self.current_channel_display()])
             elif not self.isCalibrated:
                 self.calibration()
                 if self.isCalibrated:
@@ -489,108 +478,52 @@ class HexSimAnalysis(Measurement):
     @add_timer
     def resolutionEstimate(self):
         try:
-            pixelsizeWF = self.h.pixelsize / self.h.magnification
-            imageWF_temp = self.imageWFSets[self.wfImageViewer.ui.cellCombo.currentIndex()]
-            ciWF = ImageDecorr(imageWF_temp[self.wfImageViewer.ui.imgSlider.value(),:,:], square_crop=True,pixel_size=pixelsizeWF)
+            pixelsizeWF = self.settings['pixelsize'] / self.settings['magnification']
+            imageWF_temp = self.imageWF[self.imvWF.ui.imgSlider.value(),:,:]
+            ciWF = ImageDecorr(imageWF_temp, square_crop=True,pixel_size=pixelsizeWF)
             optimWF, resWF = ciWF.compute_resolution()
-            imageSIM_temp = self.imageSIMSets[self.simImageViewer.ui.cellCombo.currentIndex()]
-            ciSIM = ImageDecorr(imageSIM_temp[self.simImageViewer.ui.imgSlider.value(),:,:], square_crop=True,pixel_size=pixelsizeWF/2)
+            imageSIM_temp = self.imageSIM[self.imvSIM.ui.imgSlider.value(),:,:]
+            ciSIM = ImageDecorr(imageSIM_temp, square_crop=True,pixel_size=pixelsizeWF/2)
             optimSIM, resSIM = ciSIM.compute_resolution()
-            txtDisplay = f"Cell {self.wfImageViewer.ui.cellCombo.currentIndex()}" \
-                         f"\nWide field image resolution:\t {ciWF.resolution:.3f} um \
-                  \nSIM image resolution:\t {ciSIM.resolution:.3f} um\n"
+            txtDisplay = f"\nWide field image resolution:\t {ciWF.resolution:.3f} um \
+                           \nSIM image resolution:\t {ciSIM.resolution:.3f} um\n"
             self.show_text(txtDisplay)
-        except:
-            pass
+        except Exception as e:
+            txtDisplay = f'Resolution encountered an error \n{e}'
+            self.show_text(txtDisplay)
 
 # functions for IO
     @add_update_display
-    def loadFile(self):
-            try:
-                self.filename, _ = QFileDialog.getOpenFileName(directory=self.app.settings['save_dir'])
+    def loadMeasurement(self):
+        try:
+            self.filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory=self.app.settings['save_dir'],
+                                                           filter="H5 files (*Raw.h5)")
+            self.imageRaw = []
+            with h5py.File(self.filename,"r") as f:
+                for ch_idx in range(2):
+                    gname = f'data/c{ch_idx}/raw'
+                    if f[gname].shape != None:
+                        self.imageRaw.append(np.array(f[gname]))
+                    else:
+                        self.imageRaw.append(np.zeros((7,256,256),dtype=np.uint16))
 
-                if self.filename.endswith('.tif'):
-                    self._fileType = 'tif'
+            self.filetitle = Path(self.filename).stem[:-3]
+            print(self.filetitle)
+            self.filepath = os.path.dirname(self.filename)
+            self.isFileLoad = True
+            self.ui.imgTab.setCurrentIndex(0)
 
-                    self.imageRaw = np.single(tif.imread(self.filename))
-                    self.imageWF = self.raw2WideFieldImage(self.imageRaw)
+        except AssertionError as error:
+            print(error)
+            self.isFileLoad = False
 
-                    self.imageRawShape = np.shape(self.imageRaw)
-                    self.imageSIMShape = [self.imageRawShape[0] // 7, self.imageRawShape[1] * 2, self.imageRawShape[2] * 2]
-                    self.imageWFShape = [self.imageRawShape[0] // 7, self.imageRawShape[1], self.imageRawShape[2]]
-
-                    self.imageSIM = np.zeros(self.imageSIMShape, dtype=np.uint16)
-
-                elif self.filename.endswith('.h5'):
-                    self._fileType = 'h5'
-                    pass
-                    # TODO transfer h5 data to program
-
-                self.oSegment = ImageSegmentation(self.imageRaw, self.roiSize() // 2, self.minCellSize())
-
-                self.filetitle = Path(self.filename).stem
-                self.filepath = os.path.dirname(self.filename)
-                # print(self.filename)
-                # print(self.filepath)
-                # print(self.filetitle)
-
-                self.isFileLoad = True
-
-                try:
-                    # get file name of txt file
-                    for file in os.listdir(self.filepath):
-                        if file.endswith(".txt"):
-                            configFileName = os.path.join(self.filepath, file)
-
-                    configFile = open(configFileName, 'r')
-                    configSet = json.loads(configFile.read())
-
-                    self.kx_input = np.asarray(configSet["kx"])
-                    self.ky_input = np.asarray(configSet["ky"])
-                    self.p_input = np.asarray(configSet["phase"])
-                    self.ampl_input = np.asarray(configSet["amplitude"])
-
-                    # set value
-                    self.settings['magnification'] = configSet["magnification"]
-                    self.settings['NA'] = configSet["NA"]
-                    self.settings['n'] = configSet["refractive index"]
-                    self.settings['wavelength'] = configSet["wavelength"]
-                    self.settings['pixelsize'] = configSet["pixelsize"]
-
-                    try:
-                        self.exposuretime = configSet["camera exposure time"]
-                    except:
-                        self.exposuretime = configSet["exposure time (s)"]
-
-                    try:
-                        self.laserpower = configSet["laser power (mW)"]
-                    except:
-                        self.laserpower = 0
-
-                    txtDisplay = "File name:\t {}\n" \
-                                 "Array size:\t {}\n" \
-                                 "Wavelength:\t {} um\n" \
-                                 "Exposure time:\t {:.3f} s\n" \
-                                 "Laser power:\t {} mW".format(self.filetitle, self.imageRawShape, \
-                                                               configSet["wavelength"], \
-                                                               self.exposuretime, self.laserpower)
-                    self.ui.fileInfo.insertPlainText(txtDisplay)
-
-                except:
-                    self.show_text("No information about this measurement.")
-
-            except AssertionError as error:
-                print(error)
-                self.isFileLoad = False
-
-            if self.isFileLoad:
-                self.ui.findCellButton.setEnabled(True)
-                self.isUpdateImageViewer = True
-                self.isCalibrated = False
-                self.setReconstructor()
-                self.h._allocate_arrays()
-            else:
-                self.show_text("File is not loaded.")
+        if self.isFileLoad:
+            self.isUpdateImageViewer = True
+            self.isCalibrated = False
+            self.setReconstructor()
+            self.h._allocate_arrays()
+        else:
+            self.show_text("File is not loaded.")
 
     def load_ini_settings(self, fname):
         self.log.info("ini settings loading from " + fname)
@@ -607,161 +540,50 @@ class HexSimAnalysis(Measurement):
                         new_val = str2bool(new_val)
                     lq.update_value(new_val)
 
-
     def saveMeasurements(self):
+        if self.isCalibrated:
+            if list_equal(self.imageSIM_store, self.imageSIM):
+                self.show_text("SIM images are not saved: the same results.")
+            else:
+                timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+                fname_pro = os.path.join(self.filepath, self.filetitle +f'_{timestamp}_C{self.current_channel_display()}_Processed.h5')
+                self.h5file_pro = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_pro)
+                h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_pro)
 
-        timestamp = time.strftime("%Y_%m%d_%H%M%S", time.localtime())
-        # sample = self.app.settings['sample']
-        # # sample_name = f'{timestamp}_{self.name}_{sample}.h5'
-        # if sample == '':
-        #     sample_name = '_'.join([timestamp, self.name])
-        # else:
-        #     sample_name = '_'.join([timestamp, self.name, sample])
-        if self._fileType == 'tif':
-            fname = os.path.join(self.filepath, self.filetitle + '.h5')
-            self.h5file = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname)
-            self.h5_group = h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file)
+                name = f'data/sim'
+                if np.sum(self.imageSIM) == 0:
+                    dset = self.h5file_pro.create_dataset(name, data=h5py.Empty("f"))
+                    self.show_text("[H5] SIM images are empty.")
+                else:
+                    dset = self.h5file_pro.create_dataset(name, data=self.imageSIM)
+                    self.show_text("[H5] SIM images are saved.")
+                dset.attrs['kx'] = self.kx_full
+                dset.attrs['ky'] = self.ky_full
 
-            name = f't0/image'
-            self.image_h5 = self.h5_group.create_dataset(name=name,
-                                                         shape=(self.imageWFShape[0], self.imageWFShape[1],
-                                                                self.imageWFShape[2]),
-                                                         dtype=self.imageWF.dtype,
-                                                         chunks=(1, self.imageWFShape[1], self.imageWFShape[2])
-                                                         )
-            self.h5file.flush()
-            self.h5file.close()
+                if self.numSets != 0:
+                    for idx in range(self.numSets):
+                        roi_group_name = f'data/roi/{idx:03}'
+                        raw_set = self.h5file_pro.create_dataset(roi_group_name + '/raw', data=self.imageRaw_ROI[idx])
+                        raw_set.attrs['cx'] = self.oSegment.selected_cx[idx]
+                        raw_set.attrs['cy'] = self.oSegment.selected_cy[idx]
+                        sim_set = self.h5file_pro.create_dataset(roi_group_name + '/sim', data=self.imageSIM_ROI[idx])
+                        sim_set.attrs['kx'] = self.kx_roi[idx]
+                        sim_set.attrs['ky'] = self.ky_roi[idx]
+                    self.show_text("[H5] ROI images are saved.")
 
-        elif self._fileType == 'h5':
-            pass
-                # TODO: add functions
+                self.h5file_pro.close()
 
-
-
-
-
-
-
-        # self.initH5()
-        # self.image_h5 = self.imageWF
-
-        # self.app.settings_save_h5('test.h5')
-        # t0 = time.time()
-        # timestamp = datetime.fromtimestamp(t0)
-        # timestamp = timestamp.strftime("%Y%m%d%H%M")
-        # pathname = self.filepath + '/segmented_analysis'
-        # Path(pathname).mkdir(parents=True,exist_ok=True)
-        #
-        # for idx in range(self.numSets):
-        #     suffix = str(idx).zfill(3)
-        #     simimagename = pathname + '/' + self.filetitle + timestamp + f'_segmented_sim' + '_' + suffix + '.tif'
-        #     wfimagename = pathname + '/' + self.filetitle + timestamp + f'_segmented_widefield' + '_' + suffix + '.tif'
-        #     rawimagename =  pathname + '/' + self.filetitle + timestamp + f'_segmented_raw' + '_' + suffix + '.tif'
-        #     tif.imwrite(simimagename, np.single(self.imageSIMSets[idx]))
-        #     tif.imwrite(wfimagename,np.uint16(self.imageWFSets[idx]))
-        #     tif.imwrite(rawimagename, np.uint16(self.imageRawSets[idx]))
-        #
-        # txtname =      pathname + '/' + self.filetitle + timestamp + f'_configuration' + '.txt'
-        # ininame = pathname + '/' + self.filetitle + timestamp + f'_configuration'+'.ini'
-        # savedictionary = {
-        #     "exposure time (s)":self.exposuretime,
-        #     "laser power (mW)": self.laserpower,
-        #     # "z stepsize (um)":  self.
-        #     # System setup:
-        #     "magnification" :   self.h.magnification,
-        #     "NA":               self.h.NA,
-        #     "refractive index": self.h.n,
-        #     "wavelength":       self.h.wavelength,
-        #     "pixelsize":        self.h.pixelsize,
-        #     # Calibration parameters:
-        #     "alpha":            self.h.alpha,
-        #     "beta":             self.h.beta,
-        #     "Wiener filter":    self.h.w,
-        #     "eta":              self.h.eta,
-        #     "cleanup":          self.h.cleanup,
-        #     "axial":            self.h.axial,
-        #     "modulation":       self.h.usemodulation,
-        #     "kx":               self.h.kx,
-        #     "ky":               self.h.ky,
-        #     "phase":            self.h.p,
-        #     "amplitude":        self.h.ampl
-        #     }
-        # f = open(txtname, 'w+')
-        # f.write(json.dumps(savedictionary, cls=NumpyEncoder,indent=2))
-        # # try:
-        # self.app.settings_save_ini(ininame, save_ro=False)
-        # # except:
-        # #     pass
-        # self.isCalibrationSaved = True
-
-    def initH5(self):
-        """
-        Initialization operations for the h5 file
-        """
-        self.create_saving_directory()
-
-        # file name creation
-        timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
-        sample = self.app.settings['sample']
-        # sample_name = f'{timestamp}_{self.name}_{sample}.h5'
-        if sample == '':
-            sample_name = '_'.join([timestamp, self.name])
-        else:
-            sample_name = '_'.join([timestamp, self.name, sample])
-        fname = os.path.join(self.filepath, sample_name + '.h5')
-        # fname = os.path.join('./measurement/',sample_name+'.h5')
-        # fname = self.app.settings['save_dir'] + '/' + sample_name + '.h5'
-        print(fname)
-        #
-        # d1 = np.random.random(size=(1000, 20))
-        # d2 = np.random.random(size=(1000, 200))
-        #
-        # with h5py.File(fname, "w") as f:
-        #     dset = f.create_dataset("dataset1", data=d1)
-        #     dset = f.create_dataset("dataset2", data=d2)
-        # hf = h5py.File(fname,'w')
-        # hf.close()
-        # file creation
-        self.h5file = h5_io.h5_base_file(app=self.app, measurement=self,fname = fname)
-        self.h5_group = h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file)
-
-        name = f't0/image'
-        self.image_h5 = self.h5_group.create_dataset(name=name,
-                                                     shape=(self.imageWFShape[0], self.imageWFShape[1], self.imageWFShape[2]),
-                                                     dtype=self.imageWF.dtype,
-                                                     chunks=(1, self.imageWFShape[1],self.imageWFShape[2])
-                                                     )
-        # img_size = self.im.image[0].shape  # both image[0] and image[1] are valid, since they have the same shape
-
-        # number_of_channels = self.settings.channels_num.val
-
-        # take as third dimension of the file the total number of images collected in the buffer
-        # if self.camera.hamamatsu.last_frame_number < self.camera.hamamatsu.number_image_buffers:
-        #     length = int((self.camera.hamamatsu.last_frame_number + 1) / number_of_channels)
-        # else:
-        #     length = self.camera.hamamatsu.number_image_buffers / number_of_channels
-        #
-        # for ch_index in self.channels:
-        #     name = f't0/c{ch_index}/image'
-        #
-        #     self.image_h5[ch_index] = self.h5_group.create_dataset(name=name,
-        #                                                            shape=(length, img_size[0], img_size[1]),
-        #                                                            dtype=self.im.image[0].dtype,
-        #                                                            chunks=(1, img_size[0], img_size[1])
-        #                                                            )
-        #
-        #     self.image_h5[ch_index].attrs['element_size_um'] = [self.settings['zsampling'], self.settings['ysampling'],
-        #                                                         self.settings['xsampling']]
-        #     self.image_h5[ch_index].attrs['acq_time'] = timestamp
-        #     self.image_h5[ch_index].attrs['flowrate'] = self.settings['flowrate']
-
+    @add_update_display
     def loadCalibrationResults(self):
         try:
-            filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory="./measurement", filter="Text files (*.txt)")
-            file = open(filename,'r')
-            loadResults = json.loads(file.read())
-            self.kx_input = np.asarray(loadResults["kx"])
-            self.ky_input = np.asarray(loadResults["ky"])
+            filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory=self.app.settings['save_dir'],
+                                                      filter="H5 files (*Processed.h5)")
+            with h5py.File(filename,"r") as f:
+                self.h.kx_input = self.kx_input = f["data/sim"].attrs['kx']
+                self.h.ky_input = self.ky_input = f["data/sim"].attrs['ky']
+                print(self.ky_input)
+            self.setReconstructor()
+            self.isUpdateImageViewer = True
             self.show_text("Calibration results are loaded.")
         except:
             self.show_text("Calibration results are not loaded.")
@@ -772,14 +594,9 @@ class HexSimAnalysis(Measurement):
         self.ui.MessageBox.ensureCursorVisible()
         print(text)
 
-    def raw2WideFieldImage(self,rawImages):
-        wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
-        for idx in range(rawImages.shape[0]//7):
-            wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7,:,:],axis=0)/7
-
-        return wfImages
-
     def updateImageViewer(self):
+        imageRaw_tmp = self.imageRaw[self.current_channel_display()]
+        self.imageWF = self.raw2WideFieldImage(imageRaw_tmp)
         self.imvRaw.setImageSet(self.imageRaw)
         self.imvWF.setImageSet(self.imageWF)
         self.imvWF_ROI.setImageSet(self.imageWF_ROI)
@@ -795,6 +612,12 @@ class HexSimAnalysis(Measurement):
                 self.imvWF.imv.getView().removeItem(item)
             self.roiRect = []
 
+    def raw2WideFieldImage(self,rawImages):
+        wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
+        for idx in range(rawImages.shape[0]//7):
+            wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7,:,:],axis=0)/7
+
+        return wfImages
 # functions for ROI
     def roiSize(self):
         return int(self.ui.roiSizeCombo.currentText())
@@ -804,7 +627,8 @@ class HexSimAnalysis(Measurement):
 
     @add_update_display
     def findCell(self):
-
+        self.oSegment = ImageSegmentation(self.imageRaw[self.current_channel_display()], self.roiSize() // 2,
+                                          self.minCellSize())
         markpen = pg.mkPen('r', width=1)
         self.removeMarks()
         self.oSegment.min_cell_size = self.minCellSize()**2
@@ -828,6 +652,92 @@ class HexSimAnalysis(Measurement):
                 self.roiRect.append(r)
 
         self.isUpdateImageViewer = True
-        txtDisplay = f'Found cells: {self.numSets}'
-        self.show_text(txtDisplay)
+        self.show_text(f'Found cells: {self.numSets}')
 
+
+    # def loadFile(self):
+    #         try:
+    #             self.filename, _ = QFileDialog.getOpenFileName(directory=self.app.settings['save_dir'])
+    #
+    #             if self.filename.endswith('.tif'):
+    #                 self._fileType = 'tif'
+    #
+    #                 self.imageRaw = np.single(tif.imread(self.filename))
+    #                 self.imageWF = self.raw2WideFieldImage(self.imageRaw)
+    #
+    #                 self.imageRawShape = np.shape(self.imageRaw)
+    #                 self.imageSIMShape = [self.imageRawShape[0] // 7, self.imageRawShape[1] * 2, self.imageRawShape[2] * 2]
+    #                 self.imageWFShape = [self.imageRawShape[0] // 7, self.imageRawShape[1], self.imageRawShape[2]]
+    #
+    #                 self.imageSIM = np.zeros(self.imageSIMShape, dtype=np.uint16)
+    #
+    #             elif self.filename.endswith('.h5'):
+    #                 self._fileType = 'h5'
+    #                 pass
+    #
+    #
+    #             self.oSegment = ImageSegmentation(self.imageRaw, self.roiSize() // 2, self.minCellSize())
+    #
+    #             self.filetitle = Path(self.filename).stem
+    #             self.filepath = os.path.dirname(self.filename)
+    #             # print(self.filename)
+    #             # print(self.filepath)
+    #             # print(self.filetitle)
+    #
+    #             self.isFileLoad = True
+    #
+    #             try:
+    #                 # get file name of txt file
+    #                 for file in os.listdir(self.filepath):
+    #                     if file.endswith(".txt"):
+    #                         configFileName = os.path.join(self.filepath, file)
+    #
+    #                 configFile = open(configFileName, 'r')
+    #                 configSet = json.loads(configFile.read())
+    #
+    #                 self.kx_input = np.asarray(configSet["kx"])
+    #                 self.ky_input = np.asarray(configSet["ky"])
+    #                 self.p_input = np.asarray(configSet["phase"])
+    #                 self.ampl_input = np.asarray(configSet["amplitude"])
+    #
+    #                 # set value
+    #                 self.settings['magnification'] = configSet["magnification"]
+    #                 self.settings['NA'] = configSet["NA"]
+    #                 self.settings['n'] = configSet["refractive index"]
+    #                 self.settings['wavelength'] = configSet["wavelength"]
+    #                 self.settings['pixelsize'] = configSet["pixelsize"]
+    #
+    #                 try:
+    #                     self.exposuretime = configSet["camera exposure time"]
+    #                 except:
+    #                     self.exposuretime = configSet["exposure time (s)"]
+    #
+    #                 try:
+    #                     self.laserpower = configSet["laser power (mW)"]
+    #                 except:
+    #                     self.laserpower = 0
+    #
+    #                 txtDisplay = "File name:\t {}\n" \
+    #                              "Array size:\t {}\n" \
+    #                              "Wavelength:\t {} um\n" \
+    #                              "Exposure time:\t {:.3f} s\n" \
+    #                              "Laser power:\t {} mW".format(self.filetitle, self.imageRawShape, \
+    #                                                            configSet["wavelength"], \
+    #                                                            self.exposuretime, self.laserpower)
+    #                 self.ui.fileInfo.insertPlainText(txtDisplay)
+    #
+    #             except:
+    #                 self.show_text("No information about this measurement.")
+    #
+    #         except AssertionError as error:
+    #             print(error)
+    #             self.isFileLoad = False
+    #
+    #         if self.isFileLoad:
+    #             self.ui.findCellButton.setEnabled(True)
+    #             self.isUpdateImageViewer = True
+    #             self.isCalibrated = False
+    #             self.setReconstructor()
+    #             self.h._allocate_arrays()
+    #         else:
+    #             self.show_text("File is not loaded.")

@@ -1,6 +1,5 @@
-import os, time, json, h5py
+import os, time, h5py
 import numpy as np
-# np.seterr(all='raise')
 import pyqtgraph as pg
 import tifffile as tif
 
@@ -12,8 +11,9 @@ from qtwidgets import Toggle
 
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.MessageWindow import CalibrationResults
-from utils.StackImageViewer import StackImageViewer
+from utils.StackImageViewer import StackImageViewer, list_equal
 from utils.ImageSegmentation import ImageSegmentation
+
 
 from PyQt5.QtCore import QTimer
 def add_timer(function):
@@ -100,8 +100,6 @@ class HexSimMeasurement(Measurement):
         self.isSnapshot = False
         self.isUpdateImageViewer = False
         self.isCalibrated = False
-
-
         self.isGpuenable = True  # using GPU for accelerating
         self.isCompact = True  # using compact mode in batch reconstruction to save memory
         self.isFindCarrier = True
@@ -132,7 +130,6 @@ class HexSimMeasurement(Measurement):
         if not hasattr(self, 'h'):
             self.h = HexSimProcessor()  # create reconstruction object
             self.h.opencv =False
-            # self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh),dtype=np.uint16)  # Initialize the raw image array
             self.setReconstructor()
             self.h.N = self.eff_subarrayh
             self.h.wienerfilter_store = self.wiener_Full
@@ -272,11 +269,15 @@ class HexSimMeasurement(Measurement):
                     self.standardCapture()
                     if self.ui.autoCalibration.isChecked():
                         self.calibration()
+                    if self.ui.autoSave.isChecked():
+                        self.saveMeasurements()
 
                 elif self.action == 'batch_capture':
                     self.batchCapture()
                     if self.ui.autoCalibration.isChecked():
                         self.calibration()
+                    if self.ui.autoSave.isChecked():
+                        self.saveMeasurements()
 
                 elif self.action == 'calibration':
                     self.calibration()
@@ -302,9 +303,6 @@ class HexSimMeasurement(Measurement):
                 self.action = None
                 self.controlCAM()
                 # self.ui.imgTab.setCurrentIndex(2)
-
-            else:
-                pass
 
     def post_run(self):
         if hasattr(self,'camera'):
@@ -756,38 +754,53 @@ class HexSimMeasurement(Measurement):
 
 # functions for IO
     def saveMeasurements(self):
-        timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
-        sample = self.app.settings['sample']
-        if sample == '':
-            sample_name = '_'.join([timestamp, self.name])
+        if list_equal(self.imageRaw_store,self.imageRaw):
+            self.show_text("Raw images are not saved: the same measurement.")
         else:
-            sample_name = '_'.join([timestamp, self.name, sample])
-        # create file path for both h5 and other types of files
-        pathname = os.path.join(self.app.settings['save_dir'], sample_name)
-        Path(pathname).mkdir(parents=True, exist_ok=True)
-        print(pathname)
-        # create h5 base file if the h5 file is not exist
-        if self.ui.saveH5.isChecked():
-            if np.array_equal(self.imageRaw_store,self.imageRaw):
-                self.show_text("[H5] Raw images are not saved: the same measurement.")
+            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+            sample = self.app.settings['sample']
+            if sample == '':
+                sample_name = '_'.join([timestamp, self.name])
             else:
+                sample_name = '_'.join([timestamp, self.name, sample])
+            # create file path for both h5 and other types of files
+            pathname = os.path.join(self.app.settings['save_dir'], sample_name)
+            Path(pathname).mkdir(parents=True, exist_ok=True)
+            self.pathname = pathname
+            self.sample_name = sample_name
+
+            # create h5 base file if the h5 file is not exist
+            if self.ui.saveH5.isChecked():
                 # create h5 file for raw
                 fname_raw = os.path.join(pathname, sample_name + '_Raw.h5')
                 self.h5file_raw = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_raw)
                 # save measure component settings
                 h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_raw)
                 for ch_idx in range(2):
-                    name = f'data/c{ch_idx}/raw'
-                    if np.sum(self.imageRaw[ch_idx]) == 0:
-                        self.h5file_raw.create_dataset(name, data = h5py.Empty("f"))
+                    gname = f'data/c{ch_idx}/raw'
+                    if np.sum(self.imageRaw[ch_idx]) == 0:  # remove the empty channel
+                        self.h5file_raw.create_dataset(gname, data = h5py.Empty("f"))
                         self.show_text("[H5] Raw images are empty.")
                     else:
-                        self.h5file_raw.create_dataset(name, data = self.imageRaw[ch_idx])
+                        self.h5file_raw.create_dataset(gname, data = self.imageRaw[ch_idx])
                         self.show_text("[H5] Raw images are saved.")
+
                 self.h5file_raw.close()
 
-            if self.isCalibrated:
-                fname_pro = os.path.join(pathname, sample_name + f'_Processed_Ch{self.current_channel_display()}'+'.h5')
+            if self.ui.saveTif.isChecked():
+                for ch_idx in range(2):
+                    fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
+                    if np.sum(self.imageRaw[ch_idx]) != 0:  # remove the empty channel
+                        tif.imwrite(fname_raw, np.single(self.imageRaw[ch_idx]))
+                        self.show_text("[Tif] Raw images are saved.")
+                    else:
+                        self.show_text("[Tif] Raw images are empty.")
+
+            self.imageRaw_store = self.imageRaw # store the imageRaw for comparision
+
+        if self.isCalibrated:
+            if self.ui.saveH5.isChecked():
+                fname_pro = os.path.join(self.pathname, self.sample_name + f'_C{self.current_channel_display()}_Processed.h5')
                 self.h5file_pro = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_pro)
                 h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_pro)
 
@@ -814,21 +827,9 @@ class HexSimMeasurement(Measurement):
 
                 self.h5file_pro.close()
 
-        if self.ui.saveTif.isChecked():
-            if np.array_equal(self.imageRaw_store,self.imageRaw):
-                self.show_text("[Tif] Raw images are not saved: the same measurement.")
-            else:
-                for ch_idx in range(2):
-                    fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
-                    if np.sum(self.imageRaw[ch_idx]) != 0:
-                        tif.imwrite(fname_raw,np.single(self.imageRaw[ch_idx]))
-                        self.show_text("[Tif] Raw images are saved.")
-                    else:
-                        self.show_text("[Tif] Raw images are empty.")
-
-            if self.isCalibrated:
-                fname_sim = os.path.join(pathname,sample_name + f'_Processed_Ch{self.current_channel_display()}' + '.tif')
-                fname_ini = os.path.join(pathname,sample_name + f'_Processed_Ch{self.current_channel_display()}' + '.ini')
+            if self.ui.saveTif.isChecked():
+                fname_sim = os.path.join(self.pathname,self.sample_name + f'_Processed_C{self.current_channel_display()}' + '.tif')
+                fname_ini = os.path.join(self.pathname,self.sample_name + f'_Processed_C{self.current_channel_display()}' + '.ini')
                 if np.sum(self.imageSIM) != 0:
                     tif.imwrite(fname_sim, np.single(self.imageSIM))
                     self.app.settings_save_ini(fname_ini, save_ro=False)
@@ -836,19 +837,17 @@ class HexSimMeasurement(Measurement):
                 else:
                     self.show_text("[Tif] SIM images are empty.")
 
-            if self.numSets != 0:
-                for idx in range(self.numSets):
-                    fname_roi = os.path.join(pathname, sample_name + f'_Roi_Ch{self.current_channel_display()}_{idx:003}' + '.tif')
-                    tif.imwrite(fname_roi, np.single(self.imageSIM_ROI[idx]))
-                self.show_text("[Tif] ROI images are saved.")
-
-        self.imageRaw_store = self.imageRaw
+                if self.numSets != 0:
+                    for idx in range(self.numSets):
+                        fname_roi = os.path.join(self.pathname, self.sample_name + f'_Roi_C{self.current_channel_display()}_{idx:003}' + '.tif')
+                        tif.imwrite(fname_roi, np.single(self.imageSIM_ROI[idx]))
+                    self.show_text("[Tif] ROI images are saved.")
 
     @add_update_display
     def loadCalibrationResults(self):
         try:
             filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory=self.app.settings['save_dir'],
-                                                      filter="H5 files (*.h5)")
+                                                      filter="H5 files (*Processed.h5)")
             with h5py.File(filename,"r") as f:
                 self.h.kx_input = self.kx_input = f["data/sim"].attrs['kx']
                 self.h.ky_input = self.ky_input = f["data/sim"].attrs['ky']
@@ -902,7 +901,7 @@ class HexSimMeasurement(Measurement):
         self.oSegment = ImageSegmentation(self.imageRaw[self.current_channel_display()], self.roiSize() // 2, self.minCellSize())
         markpen = pg.mkPen('r', width=1)
         self.removeMarks()
-        self.oSegment.min_cell_size = self.minCellSize()
+        self.oSegment.min_cell_size = self.minCellSize()**2
         self.oSegment.roi_half_side = self.roiSize()//2
         self.oSegment.find_cell()
         self.imageRaw_ROI = self.oSegment.roi_creation()
