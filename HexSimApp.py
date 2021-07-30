@@ -93,7 +93,6 @@ if __name__ == '__main__':
     import sys
     from PyQt5.QtGui import QIcon
 
-
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     app = HexSimApp(sys.argv)
     logo_icon = QIcon('.\\ui\\icon_attribute_pixel_perfect.png')

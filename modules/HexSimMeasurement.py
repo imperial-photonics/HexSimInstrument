@@ -14,7 +14,6 @@ from utils.MessageWindow import CalibrationResults
 from utils.StackImageViewer import StackImageViewer, list_equal
 from utils.ImageSegmentation import ImageSegmentation
 
-
 from PyQt5.QtCore import QTimer
 def add_timer(function):
     """Function decorator to mesaure the execution time of a method.
@@ -132,6 +131,7 @@ class HexSimMeasurement(Measurement):
             self.h.opencv =False
             self.setReconstructor()
             self.h.N = self.eff_subarrayh
+            self.h.N = self.eff_subarrayh
             self.h.wienerfilter_store = self.wiener_Full
             self.h.kx_input = np.zeros((3, 1), dtype=np.single)
             self.h.ky_input = np.zeros((3, 1), dtype=np.single)
@@ -223,8 +223,10 @@ class HexSimMeasurement(Measurement):
     def update_display(self):
         # update stage position
         try:
-            self.ui.stagePositionDisplay.display(self.stage.settings.absolute_position.val)
-        except:
+            self.ui.stagePositionDisplay.display(f'{self.stage.settings.absolute_position.val:.2f}')
+            self.ui.cellNumber.display(self.numSets)
+        except Exception as e:
+            print(e)
             pass
 
         # update camera viewer
@@ -267,6 +269,7 @@ class HexSimMeasurement(Measurement):
             if self.action is not None:
                 if self.action == 'standard_capture':
                     self.standardCapture()
+                    self.resetHexSIM()
                     if self.ui.autoCalibration.isChecked():
                         self.calibration()
                     if self.ui.autoSave.isChecked():
@@ -274,6 +277,7 @@ class HexSimMeasurement(Measurement):
 
                 elif self.action == 'batch_capture':
                     self.batchCapture()
+                    self.resetHexSIM()
                     if self.ui.autoCalibration.isChecked():
                         self.calibration()
                     if self.ui.autoSave.isChecked():
@@ -376,10 +380,11 @@ class HexSimMeasurement(Measurement):
             except Exception as e:
                 self.show_text(f'Load pre-calibration encountered an error \n{e}')
 
-    @add_update_display
+    # @add_update_display
     def resetHexSIM(self):
         if hasattr(self, 'h'):
             self.isCalibrated = False
+            self.numSets = 0
             self.h._allocate_arrays()
             self.removeMarks()
             self.imageWF = np.zeros((self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
@@ -520,7 +525,7 @@ class HexSimMeasurement(Measurement):
             else:
                 ch = self.current_channel_caputure()
                 self.imageRaw[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-                print(self.imageRaw[ch].shape)
+                # print(self.imageRaw[ch].shape)
                 # project the patterns of CURRENT wavelength pattern and acquire n_stack raw images
                 for i in range(n_stack):
                     self.screen.slm_dev.displayFrameN(i % 7)
