@@ -116,7 +116,7 @@ class HexSimMeasurement(Measurement):
         h = self.eff_subarrayh
         # left
         self.imageCAM = np.zeros((v, h), dtype=np.uint16)
-        self.imageRaw = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
+        self.imageRAW = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
         self.imageRaw_store = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
         self.imageWF = np.zeros((v, h), dtype=np.uint16)
         self.imageWF_ROI = np.zeros((v, h), dtype=np.uint16)
@@ -144,7 +144,7 @@ class HexSimMeasurement(Measurement):
         self.imv.ui.menuBtn.hide()
 
         # image viewers
-        self.imvRaw     = StackImageViewer(image_sets=self.imageRaw[0],set_levels=[1,1])
+        self.imvRaw     = StackImageViewer(image_sets=self.imageRAW[0], set_levels=[1, 1])
         self.imvWF      = StackImageViewer(image_sets=self.imageWF,set_levels=[1,1])
         self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI,set_levels=[1,1])
         self.imvSIM     = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8])
@@ -156,7 +156,7 @@ class HexSimMeasurement(Measurement):
 
         # combo lists setting: size of roi
         self.roiRect = []  # list of roi rectangular
-        self.roiSizeList = [128,256,512,1024]
+        self.roiSizeList = [128,200,256,512,1024]
         self.ui.roiSizeCombo.addItems(map(str,self.roiSizeList))
         self.ui.roiSizeCombo.setCurrentIndex(1)
 
@@ -202,6 +202,7 @@ class HexSimMeasurement(Measurement):
         self.settings.w.connect_to_widget(self.ui.wValue)
         self.settings.eta.connect_to_widget(self.ui.etaValue)
         self.settings.otf_model.connect_to_widget(self.ui.otfModel)
+        self.camera.settings.exposure_time.connect_to_widget(self.ui.exposureTime)
 
         # Measure
         self.ui.captureStandardButton.clicked.connect(self.standardCapturePressed)
@@ -395,8 +396,12 @@ class HexSimMeasurement(Measurement):
         self.resetHexSIM()
         if self.current_channel_display() == 0:
             self.settings['wavelength'] = 0.523
+            # self.imvRAW.displaySet(0)
+            # self.imvRAW.ui.cellCombo.setCurrentIndex(0)
         elif self.current_channel_display() ==1:
             self.settings['wavelength'] = 0.610
+            # self.imvRAW.displaySet(1)
+            # self.imvRAW.ui.cellCombo.setCurrentIndex(1)
 
 # functions for operation
     def standardCapturePressed(self):
@@ -404,6 +409,7 @@ class HexSimMeasurement(Measurement):
             self.show_text('Open SLM!')
         else:
             self.isCameraRun = False
+            self.channelChanged()
             self.action = 'standard_capture'
 
     def batchCapturePressed(self):
@@ -411,6 +417,7 @@ class HexSimMeasurement(Measurement):
             self.show_text('Open SLM!')
         else:
             self.isCameraRun = False
+            self.channelChanged()
             self.action = 'batch_capture'
 
     def calibrationPressed(self):
@@ -419,9 +426,9 @@ class HexSimMeasurement(Measurement):
 
     def reconstructionPressed(self):
         self.isCameraRun = False
-        if len(self.imageRaw[self.current_channel_display()])>7:
+        if len(self.imageRAW[self.current_channel_display()])>7:
             self.action = 'batch_process'
-        elif len(self.imageRaw[self.current_channel_display()])==7:
+        elif len(self.imageRAW[self.current_channel_display()])==7:
             self.action = 'standard_process'
         else:
             self.show_text('Raw images are not acquired.')
@@ -439,19 +446,19 @@ class HexSimMeasurement(Measurement):
     def standardCapture(self):
         try:
             # initialize the raw image array list
-            self.imageRaw = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+            self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
 
             if self.ui.dualWavelength.isChecked():
-
                 # switch to 488 nm laser pattern
                 self.screen.slm_dev.setPatterns(0.488)
                 self.screen.openSLM()
                 # project the patterns of 488nm pattern and acquire 7 raw images
                 for i in range(7):
                     self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRaw[0][i, :, :] = self.getOneFrame()
+                    time.sleep(0.05)
+                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
+                    self.imageRAW[0][i, :, :] = self.getOneFrame()
                     self.show_text(f'[488 nm] Capture frame: {i+1}')
                 # switch to 561 nm laser pattern
                 self.screen.slm_dev.setPatterns(0.561)
@@ -459,8 +466,9 @@ class HexSimMeasurement(Measurement):
                 # project the patterns of 488nm pattern and acquire 7 raw images
                 for i in range(7):
                     self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRaw[1][i, :, :] = self.getOneFrame()
+                    time.sleep(0.05)
+                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
+                    self.imageRAW[1][i, :, :] = self.getOneFrame()
                     self.show_text(f'[561 nm] Capture frame: {i+1}')
                 # restore SLM setting
                 self.controlSLM()
@@ -469,12 +477,14 @@ class HexSimMeasurement(Measurement):
                 # project the patterns and acquire 7 raw images
                 for i in range(7):
                     self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRaw[self.current_channel_caputure()][i, :, :] = self.getOneFrame()
+                    time.sleep(0.05)
+                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
+                    self.imageRAW[self.current_channel_caputure()][i, :, :] = self.getOneFrame()
                     self.show_text(f'Capture frame: {i+1}')
 
-            self.imageWF = self.raw2WideFieldImage(self.imageRaw[self.current_channel_display()])
+            # self.imageAVG = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
             self.show_text('Standard capture finished.')
+            self.isUpdateImageViewer = True
 
         except Exception as e:
             txtDisplay = f'Standard capture encountered an error \n{e}'
@@ -484,7 +494,7 @@ class HexSimMeasurement(Measurement):
         try:
             n_stack = 7*self.ui.nStack.value()      # Initialize the raw image array
             # initialize the raw image array list
-            self.imageRaw = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+            self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
 
             step_size = self.stage.settings.stepsize.val
@@ -494,7 +504,7 @@ class HexSimMeasurement(Measurement):
 
             if self.ui.dualWavelength.isChecked():
                 # extend the raw image storage of stacks
-                self.imageRaw = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                                  np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
                 #switch to 488 nm laser pattern and acquire images
                 self.screen.slm_dev.setPatterns(0.488)
@@ -503,7 +513,7 @@ class HexSimMeasurement(Measurement):
                 for i in range(n_stack):
                     self.screen.slm_dev.displayFrameN(i % 7)
                     time.sleep(0.050)
-                    self.imageRaw[0][i, :, :] = self.getOneFrame()
+                    self.imageRAW[0][i, :, :] = self.getOneFrame()
                     # move the stage to position
                     pos_tmp = pos_tmp + step_size
                     self.stage.moveAbsolutePositionHW(pos_tmp)
@@ -516,7 +526,7 @@ class HexSimMeasurement(Measurement):
                 for i in range(n_stack):
                     self.screen.slm_dev.displayFrameN(i % 7)
                     time.sleep(0.050)
-                    self.imageRaw[1][i, :, :] = self.getOneFrame()
+                    self.imageRAW[1][i, :, :] = self.getOneFrame()
                     # move the stage to position
                     pos_tmp = pos_tmp + step_size
                     self.stage.moveAbsolutePositionHW(pos_tmp)
@@ -524,13 +534,13 @@ class HexSimMeasurement(Measurement):
 
             else:
                 ch = self.current_channel_caputure()
-                self.imageRaw[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-                # print(self.imageRaw[ch].shape)
+                self.imageRAW[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+                # print(self.imageRAW[ch].shape)
                 # project the patterns of CURRENT wavelength pattern and acquire n_stack raw images
                 for i in range(n_stack):
                     self.screen.slm_dev.displayFrameN(i % 7)
                     time.sleep(0.050)
-                    self.imageRaw[ch][i, :, :] = self.getOneFrame()
+                    self.imageRAW[ch][i, :, :] = self.getOneFrame()
                     # move the stage to position
                     pos = pos + step_size
                     self.stage.moveAbsolutePositionHW(pos)
@@ -538,6 +548,7 @@ class HexSimMeasurement(Measurement):
 
             self.show_text('Batch capture finished.')
             self.stage.moveAbsolutePositionHW(25)    # Move the stage back to the middle position
+            self.isUpdateImageViewer = True
 
         except Exception as e:
             self.show_text(f'Batch capture encountered an error \n{e}')
@@ -547,11 +558,11 @@ class HexSimMeasurement(Measurement):
     def calibration(self):
         try:
             self.setReconstructor()
-            imageRaw_tmp = self.imageRaw[self.current_channel_display()]
+            image_raw_tmp = self.imageRAW[self.current_channel_display()]
             if self.isGpuenable:
-                self.h.calibrate_cupy(imageRaw_tmp, self.isFindCarrier)
+                self.h.calibrate_cupy(image_raw_tmp, self.isFindCarrier)
             else:
-                self.h.calibrate(imageRaw_tmp, self.isFindCarrier)
+                self.h.calibrate(image_raw_tmp, self.isFindCarrier)
 
             self.isCalibrated = True
             self.show_text('Calibration finished.')
@@ -566,12 +577,12 @@ class HexSimMeasurement(Measurement):
     def standardReconstruction(self):
         # standard reconstruction
         try:
-            imageRaw_tmp = self.imageRaw[self.current_channel_display()]
+            image_raw_tmp = self.imageRAW[self.current_channel_display()]
             if self.isCalibrated:
                 if self.isGpuenable:
-                    self.imageSIM = self.h.reconstruct_cupy(imageRaw_tmp)
+                    self.imageSIM = self.h.reconstruct_cupy(image_raw_tmp)
                 elif not self.isGpuenable:
-                    self.imageSIM = self.h.reconstruct_rfftw(imageRaw_tmp)
+                    self.imageSIM = self.h.reconstruct_rfftw(image_raw_tmp)
             else:
                 self.calibration()
                 if self.isCalibrated:
@@ -620,7 +631,7 @@ class HexSimMeasurement(Measurement):
     @add_timer
     def batchReconstruction(self):
         try:
-            imageRaw_tmp = self.imageRaw[self.current_channel_display()]
+            imageRaw_tmp = self.imageRAW[self.current_channel_display()]
             if self.isCalibrated:
                 # Batch reconstruction
                 if self.isGpuenable:
@@ -759,7 +770,7 @@ class HexSimMeasurement(Measurement):
 
 # functions for IO
     def saveMeasurements(self):
-        if list_equal(self.imageRaw_store,self.imageRaw):
+        if list_equal(self.imageRaw_store, self.imageRAW):
             self.show_text("Raw images are not saved: the same measurement.")
         else:
             timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
@@ -783,11 +794,11 @@ class HexSimMeasurement(Measurement):
                 h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_raw)
                 for ch_idx in range(2):
                     gname = f'data/c{ch_idx}/raw'
-                    if np.sum(self.imageRaw[ch_idx]) == 0:  # remove the empty channel
+                    if np.sum(self.imageRAW[ch_idx]) == 0:  # remove the empty channel
                         self.h5file_raw.create_dataset(gname, data = h5py.Empty("f"))
                         self.show_text("[H5] Raw images are empty.")
                     else:
-                        self.h5file_raw.create_dataset(gname, data = self.imageRaw[ch_idx])
+                        self.h5file_raw.create_dataset(gname, data = self.imageRAW[ch_idx])
                         self.show_text("[H5] Raw images are saved.")
 
                 self.h5file_raw.close()
@@ -795,13 +806,13 @@ class HexSimMeasurement(Measurement):
             if self.ui.saveTif.isChecked():
                 for ch_idx in range(2):
                     fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
-                    if np.sum(self.imageRaw[ch_idx]) != 0:  # remove the empty channel
-                        tif.imwrite(fname_raw, np.single(self.imageRaw[ch_idx]))
+                    if np.sum(self.imageRAW[ch_idx]) != 0:  # remove the empty channel
+                        tif.imwrite(fname_raw, np.single(self.imageRAW[ch_idx]))
                         self.show_text("[Tif] Raw images are saved.")
                     else:
                         self.show_text("[Tif] Raw images are empty.")
 
-            self.imageRaw_store = self.imageRaw # store the imageRaw for comparision
+            self.imageRaw_store = self.imageRAW # store the imageRAW for comparision
 
         if self.isCalibrated:
             if self.ui.saveH5.isChecked():
@@ -833,8 +844,8 @@ class HexSimMeasurement(Measurement):
                 self.h5file_pro.close()
 
             if self.ui.saveTif.isChecked():
-                fname_sim = os.path.join(self.pathname,self.sample_name + f'_Processed_C{self.current_channel_display()}' + '.tif')
-                fname_ini = os.path.join(self.pathname,self.sample_name + f'_Processed_C{self.current_channel_display()}' + '.ini')
+                fname_sim = os.path.join(self.pathname,self.sample_name + f'_C{self.current_channel_display()}_SIM' + '.tif')
+                fname_ini = os.path.join(self.pathname,self.sample_name + f'_C{self.current_channel_display()}_Settings' + '.ini')
                 if np.sum(self.imageSIM) != 0:
                     tif.imwrite(fname_sim, np.single(self.imageSIM))
                     self.app.settings_save_ini(fname_ini, save_ro=False)
@@ -844,7 +855,7 @@ class HexSimMeasurement(Measurement):
 
                 if self.numSets != 0:
                     for idx in range(self.numSets):
-                        fname_roi = os.path.join(self.pathname, self.sample_name + f'_Roi_C{self.current_channel_display()}_{idx:003}' + '.tif')
+                        fname_roi = os.path.join(self.pathname, self.sample_name + f'_Roi_C{self.current_channel_display()}_{idx:003}_SIM' + '.tif')
                         tif.imwrite(fname_roi, np.single(self.imageSIM_ROI[idx]))
                     self.show_text("[Tif] ROI images are saved.")
 
@@ -872,14 +883,16 @@ class HexSimMeasurement(Measurement):
         print(text)
 
     def updateImageViewer(self):
-        imageRaw_tmp = self.imageRaw[self.current_channel_display()]
-        self.imageWF = self.raw2WideFieldImage(imageRaw_tmp)
-        self.imvRaw.setImageSet(self.imageRaw)
-        self.imvWF.setImageSet(self.imageWF)
-        self.imvWF_ROI.setImageSet(self.imageWF_ROI)
-        self.imvSIM.setImageSet(self.imageSIM)
-        self.imvSIM_ROI.setImageSet(self.imageSIM_ROI)
-        self.imvWiener_ROI.setImageSet(self.wiener_ROI)
+        self.imvRaw.showImageSet(self.imageRAW)
+        try:
+            self.imageWF = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
+            self.imvWF.showImageSet(self.imageWF)
+        except:
+            pass
+        self.imvWF_ROI.showImageSet(self.imageWF_ROI)
+        self.imvSIM.showImageSet(self.imageSIM)
+        self.imvSIM_ROI.showImageSet(self.imageSIM_ROI)
+        self.imvWiener_ROI.showImageSet(self.wiener_ROI)
         self.imvCalibration.update(self.h)
 
     def removeMarks(self):
@@ -892,7 +905,6 @@ class HexSimMeasurement(Measurement):
         wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
         for idx in range(rawImages.shape[0]//7):
             wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7,:,:],axis=0)/7
-
         return wfImages
 
 # functions for ROI
@@ -903,7 +915,7 @@ class HexSimMeasurement(Measurement):
         return int(self.ui.minCellSizeInput.value())
 
     def findCell(self):
-        self.oSegment = ImageSegmentation(self.imageRaw[self.current_channel_display()], self.roiSize() // 2, self.minCellSize())
+        self.oSegment = ImageSegmentation(self.imageRAW[self.current_channel_display()], self.roiSize() // 2, self.minCellSize())
         markpen = pg.mkPen('r', width=1)
         self.removeMarks()
         self.oSegment.min_cell_size = self.minCellSize()**2
@@ -936,7 +948,7 @@ class HexSimMeasurement(Measurement):
 #             # Initialization
 #             self.isStreamRun = True
 #             self.streamIndex = 0
-#             self.imageRaw = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+#             self.imageRAW = np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
 #             self.cameraInterrupt()
 #             self.interrupt()
 #             self.streamTimer = QTimer(self)
@@ -957,7 +969,7 @@ class HexSimMeasurement(Measurement):
 #         print(self.streamIndex)
 #         self.screen.slm_dev.displayFrameN((self.streamIndex) % 7)
 #         newFrame = self.getOneFrame()
-#         self.imageRaw[(self.streamIndex % 7), :, :] = newFrame
+#         self.imageRAW[(self.streamIndex % 7), :, :] = newFrame
 #         self.streamReconstruction(newFrame[0, :, :], (self.streamIndex % 7))
 #         self.updateImageViewer()
 #         self.imv.setImage(newFrame.T, autoLevels=True, autoRange=True)

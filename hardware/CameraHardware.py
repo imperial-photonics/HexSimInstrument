@@ -32,7 +32,7 @@ class HamamatsuHardware(HardwareComponent):
         self.temperature = self.add_logged_quantity('temperature ' + chr(176) + 'C', dtype=str, si=False, ro=1)
 
         self.exposure_time = self.add_logged_quantity('exposure_time', dtype=float, si=False, ro=0,
-                                                      spinbox_step=0.01, spinbox_decimals=6, initial=0.1, unit='s',
+                                                      spinbox_step=0.1, spinbox_decimals=3, initial=0.1, unit='s',
                                                       reread_from_hardware_after_write=True,
                                                       vmin=0)
 

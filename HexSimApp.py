@@ -14,7 +14,6 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 from ScopeFoundry import BaseMicroscopeApp
 
-
 class HexSimApp(BaseMicroscopeApp):
     # this is the name of the microscope that ScopeFoundry uses
     # when storing data

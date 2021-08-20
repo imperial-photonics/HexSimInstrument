@@ -11,7 +11,6 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt5 import QtCore, QtWidgets, uic
 
-
 def list_equal(list_a,list_b):
     try:
         eql = all([np.array_equal(list_a[i], list_b[i]) for i in range(len(list_a))])
@@ -153,35 +152,42 @@ class UiViewer(object):
 
 class StackImageViewer(QtWidgets.QWidget):
 
-    def __init__(self, image_sets, set_levels=[1, 1], title='ImageViewer'):
+    def __init__(self, image_sets, set_levels = [1, 1], title='ImageViewer', combo_visbile = True):
         super().__init__()
-
+        # set ui
         try:
             self.ui = uic.loadUi(".\\utils\\stack_image_viewer.ui", self)
         except:
             self.ui = UiViewer()
             self.ui.setupUi(self)
-        self.image_sets = []
         self.setWindowTitle(title)
-        # set image
+        # set image viewer
         self.imv = pg.ImageView(view=pg.PlotItem())
         self.imv.ui.roiBtn.hide()
         self.imv.ui.menuBtn.hide()
         self.ui.imageLayout.addWidget(self.imv)
+        # set combo box visibility
+        if not combo_visbile:
+            self.ui.previousButton.setVisible(False)
+            self.ui.nextButtonButton.setVisible(False)
+            self.ui.cellCombo.setVisible(False)
+
+        else:
+            self.ui.previousButton.setVisible(True)
+            self.ui.nextButtonButton.setVisible(True)
+            self.ui.cellCombo.setVisible(True)
+
         # operations
         self.ui.imgSlider.valueChanged.connect(self.imageSliderChanged)
         self.ui.previousButton.clicked.connect(self.previousSet)
         self.ui.nextButtonButton.clicked.connect(self.nextSet)
-        self.ui.cellCombo.currentIndexChanged.connect(self.selectSet)
+        self.ui.cellCombo.currentIndexChanged.connect(self.displayCurrentSet)
 
-        self.setImageSet(image_sets,set_levels)
+        self.image_sets = []
+        self.showImageSet(image_sets, set_levels)
 
-    def setImageSet(self, images, set_levels=None):
+    def showImageSet(self, images, set_levels=None):
         image_sets_tmp = self.converttoList(images)
-        # try:
-        #     eql = all([np.array_equal(image_sets_tmp[i], self.image_sets[i]) for i in range(len(image_sets_tmp))])
-        # except (IndexError, TypeError):
-        #     eql = False
         eql = list_equal(image_sets_tmp,self.image_sets)
         if not eql:
             self.image_sets = image_sets_tmp
@@ -190,10 +196,16 @@ class StackImageViewer(QtWidgets.QWidget):
             self.update()
 
     def update(self):
-        self.uiSetting()
+        self.uiUpdate()
+        self.idx_sets = 0
+        self.image_tmp = self.image_sets[self.idx_sets]
         num_z, dim_h, dim_w = np.shape(self.image_tmp)
         # set slider
         self.idx_z = int(self.ui.imgSlider.value())  # current image index
+        # set z index to maxmium if last z index out of bound
+        if self.idx_z >= num_z-1:
+            self.idx_z = num_z-1
+
         self.ui.nTotal.setText(str(num_z))
         self.ui.nCurrent.setText(str(self.idx_z+1))
         self.ui.imgSlider.setMinimum(0)
@@ -201,25 +213,17 @@ class StackImageViewer(QtWidgets.QWidget):
 
         self.level_max = np.amax(self.image_tmp)
         self.level_min = np.amin(self.image_tmp)
+
         self.imv.setImage((self.image_tmp[self.idx_z, :, :]).T, autoRange=False,
                           levels=(self.set_levels[0] * self.level_min, self.set_levels[1] * self.level_max))
 
-    def uiSetting(self):
+    def uiUpdate(self):
         self.num_sets = len(self.image_sets)  # number of image sets
-        if self.num_sets == 1:
-            self.ui.previousButton.setVisible(False)
-            self.ui.nextButtonButton.setVisible(False)
-            self.ui.cellCombo.setVisible(False)
-        else:
-            self.ui.previousButton.setVisible(True)
-            self.ui.nextButtonButton.setVisible(True)
-            self.ui.cellCombo.setVisible(True)
-        self.idx_sets = 0
-        self.image_tmp = self.image_sets[self.idx_sets]
         # set combo box
         self.ui.cellCombo.clear()
         self.comboList = map(str, np.arange(self.num_sets))
         self.ui.cellCombo.addItems(self.comboList)
+
 
     def converttoList(self,input):
         datatype = type(input)
@@ -265,7 +269,7 @@ class StackImageViewer(QtWidgets.QWidget):
         self.displaySet(self.idx_sets)
         self.ui.cellCombo.setCurrentIndex(self.idx_sets)
 
-    def selectSet(self):
+    def displayCurrentSet(self):
         try:
             self.displaySet(self.ui.cellCombo.currentIndex())
         except:
@@ -286,16 +290,16 @@ class StackImageViewer(QtWidgets.QWidget):
 
         self.level_max = np.amax(self.image_tmp)
         self.level_min = np.amin(self.image_tmp)
-        # self.update()
         self.imv.setImage((self.image_tmp[self.idx_z, :, :]).T, autoRange=False,
                           levels=(self.set_levels[0] * self.level_min, self.set_levels[1] * self.level_max))
 
+        self.ui.cellCombo.setCurrentIndex(idx_set)
 
 if __name__ == '__main__':
     import sys
     # input data as a list of 3d arrays
-    image_sets_1 = [np.random.randint(0, 100, size=(3, 30, 30)), np.random.randint(0, 100, size=(3, 30, 30)),
-                    np.random.randint(0, 100, size=(3, 30, 30))]
+    image_sets_1 = [np.random.randint(0, 100, size=(3, 1024, 1024)), np.random.randint(0, 100, size=(3, 1024, 1024)),
+                    np.random.randint(0, 100, size=(3, 1024, 1024))]
     # input data as a list of 2d arrays
     image_sets_2 = [np.random.randint(0, 100, size=(30, 30)), np.random.randint(0, 100, size=(30, 30)),
                     np.random.randint(0, 100, size=(30, 30))]
@@ -316,7 +320,7 @@ if __name__ == '__main__':
 
     app = QtWidgets.QApplication(sys.argv)
 
-    display_image_widget = StackImageViewer(image_sets=image_sets_8, set_levels=[1, 1])
+    display_image_widget = StackImageViewer(image_sets=image_sets_1, set_levels=[1, 1])
 
     display_image_widget.show()
     sys.exit(app.exec_())

@@ -1,12 +1,13 @@
 import numpy as np
 import cv2
+from skimage.segmentation import clear_border
 
 class ImageSegmentation:
     '''
     Class to be used to store the acquired images split in two channels and methods useful for cell identification and roi creation
     '''
 
-    def __init__(self, imageRaw, half_side, min_cell_size):
+    def __init__(self, imageRaw, half_side, min_cell_size, watershed_thresh = 0.5):
 
         self.image = imageRaw
         _, self.dim_w, self.dim_h = np.shape(imageRaw)
@@ -19,8 +20,9 @@ class ImageSegmentation:
         
         self.roi_half_side = half_side        # half dimension of the roi
         self.min_cell_size = min_cell_size    # minimum area that the object must have to be recognized as a cell
+        self.watershed_thresh = watershed_thresh
 
-    def find_cell(self):
+    def find_cell(self, method = 'simple'):
         """
         Determines if a region avove thresold is a cell, generates contours of the cells and their centroids cx and cy      
         """          
@@ -34,29 +36,74 @@ class ImageSegmentation:
         # _ret,thresh_pre = cv2.threshold(self.image8bit,0,255,cv2.THRESH_OTSU)
         _ret,thresh_pre = cv2.threshold(self.image8bit,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
         # thresh_pre = cv2.adaptiveThreshold(self.image8bit,127,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,211,2)
-        # ret is the threshold that was used, thresh is the thresholded image.     
-        kernel  = np.ones((3,3),np.uint8)
+        # ret is the threshold that was used, thresh is the thresholded image.
 
-        thresh = cv2.morphologyEx(thresh_pre,cv2.MORPH_OPEN, kernel, iterations = 1)
+        # Morphological operations to remove small noise - opening
+        # To remove holes we can use closing
+        kernel  = np.ones((3,3),np.uint8)
+        thresh = cv2.morphologyEx(thresh_pre,cv2.MORPH_OPEN, kernel, iterations = 2)
         # morphological opening (remove noise,small holes)
-        thresh = cv2.dilate(thresh,kernel,iterations = 1)
-        contours, _hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-        cx = []
-        cy = []            
-        contour =[]
-       
-        for cnt in contours:
+        # thresh = clear_border(thresh)
+
+        if method == 'simple':
+            self.thresh = cv2.dilate(thresh,kernel,iterations = 1)
+            contours, _hierarchy = cv2.findContours(self.thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+
+        elif method == 'watershed':
+            # let us start by identifying sure background area
+            # dilating pixes a few times increases cell boundary to background.
+            # This way whatever is remaining for sure will be background.
+            # The area in between sure background and foreground is our ambiguous area.
+            # Watershed should find this area for us.
+            sure_bg = cv2.dilate(thresh, kernel, iterations=10)
+            dist_transform = cv2.distanceTransform(thresh, cv2.DIST_L2, 5)
+            ret2, sure_fg = cv2.threshold(dist_transform, self.watershed_thresh * dist_transform.max(), 255, 0)
+            # Unknown ambiguous region is nothing but bkground - foreground
+            sure_fg = np.uint8(sure_fg)
+            unknown = cv2.subtract(sure_bg, sure_fg)
+            # self.unknown=unknown
+            # For markers let us use ConnectedComponents.
+            ret3, markers = cv2.connectedComponents(sure_fg)
+            # One problem rightnow is that the entire background pixels is given value 0.
+            # This means watershed considers this region as unknown.
+            # So let us add 10 to all labels so that sure background is not 0, but 10
+            markers = markers + 10
+            # Now, mark the region of unknown with zero
+            markers[unknown == 255] = 0
+            self.sMarkers = markers
             
+            # Now we are ready for watershed filling.
+            img = cv2.cvtColor(self.image8bit,cv2.COLOR_GRAY2RGB) 
+            self.markers = cv2.watershed(img, markers).astype(np.uint8)
+            # self.markers1 = self.markers.astype(np.uint8)
+            ret, self.thresh = cv2.threshold(self.markers, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+            # contours, _hierarchy = cv2.findContours(self.thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+            self.thresh[-1:] = 0
+            self.thresh[0:1] = 0
+            self.thresh[:,-1:] =0
+            self.thresh[:,0:1] =0
+            contours, _hierarchy = cv2.findContours(self.thresh, cv2.RETR_EXTERNAL , cv2.CHAIN_APPROX_SIMPLE)
+
+        cx = []
+        cy = []
+        contour = []
+
+        w,h = np.shape(image)
+
+        for cnt in contours:
             M = cv2.moments(cnt)
-            if M['m00'] >  int(self.min_cell_size):    # (M['m00'] gives the contour area, also as cv2.contourArea(cnt)
-                #extracts image center
-                cx.append(int(M['m10']/M['m00']))
-                cy.append(int(M['m01']/M['m00']))
+            if M['m00'] > int(self.min_cell_size) and M['m00'] <= 10*int(self.roi_half_side**2):  # (M['m00'] gives the contour area, also as cv2.contourArea(cnt) and M['m00'] < (w-1)*(h-1):#
+                # extracts image center
+                cx.append(int(M['m10'] / M['m00']))
+                cy.append(int(M['m01'] / M['m00']))
                 contour.append(cnt)
+
         
         self.cx = cx
         self.cy = cy 
         self.contour = contour  
+        
+        self.hirerachy = _hierarchy
 
     
     def draw_contours_on_image(self, image8bit):        
@@ -127,7 +174,7 @@ if __name__ == '__main__':
     
     image_cell = np.single(tif.imread('2021_0611_1751_488nm_Raw.tif'))
     h = ImageSegmentation(image_cell,128,50**2)
-    h.find_cell()
+    h.find_cell(method='watershed')
     rois_cell = h.roi_creation()
     displayed_image =h.draw_contours_on_image(h.image8bit)
     cv2.imshow('image',displayed_image)

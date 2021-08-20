@@ -61,7 +61,8 @@ def add_run(function):
     """
     def inner(cls):
         result = function(cls)
-        cls.run()
+        # cls.run()
+        cls.start()
         return result
 
     inner.__name__ = function.__name__
@@ -74,41 +75,31 @@ class HexSimAnalysis(Measurement):
     def setup(self):
         # load ui file
         self.ui = load_qt_ui_file(".\\ui\\hexsim_analyse.ui")
-        self.settings.New('debug', dtype=bool, initial=False,
+        self.settings.New('debug', dtype=bool, initial=False,   hardware_set_func = self.setReconstructor)
+        self.settings.New('cleanup', dtype=bool, initial=False, hardware_set_func = self.setReconstructor)
+        self.settings.New('gpu', dtype=bool, initial=True,      hardware_set_func = self.setReconstructor)
+        self.settings.New('compact', dtype=bool, initial=True,  hardware_set_func = self.setReconstructor)
+        self.settings.New('axial', dtype=bool, initial=False,   hardware_set_func = self.setReconstructor)
+        self.settings.New('usemodulation', dtype=bool, initial=True, hardware_set_func = self.setReconstructor)
+        self.settings.New('NA', dtype=float, initial=1.10, spinbox_decimals=2, hardware_set_func = self.setReconstructor)
+        self.settings.New('n', dtype=float, initial=1.33, spinbox_decimals=2,  hardware_set_func = self.setReconstructor)
+        self.settings.New('magnification', dtype=int, initial=60, spinbox_decimals=2, hardware_set_func = self.setReconstructor)
+        self.settings.New('pixelsize', dtype=float, initial=6.50, spinbox_decimals=3, hardware_set_func = self.setReconstructor)
+        self.settings.New('wavelength', dtype=float, initial=0.523, spinbox_decimals=3, hardware_set_func = self.setReconstructor)
+        self.settings.New('alpha', dtype=float, initial=0.500, spinbox_decimals=3, description='0th att width',
                           hardware_set_func = self.setReconstructor)
-        self.settings.New('cleanup', dtype=bool, initial=False,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('gpu', dtype=bool, initial=True,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('compact', dtype=bool, initial=True,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('axial', dtype=bool, initial=False,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('usemodulation', dtype=bool, initial=True,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('magnification', dtype=int, initial=60,  spinbox_decimals=2,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('NA', dtype=float, initial=1.10,  spinbox_decimals=2,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('n', dtype=float, initial=1.33,  spinbox_decimals=2,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('wavelength', dtype=float, initial=0.523,  spinbox_decimals=3,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('pixelsize', dtype=float, initial=6.50,  spinbox_decimals=3,
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('alpha', dtype=float, initial=0.500,  spinbox_decimals=3, description='0th att width',
-                          hardware_set_func = self.setReconstructor)
-        self.settings.New('beta', dtype=float, initial=0.990,  spinbox_decimals=3,description='0th width',
+        self.settings.New('beta', dtype=float, initial=0.990, spinbox_decimals=3, description='0th width',
                           hardware_set_func = self.setReconstructor)
         self.settings.New('w', dtype=float, initial=0.500, spinbox_decimals=2, description='wiener parameter',
                           hardware_set_func = self.setReconstructor)
         self.settings.New('eta', dtype=float, initial=0.70, spinbox_decimals=2,
                           description='must be smaller than the sources radius normalized on the pupil size',
                           hardware_set_func = self.setReconstructor)
-        self.settings.New('find_carrier', dtype=bool, initial=True,
-                          hardware_set_func = self.setReconstructor)
+        self.settings.New('find_carrier', dtype=bool, initial=True, hardware_set_func = self.setReconstructor)
         self.settings.New('otf_model',dtype=str, initial = 'none', choices=["none","exp","sph"],
                           hardware_set_func = self.setReconstructor)
+        self.settings.New('segment_method',dtype=str, initial = 'watershed', choices=["simple","watershed"])
+        self.settings.New('watershed_threshold', dtype=float, initial=0.50, spinbox_decimals=2)
 
         # initialize condition lables
         self.isUpdateImageViewer = False
@@ -118,52 +109,61 @@ class HexSimAnalysis(Measurement):
         self.isFindCarrier = True
 
         self.action = None # the action in run()
+        self.selected_dir = None
 
         self.numSets = 0
         self.kx_full = np.zeros((3, 1), dtype=np.single) # frequency of full field of view
         self.ky_full = np.zeros((3, 1), dtype=np.single)
 
-        # image initialization
-        v = h = 512
+        # image initialization: it can be an image or a set of images
+        v = h = 256
+        array_3d = np.zeros((7, v, h), dtype=np.uint16)
+        array_2d = np.zeros((v, h), dtype=np.uint16)
         # left
-        self.imageRaw = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
-        self.imageWF = np.zeros((v, h), dtype=np.uint16)
-        self.imageWF_ROI = np.zeros((v, h), dtype=np.uint16)
-        self.imageRaw_ROI = np.zeros((7, v, h), dtype=np.uint16)
-        # right
-        self.imageSIM = np.zeros((2*v,2*h), dtype=np.uint16)
-        self.imageSIM_ROI = np.zeros((2 * v, 2 * h), dtype=np.uint16)    # it can be an image or a set of images
-        self.wiener_Full = np.zeros((v, h), dtype=np.uint16)
-        self.wiener_ROI = np.zeros((v, h), dtype=np.uint16)              # it can be an image or a set of images
+        self.imageRAW     = [array_3d, array_3d]
+        self.imageAVG     = array_2d
+        self.imageSTD     = array_2d
+        self.imageRAW_ROI = array_3d
+        self.imageAVG_ROI = array_2d
+        self.imageSTD_ROI = array_2d
 
-        self.imageSIM_store = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]
+        # right
+        self.imageSIM = array_2d
+        self.imageSIM_store = [array_3d, array_3d]
+        self.imageSIM_ROI = array_2d
+        self.wiener_Full  = array_2d
+        self.wiener_ROI   = array_2d
 
         self.start_sim_processor()
 
     def setup_figure(self):
         # image viewers
-        self.imvRaw     = StackImageViewer(image_sets=self.imageRaw,set_levels=[1,1])
-        self.imvWF      = StackImageViewer(image_sets=self.imageWF,set_levels=[1,1])
-        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI,set_levels=[1,1])
-        self.imvRaw_ROI = StackImageViewer(image_sets=self.imageRaw_ROI,set_levels=[1,1])
-        self.imvSIM     = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8])
-        self.imvSIM_ROI = StackImageViewer(image_sets=self.imageSIM_ROI, set_levels=[0, 0.8])
+        self.imvRAW     = StackImageViewer(image_sets=self.imageRAW, set_levels=[1, 1])
+        self.imvAVG     = StackImageViewer(image_sets=self.imageAVG, set_levels=[1, 1], combo_visbile=False)
+        self.imvSTD     = StackImageViewer(image_sets=self.imageSTD, set_levels=[1,1], combo_visbile=False)
+        self.imvRAW_ROI = StackImageViewer(image_sets=self.imageRAW_ROI, set_levels=[1, 1])
+        self.imvAVG_ROI = StackImageViewer(image_sets=self.imageAVG_ROI, set_levels=[1, 1])
+        self.imvSTD_ROI = StackImageViewer(image_sets=self.imageSTD_ROI, set_levels=[1, 1])
 
+        self.imvSIM     = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8], combo_visbile=False)
+        self.imvSIM_ROI = StackImageViewer(image_sets=self.imageSIM_ROI, set_levels=[0, 0.8])
         self.imvCalibration = CalibrationResults(self.h)
-        self.imvWiener_ROI = StackImageViewer(image_sets=self.wiener_ROI,set_levels=[1,1])
+        self.imvWiener_ROI = StackImageViewer(image_sets=self.wiener_ROI, set_levels=[1,1])
         self.imvWiener_ROI.imv.ui.histogram.hide()
 
         # combo lists setting: size of roi
         self.roiRect = [] # list of roi rectangular
-        self.roiSizeList = [128,256,512,1024]
+        self.roiSizeList = [128,200,256,512,1024]
         self.ui.roiSizeCombo.addItems(map(str,self.roiSizeList))
         self.ui.roiSizeCombo.setCurrentIndex(1)
 
         # add image viewers to ui
-        self.ui.rawImageLayout.addWidget(self.imvRaw)
-        self.ui.wfImageLayout.addWidget(self.imvWF)
-        self.ui.roiWFLayout.addWidget(self.imvWF_ROI)
-        self.ui.roiRAWLayout.addWidget(self.imvRaw_ROI)
+        self.ui.rawImageLayout.addWidget(self.imvRAW)
+        self.ui.wfImageLayout.addWidget(self.imvAVG)
+        self.ui.stdImageLayout.addWidget(self.imvSTD)
+        self.ui.roiWFLayout.addWidget(self.imvAVG_ROI)
+        self.ui.roiSTDLayout.addWidget(self.imvSTD_ROI)
+        self.ui.roiRAWLayout.addWidget(self.imvRAW_ROI)
         self.ui.simImageLayout.addWidget(self.imvSIM)
         self.ui.roiSIMLayout.addWidget(self.imvSIM_ROI)
         self.ui.calibrationResultLayout.addWidget(self.imvCalibration)
@@ -177,18 +177,18 @@ class HexSimAnalysis(Measurement):
         self.settings.usemodulation.connect_to_widget(self.ui.usemodulationCheck)
         self.settings.compact.connect_to_widget(self.ui.compactCheck)
         self.settings.gpu.connect_to_widget(self.ui.gpuCheck)
-
         self.settings.magnification.connect_to_widget(self.ui.magnificationValue)
         self.settings.NA.connect_to_widget(self.ui.naValue)
         self.settings.n.connect_to_widget(self.ui.nValue)
         self.settings.wavelength.connect_to_widget(self.ui.wavelengthValue)
         self.settings.pixelsize.connect_to_widget(self.ui.pixelsizeValue)
-
         self.settings.alpha.connect_to_widget(self.ui.alphaValue)
         self.settings.beta.connect_to_widget(self.ui.betaValue)
         self.settings.w.connect_to_widget(self.ui.wValue)
         self.settings.eta.connect_to_widget(self.ui.etaValue)
         self.settings.otf_model.connect_to_widget(self.ui.otfModel)
+        self.settings.segment_method.connect_to_widget(self.ui.segmentMethod)
+        self.settings.watershed_threshold.connect_to_widget(self.ui.watershedThreshold)
 
         # Operation
         self.ui.loadMeasurementButton.clicked.connect(self.loadMeasurement)
@@ -196,13 +196,15 @@ class HexSimAnalysis(Measurement):
         self.ui.findCellButton.clicked.connect(self.findCell)
         self.ui.reconstructionButton.clicked.connect(self.reconstructionPressed)
         self.ui.roiProcessButton.clicked.connect(self.roiprocessPressed)
-
         self.ui.loadCalibrationButton.clicked.connect(self.loadCalibrationResults)
         self.ui.resetButton.clicked.connect(self.resetHexSIM)
         self.ui.saveButton.clicked.connect(self.saveMeasurements)
         self.ui.resolutionButton.clicked.connect(self.resolutionEstimatePressed)
-
-        self.imvRaw.ui.cellCombo.currentIndexChanged.connect(self.channelChanged)
+        self.ui.browseFolderButton.clicked.connect(self.browseFolder)
+        self.ui.batchFileProcessButton.clicked.connect(self.batchFileProcessPressed)
+        self.ui.stopFileProcessButton.clicked.connect(self.interrupt)
+        self.ui.channelSwitch.valueChanged.connect(self.channelSwitch)
+        # self.imvRAW.ui.cellCombo.currentIndexChanged.connect(self.channelChanged)
 
     def update_display(self):
         if self.isUpdateImageViewer:
@@ -222,6 +224,7 @@ class HexSimAnalysis(Measurement):
         if self.action is not None:
             if self.action == 'calibration':
                 self.calibration()
+                self.ui.simTab.setCurrentIndex(2)
 
             elif self.action == 'standard_process':
                 self.standardReconstruction()
@@ -237,13 +240,14 @@ class HexSimAnalysis(Measurement):
 
             elif self.action == 'batch_process_roi':
                 self.batchReconstructionROI()
+                # time.sleep(0.5)
                 self.ui.simTab.setCurrentIndex(1)
 
             elif self.action == 'resolution':
                 self.resolutionEstimate()
 
-            elif self.action == 'test':
-                self.show_text('Test')
+            elif self.action == 'batch_file':
+                self.batchFileProcess()
 
             self.isUpdateImageViewer = True
             self.action = None
@@ -271,22 +275,36 @@ class HexSimAnalysis(Measurement):
         self.isCalibrated = False
         self.numSets = 0
         self.stop_sim_processor()
-        cp._default_memory_pool.free_all_blocks()
+        if self.settings['gpu']:
+            cp._default_memory_pool.free_all_blocks()
         self.start_sim_processor()
         self.removeMarks()
-        self.imageWF = np.zeros_like(self.imageWF, dtype=np.uint16)
+        self.imageAVG = np.zeros_like(self.imageAVG, dtype=np.uint16)
         self.imageSIM = np.zeros_like(self.imageSIM, dtype=np.uint16)
         self.isUpdateImageViewer = True
 
-    def channelChanged(self):
-        self.resetHexSIM()
-        if self.current_channel_display() == 0:
+    # @add_update_display
+    # def channelChanged(self):
+    #     if self.current_channel_display() == 0:
+    #         self.settings['wavelength'] = 0.523
+    #     elif self.current_channel_display() == 1:
+    #         self.settings['wavelength'] = 0.610
+    #     self.isUpdateImageViewer = True
+
+    def channelSwitch(self):
+        if self.current_channel_process() == 0:
+            self.imvRAW.displaySet(0)
             self.settings['wavelength'] = 0.523
-        elif self.current_channel_display() == 1:
+        elif self.current_channel_process() == 1:
+            self.imvRAW.displaySet(1)
             self.settings['wavelength'] = 0.610
+        self.resetHexSIM()
 
     def current_channel_display(self):
-        return self.imvRaw.ui.cellCombo.currentIndex()
+        return self.imvRAW.ui.cellCombo.currentIndex()
+
+    def current_channel_process(self):
+        return self.ui.channelSwitch.value()
 
     def setReconstructor(self, *args):
         self.isFindCarrier = self.settings['find_carrier']
@@ -311,7 +329,7 @@ class HexSimAnalysis(Measurement):
                 self.h.kx = self.kx_input
                 self.h.ky = self.ky_input
             except Exception as e:
-                self.show_text(f'Load pre-calibration encountered an error \n{e}')
+                self.show_text(f'[ERROR] Load pre-calibration: \n{e}')
 
 # functions for operation
     @add_run
@@ -319,25 +337,25 @@ class HexSimAnalysis(Measurement):
         if self.isFileLoad:
             self.action = 'calibration'
         else:
-            self.show_text('Measurement is not loaded.')
+            self.show_text('[WARNING] No loaded file.')
 
     @add_run
     def reconstructionPressed(self):
-        if len(self.imageRaw[self.current_channel_display()]) > 7:
+        if len(self.imageRAW[self.current_channel_process()]) > 7:
             self.action = 'batch_process'
-        elif len(self.imageRaw[self.current_channel_display()]) == 7:
+        elif len(self.imageRAW[self.current_channel_process()]) == 7:
             self.action = 'standard_process'
         else:
-            self.show_text('Raw images are not acquired.')
+            self.show_text('[WARNING] NO RAW images.')
 
     @add_run
     def roiprocessPressed(self):
-        if len(self.imageRaw_ROI[0])>7:
+        if len(self.imageRAW_ROI[0]) > 7:
             self.action = 'batch_process_roi'
-        elif len(self.imageRaw_ROI[0])==7:
+        elif len(self.imageRAW_ROI[0]) == 7:
             self.action = 'standard_process_roi'
         else:
-            self.show_text('ROI raw images are not acquired.')
+            self.show_text('[WARNING] NO ROI RAW images.')
 
     @add_run
     def resolutionEstimatePressed(self):
@@ -349,19 +367,18 @@ class HexSimAnalysis(Measurement):
         try:
             self.setReconstructor()
             if self.isGpuenable:
-                self.h.calibrate_cupy(self.imageRaw[self.current_channel_display()], self.isFindCarrier)
+                self.h.calibrate_cupy(self.imageRAW[self.current_channel_process()], self.isFindCarrier)
             elif not self.isGpuenable:
-                self.h.calibrate(self.imageRaw[self.current_channel_display()], self.isFindCarrier)
+                self.h.calibrate(self.imageRAW[self.current_channel_process()], self.isFindCarrier)
 
             self.isCalibrated = True
-            self.show_text('Calibration finished.')
             self.h.wienerfilter_store = self.h.wienerfilter
             self.kx_full = self.h.kx
             self.ky_full = self.h.ky
+            self.show_text('[DONE] Calibration.')
 
         except Exception as e:
-            txtDisplay = f'Calibration encountered an error \n{e}'
-            self.show_text(txtDisplay)
+            self.show_text(f'[ERROR] Calibration: \n{e}')
 
     @add_timer
     def standardReconstruction(self):
@@ -369,19 +386,18 @@ class HexSimAnalysis(Measurement):
         try:
             if self.isCalibrated:
                 if self.isGpuenable:
-                    self.imageSIM = self.h.reconstruct_cupy(self.imageRaw[self.current_channel_display()])
+                    self.imageSIM = self.h.reconstruct_cupy(self.imageRAW[self.current_channel_process()])
                 elif not self.isGpuenable:
-                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRaw[self.current_channel_display()])
+                    self.imageSIM = self.h.reconstruct_rfftw(self.imageRAW[self.current_channel_process()])
             else:
                 self.calibration()
                 if self.isCalibrated:
                     self.standardReconstruction()
 
-            self.show_text('Standard reconstruction finished.')
+            self.show_text('[DONE] Standard reconstruction.')
 
         except Exception as e:
-            txtDisplay = f'Reconstruction encountered an error \n{e}'
-            self.show_text(txtDisplay)
+            self.show_text(f'[ERROR] Reconstruction: \n{e}')
 
     @add_timer
     def standardReconstructionROI(self):
@@ -392,9 +408,10 @@ class HexSimAnalysis(Measurement):
                 self.kx_roi = []
                 self.ky_roi = []
                 self.p_roi = []
+                image_sim_roi = None
 
                 for idx in range(self.numSets):
-                    image_raw_roi = self.imageRaw_ROI[idx]
+                    image_raw_roi = self.imageRAW_ROI[idx]
                     self.h.kx = self.kx_full
                     self.h.ky = self.ky_full
 
@@ -411,12 +428,11 @@ class HexSimAnalysis(Measurement):
                     self.p_roi.append(self.h.p)
                     self.wiener_ROI.append(self.h.wienerfilter[np.newaxis, :, :])
 
-                self.show_text('ROI standard reconstruction finished.')
+                self.show_text('[DONE] ROI standard reconstruction.')
             else:
-                self.show_text('Calibration is needed.')
+                self.show_text('[WARNING] Uncalibrated.')
         except Exception as e:
-            txtDisplay = f'ROI Reconstruction encountered an error \n{e}'
-            self.show_text(txtDisplay)
+            self.show_text(f'[ERROR] ROI Reconstruction: \n{e}')
 
     @add_timer
     def batchReconstruction(self):
@@ -425,24 +441,23 @@ class HexSimAnalysis(Measurement):
                 # Batch reconstruction
                 if self.isGpuenable:
                     if self.isCompact:
-                        self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRaw[self.current_channel_display()])
+                        self.imageSIM = self.h.batchreconstructcompact_cupy(self.imageRAW[self.current_channel_process()])
                     elif not self.isCompact:
-                        self.imageSIM = self.h.batchreconstruct_cupy(self.imageRaw[self.current_channel_display()])
+                        self.imageSIM = self.h.batchreconstruct_cupy(self.imageRAW[self.current_channel_process()])
                 elif not self.isGpuenable:
                     if self.isCompact:
-                        self.imageSIM = self.h.batchreconstructcompact(self.imageRaw[self.current_channel_display()])
+                        self.imageSIM = self.h.batchreconstructcompact(self.imageRAW[self.current_channel_process()])
                     elif not self.isCompact:
-                        self.imageSIM = self.h.batchreconstruct(self.imageRaw[self.current_channel_display()])
+                        self.imageSIM = self.h.batchreconstruct(self.imageRAW[self.current_channel_process()])
             elif not self.isCalibrated:
                 self.calibration()
                 if self.isCalibrated:
                     self.batchReconstruction()
 
-            self.show_text('Batch reconstruction finished.')
+            self.show_text('[DONE] Batch reconstruction.')
 
         except Exception as e:
-            txtDisplay = f'Batch reconstruction encountered an error \n{e}'
-            self.show_text(txtDisplay)
+            self.show_text(f'[ERROR] Batch reconstruction: \n{e}')
 
     @add_timer
     def batchReconstructionROI(self):
@@ -453,11 +468,12 @@ class HexSimAnalysis(Measurement):
                 self.kx_roi = []
                 self.ky_roi = []
                 self.p_roi = []
+                image_sim_roi = None
                 # Batch reconstruction
                 for idx in range(self.numSets):
                     self.h.kx = self.kx_full
                     self.h.ky = self.ky_full
-                    image_raw_roi = self.imageRaw_ROI[idx]
+                    image_raw_roi = self.imageRAW_ROI[idx]
 
                     if self.isGpuenable:
                         self.h.calibrate_cupy(image_raw_roi, findCarrier=False)
@@ -479,131 +495,217 @@ class HexSimAnalysis(Measurement):
                     self.p_roi.append(self.h.p)
                     self.wiener_ROI.append(self.h.wienerfilter[np.newaxis, :, :])
 
-                self.show_text('ROI batch reconstruction finished.')
+                self.show_text('[DONE] ROI batch reconstruction.')
             else:
-                self.show_text('Calibration is needed.')
+                self.show_text('[WARNING] Uncalibrated.')
 
         except Exception as e:
-            txtDisplay = f'Batch reconstruction encountered an error \n{e}'
-            self.show_text(txtDisplay)
+            self.show_text(f'[ERROR] Batch reconstruction: \n{e}')
 
     @add_timer
     def resolutionEstimate(self):
         try:
-            pixelsizeWF = self.settings['pixelsize'] / self.settings['magnification']
-            imageWF_temp = self.imageWF[self.imvWF.ui.imgSlider.value(),:,:]
-            ciWF = ImageDecorr(imageWF_temp, square_crop=True,pixel_size=pixelsizeWF)
-            optimWF, resWF = ciWF.compute_resolution()
+            self.show_text('[START] Estimating resolution.')
+            pixelsize_avg = self.settings['pixelsize'] / self.settings['magnification']
+            image_avg_temp = self.imageAVG[self.imvAVG.ui.imgSlider.value(), :, :]
+            ci_avg = ImageDecorr(image_avg_temp, square_crop=True,pixel_size=pixelsize_avg)
+            ci_avg.compute_resolution()
             imageSIM_temp = self.imageSIM[self.imvSIM.ui.imgSlider.value(),:,:]
-            ciSIM = ImageDecorr(imageSIM_temp, square_crop=True,pixel_size=pixelsizeWF/2)
-            optimSIM, resSIM = ciSIM.compute_resolution()
-            txtDisplay = f"\nWide field image resolution:\t {ciWF.resolution:.3f} um \
-                           \nSIM image resolution:\t {ciSIM.resolution:.3f} um\n"
+            ci_sim = ImageDecorr(imageSIM_temp, square_crop=True,pixel_size=pixelsize_avg/2)
+            ci_sim.compute_resolution()
+            txtDisplay = f"\nWide field image resolution:\t {ci_avg.resolution:.3f} um \
+                           \nSIM image resolution:\t {ci_sim.resolution:.3f} um\n"
             self.show_text(txtDisplay)
         except Exception as e:
-            txtDisplay = f'Resolution encountered an error \n{e}'
-            self.show_text(txtDisplay)
+            self.show_text(f'[ERROR] Estimating resolution: \n{e}')
+
+    def browseFolder(self):
+        self.selected_dir = QFileDialog.getExistingDirectory(None, 'Select a folder:', self.app.settings['save_dir'],
+                                                      QFileDialog.ShowDirsOnly)
+        self.ui.selectedFolder.clear()
+        self.ui.selectedFolder.insertPlainText(self.selected_dir  + '\n')
+
+    @add_run
+    def batchFileProcessPressed(self):
+        if self.selected_dir:
+            if self.isCalibrated:
+                self.action = 'batch_file'
+            else:
+                self.action = None
+                self.show_text('[WARNING] Uncalibrated.')
+        else:
+            self.action = None
+            self.show_text('[WARNING] No selected directory.')
+
+    def batchFileProcess(self):
+        self.show_text('\n<START> Batch file processing.')
+        file_counter = 0
+        cell_counter = 0
+        
+        self.kx_input = self.kx_full
+        self.ky_input = self.ky_full
+        self.settings['find_carrier'] = False
+        
+        for subdir, dirs, files in os.walk(self.selected_dir):
+            for filename in files:
+                if not self.interrupt_measurement_called:
+                    filepath = subdir + os.sep + filename
+                    if filepath.endswith("Raw.h5"):
+                        # load file
+                        self.imageRAW = []
+                        with h5py.File(filepath, "r") as f:
+                            for ch_idx in range(2):
+                                gname = f'data/c{ch_idx}/raw'
+                                if f[gname].shape != None:
+                                    self.imageRAW.append(np.array(f[gname]))
+                                else:
+                                    self.imageRAW.append(np.zeros((7, 256, 256), dtype=np.uint16))
+
+                        self.filetitle = Path(filepath).stem[:-4]
+                        self.show_text('<FILE> ' + self.filetitle)
+                        self.filepath = os.path.dirname(filepath)
+
+                        # find cells
+                        self.findCell_no_ui()
+                        # full process and/or roi process
+                        if len(self.imageRAW[self.current_channel_process()]) > 7:
+                            self.imageSIM = np.zeros_like(self.imageSIM)
+                            if not self.ui.roiProcessOnlyCheck.isChecked():
+                                self.calibration()
+                                self.batchReconstruction()
+                            self.batchReconstructionROI()
+
+                        elif len(self.imageRAW[self.current_channel_process()]) == 7:
+                            self.imageSIM = np.zeros_like(self.imageSIM)
+                            if not self.ui.roiProcessOnlyCheck.isChecked():
+                                self.calibration()
+                                self.standardReconstruction()
+                            self.standardReconstructionROI()
+
+                        # save files
+                        self.saveMeasurements()
+                        file_counter = file_counter + 1
+                        cell_counter = cell_counter + self.numSets
+                        self.show_text(f'------ Total files: {file_counter:03}')
+                        self.show_text(f'------ Total cells: {cell_counter:03} \n')
+                else:
+                    self.removeMarks()
+                    break
+
+        self.show_text('<END> Batch file processing. \n')
 
 # functions for IO
-    @add_update_display
+#     @add_update_display
     def loadMeasurement(self):
         try:
-            self.filename, _ = QFileDialog.getOpenFileName(caption="Open file", directory=self.app.settings['save_dir'],
+            self.filename, _ = QFileDialog.getOpenFileName(caption="Open RAW file", directory=self.app.settings['save_dir'],
                                                            filter="H5 files (*Raw.h5)")
-            self.imageRaw = []
+        except Exception as e:
+            self.isFileLoad = False
+            self.show_text(f'[ERROR] Loading file: \n{e}')
+
+        if self.filename:
+            self.isFileLoad = True
+            self.ui.imgTab.setCurrentIndex(1)
+            self.imageRAW = []
+
             with h5py.File(self.filename,"r") as f:
                 for ch_idx in range(2):
-                    gname = f'data/c{ch_idx}/raw'
-                    if f[gname].shape != None:
-                        self.imageRaw.append(np.array(f[gname]))
+                    group_name = f'data/c{ch_idx}/raw'
+                    if f[group_name].shape != None:
+                        self.imageRAW.append(np.array(f[group_name]))
+                        self.ui.channelSwitch.setValue(ch_idx)  # set to the channel has RAW data
                     else:
-                        self.imageRaw.append(np.zeros((7,256,256),dtype=np.uint16))
+                        self.imageRAW.append(np.zeros((7, 256, 256), dtype=np.uint16))
 
-            self.filetitle = Path(self.filename).stem[:-3]
-            # print(self.filetitle)
+            self.filetitle = Path(self.filename).stem[:-4]
             self.filepath = os.path.dirname(self.filename)
-            self.isFileLoad = True
-            self.ui.imgTab.setCurrentIndex(0)
+            self.resetHexSIM()
+            self.show_text('[LOAD] File name: ' + self.filetitle)
 
-        except AssertionError as error:
-            print(error)
-            self.isFileLoad = False
-
-        if self.isFileLoad:
-            self.isUpdateImageViewer = True
-            self.isCalibrated = False
-            self.setReconstructor()
-            self.h._allocate_arrays()
         else:
-            self.show_text("File is not loaded.")
-
-    def load_ini_settings(self, fname):
-        self.log.info("ini settings loading from " + fname)
-
-        config = configparser.ConfigParser()
-        config.optionxform = str
-        config.read(fname)
-
-        if 'app' in config.sections():
-            for lqname, new_val in config.items('app'):
-                lq = self.settings.as_dict().get(lqname)
-                if lq:
-                    if lq.dtype == bool:
-                        new_val = str2bool(new_val)
-                    lq.update_value(new_val)
+            if not self.imageRAW:
+                self.isFileLoad = False
+            self.show_text('[WARNING] File is not loaded.')
 
     def saveMeasurements(self):
         timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+        ch = self.current_channel_process() # selected channel
         if self.isCalibrated:
             if self.ui.saveH5.isChecked():
                 if list_equal(self.imageSIM_store, self.imageSIM):
-                    self.show_text("SIM images are not saved: the same results.")
+                    self.show_text("[NOT SAVED] SIM images are identical.")
                 else:
-                    fname_pro = os.path.join(self.filepath, self.filetitle +f'_{timestamp}_C{self.current_channel_display()}_Processed.h5')
+                    # create file name for the processed file
+                    fname_pro = os.path.join(self.filepath, self.filetitle +f'_{timestamp}_C{self.current_channel_process()}_Processed.h5')
+                    # create H5 file
                     self.h5file_pro = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_pro)
+                    # create measurement group and save measurement settings
                     h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_pro)
 
-                    name = f'data/sim'
+                    # name of the sim image group
+                    sim_name = f'data/sim'
+                    avg_name = f'data/avg'
+                    std_name = f'data/std'
                     if np.sum(self.imageSIM) == 0:
-                        dset = self.h5file_pro.create_dataset(name, data=h5py.Empty("f"))
-                        self.show_text("[H5] SIM images are empty.")
+                        dset = self.h5file_pro.create_dataset(sim_name, data=h5py.Empty("f"))
+                        dset_1 = self.h5file_pro.create_dataset(avg_name, data=h5py.Empty("f"))
+                        dset_2 = self.h5file_pro.create_dataset(std_name, data=h5py.Empty("f"))
+                        # self.show_text("[UNSAVED] SIM images are empty.")
                     else:
-                        dset = self.h5file_pro.create_dataset(name, data=self.imageSIM)
-                        self.show_text("[H5] SIM images are saved.")
+                        dset = self.h5file_pro.create_dataset(sim_name, data=self.imageSIM)
+                        dset_1 = self.h5file_pro.create_dataset(avg_name, data=self.imageAVG)
+                        dset_2 = self.h5file_pro.create_dataset(std_name, data=self.imageSTD)
+                        self.show_text("[SAVED] SIM images to <H5>.")
                     dset.attrs['kx'] = self.kx_full
                     dset.attrs['ky'] = self.ky_full
 
                     if self.numSets != 0:
                         for idx in range(self.numSets):
                             roi_group_name = f'data/roi/{idx:03}'
-                            raw_set = self.h5file_pro.create_dataset(roi_group_name + '/raw', data=self.imageRaw_ROI[idx])
+                            raw_set = self.h5file_pro.create_dataset(roi_group_name + '/raw', data=self.imageRAW_ROI[idx])
                             raw_set.attrs['cx'] = self.oSegment.selected_cx[idx]
                             raw_set.attrs['cy'] = self.oSegment.selected_cy[idx]
                             sim_set = self.h5file_pro.create_dataset(roi_group_name + '/sim', data=self.imageSIM_ROI[idx])
                             sim_set.attrs['kx'] = self.kx_roi[idx]
                             sim_set.attrs['ky'] = self.ky_roi[idx]
-                        self.show_text("[H5] ROI images are saved.")
+                            avg_set = self.h5file_pro.create_dataset(roi_group_name + '/avg', data=self.imageAVG_ROI[idx])
+                            std_set = self.h5file_pro.create_dataset(roi_group_name + '/std', data=self.imageSTD_ROI[idx])
+                        self.show_text("[SAVED] ROI images to <H5>.")
 
                     self.h5file_pro.close()
 
         if self.ui.saveTif.isChecked():
             fname_sim = os.path.join(self.filepath, self.filetitle
-                                     + f'_{timestamp}_Processed_C{self.current_channel_display()}' + '.tif')
+                                     + f'_{timestamp}_C{self.current_channel_process()}_SIM' + '.tif')
             fname_ini = os.path.join(self.filepath, self.filetitle
-                                     + f'_{timestamp}_Processed_C{self.current_channel_display()}' + '.ini')
+                                     + f'_{timestamp}_C{self.current_channel_process()}_Settings' + '.ini')
+            fname_avg = os.path.join(self.filepath, self.filetitle
+                                     + f'_{timestamp}_C{self.current_channel_process()}_AVG' + '.tif')
+            fname_std = os.path.join(self.filepath, self.filetitle
+                                     + f'_{timestamp}_C{self.current_channel_process()}_STD' + '.tif')
+
+            self.app.settings_save_ini(fname_ini, save_ro=False)
             if np.sum(self.imageSIM) != 0:
                 tif.imwrite(fname_sim, np.single(self.imageSIM))
-                self.app.settings_save_ini(fname_ini, save_ro=False)
-                self.show_text("[Tif] SIM images are saved.")
-            else:
-                self.show_text("[Tif] SIM images are empty.")
+                tif.imwrite(fname_avg, np.single(self.imageAVG))
+                tif.imwrite(fname_std, np.single(self.imageSTD))
+                self.show_text("[SAVED] SIM images to <TIFF>.")
+            # else:
+                # self.show_text("[UNSAVED] SIM images are empty.")
 
             if self.numSets != 0:
                 for idx in range(self.numSets):
-                    fname_roi = os.path.join(self.filepath, self.filetitle
-                                             + f'_{timestamp}_Roi_C{self.current_channel_display()}_{idx:003}' + '.tif')
-                    tif.imwrite(fname_roi, np.single(self.imageSIM_ROI[idx]))
-                self.show_text("[Tif] ROI images are saved.")
+                    fname_roi_sim = os.path.join(self.filepath, self.filetitle
+                                             + f'_{timestamp}_Roi_C{self.current_channel_process()}_{idx:003}_SIM' + '.tif')
+                    fname_roi_avg = os.path.join(self.filepath, self.filetitle
+                                             + f'_{timestamp}_Roi_C{self.current_channel_process()}_{idx:003}_AVG' + '.tif')
+                    fname_roi_std = os.path.join(self.filepath, self.filetitle
+                                             + f'_{timestamp}_Roi_C{self.current_channel_process()}_{idx:003}_STD' + '.tif')
+                    tif.imwrite(fname_roi_sim, np.single(self.imageSIM_ROI[idx]))
+                    tif.imwrite(fname_roi_avg, np.single(self.imageAVG_ROI[idx]))
+                    tif.imwrite(fname_roi_std, np.single(self.imageSTD_ROI[idx]))
+                self.show_text("[SAVED] ROI images to <TIFF>.")
 
     @add_update_display
     def loadCalibrationResults(self):
@@ -616,9 +718,9 @@ class HexSimAnalysis(Measurement):
                 print(self.ky_input)
             self.setReconstructor()
             self.isUpdateImageViewer = True
-            self.show_text("Calibration results are loaded.")
+            self.show_text("[LOAD] kx, ky are loaded.")
         except:
-            self.show_text("Calibration results are not loaded.")
+            self.show_text("[WARNING] kx, ky are NOT loaded.")
 
 # functions for display
     def show_text(self, text):
@@ -627,29 +729,38 @@ class HexSimAnalysis(Measurement):
         print(text)
 
     def updateImageViewer(self):
-        imageRaw_tmp = self.imageRaw[self.current_channel_display()]
-        self.imageWF = self.raw2WideFieldImage(imageRaw_tmp)
-        self.imvRaw.setImageSet(self.imageRaw)
-        self.imvWF.setImageSet(self.imageWF)
-        self.imvWF_ROI.setImageSet(self.imageWF_ROI)
-        self.imvRaw_ROI.setImageSet(self.imageRaw_ROI)
-        self.imvSIM.setImageSet(self.imageSIM)
-        self.imvSIM_ROI.setImageSet(self.imageSIM_ROI)
-        self.imvWiener_ROI.setImageSet(self.wiener_ROI)
+        imageRaw_tmp  = self.imageRAW[self.current_channel_process()]
+        self.imageAVG = self.raw2avgImage(imageRaw_tmp)
+        self.imageSTD = self.raw2stdImage(imageRaw_tmp)
+        self.imvRAW.showImageSet(self.imageRAW)
+        self.imvAVG.showImageSet(self.imageAVG)
+        self.imvSTD.showImageSet(self.imageSTD)
+        self.imvAVG_ROI.showImageSet(self.imageAVG_ROI)
+        self.imvSTD_ROI.showImageSet(self.imageSTD_ROI)
+        self.imvRAW_ROI.showImageSet(self.imageRAW_ROI)
+        self.imvSIM_ROI.showImageSet(self.imageSIM_ROI)
+        self.imvSIM.showImageSet(self.imageSIM)
+        self.imvWiener_ROI.showImageSet(self.wiener_ROI)
         self.imvCalibration.update(self.h)
 
     def removeMarks(self):
         if self.roiRect:
             for item in self.roiRect:
-                self.imvWF.imv.getView().removeItem(item)
+                self.imvAVG.imv.getView().removeItem(item)
             self.roiRect = []
 
-    def raw2WideFieldImage(self,rawImages):
-        wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
-        for idx in range(rawImages.shape[0]//7):
-            wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7,:,:],axis=0)/7
+    def raw2avgImage(self, raw_images):
+        avg_images = np.zeros((raw_images.shape[0] // 7, raw_images.shape[1], raw_images.shape[2]))
+        for idx in range(raw_images.shape[0] // 7):
+            avg_images[idx,:,:] = np.sum(raw_images[idx * 7:(idx + 1) * 7, :, :], axis=0) / 7
+        return avg_images
 
-        return wfImages
+    def raw2stdImage(self, raw_images):
+        std_images = np.zeros((raw_images.shape[0] // 7, raw_images.shape[1], raw_images.shape[2]))
+        for idx in range(raw_images.shape[0] // 7):
+            std_images[idx,:,:] = np.std(raw_images[idx * 7:(idx + 1) * 7, :, :], axis=0)
+        return std_images
+
 # functions for ROI
     def roiSize(self):
         return int(self.ui.roiSizeCombo.currentText())
@@ -659,29 +770,53 @@ class HexSimAnalysis(Measurement):
 
     @add_update_display
     def findCell(self):
-        self.oSegment = ImageSegmentation(self.imageRaw[self.current_channel_display()], self.roiSize() // 2,
-                                          self.minCellSize())
+        self.oSegment = ImageSegmentation(self.imageRAW[self.current_channel_process()], self.roiSize() // 2,
+                                          self.minCellSize(), self.settings['watershed_threshold'])
         markpen = pg.mkPen('r', width=1)
         self.removeMarks()
         self.oSegment.min_cell_size = self.minCellSize()**2
         self.oSegment.roi_half_side = self.roiSize()//2
-        self.oSegment.find_cell()
-        self.imageRaw_ROI = self.oSegment.roi_creation()
-        self.imageWF_ROI = [] # initialize the image sets
-        self.numSets = len(self.imageRaw_ROI)
+        self.oSegment.find_cell(method=self.settings['segment_method'])
+        self.imageRAW_ROI = self.oSegment.roi_creation()
+        self.imageAVG_ROI = []  # initialize the image sets
+        self.imageSTD_ROI = []  # initialize the image sets
+        self.numSets = len(self.imageRAW_ROI)
         self.ui.cellNumber.setValue(self.numSets)
 
         if self.numSets == 0:
-            self.imageWF_ROI = np.zeros((self.roiSize(),self.roiSize()), dtype=np.uint16)
+            self.imageAVG_ROI = np.zeros((self.roiSize(), self.roiSize()), dtype=np.uint16)
+            self.imageSTD_ROI = np.zeros((self.roiSize(), self.roiSize()), dtype=np.uint16)
         elif self.numSets > 0:
             for idx in range(self.numSets):
-                self.imageWF_ROI.append(self.raw2WideFieldImage(self.imageRaw_ROI[idx]))
+                self.imageAVG_ROI.append(self.raw2avgImage(self.imageRAW_ROI[idx]))
+                self.imageSTD_ROI.append(self.raw2stdImage(self.imageRAW_ROI[idx]))
                 # mark the cells with rectangle overlay
                 r = pg.ROI(pos = (self.oSegment.selected_cx[idx]-self.oSegment.roi_half_side,
                                   self.oSegment.selected_cy[idx]-self.oSegment.roi_half_side),
                            size=self.roiSize(), pen=markpen, movable=False)
-                self.imvWF.imv.getView().addItem(r)
+                self.imvAVG.imv.getView().addItem(r)
                 self.roiRect.append(r)
 
         self.isUpdateImageViewer = True
-        self.show_text(f'Found cells: {self.numSets}')
+        self.ui.imgTab.setCurrentIndex(1)
+        self.show_text(f'------ Found cells: {self.numSets:02}')
+
+    def findCell_no_ui(self):
+        self.oSegment = ImageSegmentation(self.imageRAW[self.current_channel_process()], self.roiSize() // 2,
+                                          self.minCellSize(), self.settings['watershed_threshold'])
+        self.oSegment.min_cell_size = self.minCellSize()**2
+        self.oSegment.roi_half_side = self.roiSize()//2
+        self.oSegment.find_cell(method=self.settings['segment_method'])
+        self.imageRAW_ROI = self.oSegment.roi_creation()
+        self.imageAVG_ROI = [] # initialize the image sets
+        self.imageSTD_ROI = []  # initialize the image sets
+        self.numSets = len(self.imageRAW_ROI)
+
+        if self.numSets == 0:
+            self.imageAVG_ROI = np.zeros((self.roiSize(), self.roiSize()), dtype=np.uint16)
+            self.imageSTD_ROI = np.zeros((self.roiSize(), self.roiSize()), dtype=np.uint16)
+        elif self.numSets > 0:
+            for idx in range(self.numSets):
+                self.imageAVG_ROI.append(self.raw2avgImage(self.imageRAW_ROI[idx]))
+                self.imageSTD_ROI.append(self.raw2stdImage(self.imageRAW_ROI[idx]))
+        self.show_text(f'------ Found cells: {self.numSets:02}')
