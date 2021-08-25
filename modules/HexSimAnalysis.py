@@ -10,7 +10,10 @@ Address:Imperial College London
 
 import os,time,h5py
 import numpy as np
-import cupy as cp
+try:
+    import cupy as cp
+except:
+    pass
 import pyqtgraph as pg
 import tifffile as tif
 
@@ -103,6 +106,7 @@ class HexSimAnalysis(Measurement):
 
         # initialize condition lables
         self.isUpdateImageViewer = False
+        self.isFileLoad = False
         self.isCalibrated = False
         self.isGpuenable = True  # using GPU for accelerating
         self.isCompact = True  # using compact mode in batch reconstruction to save memory
@@ -274,10 +278,13 @@ class HexSimAnalysis(Measurement):
     def resetHexSIM(self):
         self.isCalibrated = False
         self.numSets = 0
-        self.stop_sim_processor()
-        if self.settings['gpu']:
-            cp._default_memory_pool.free_all_blocks()
-        self.start_sim_processor()
+        # self.stop_sim_processor()
+        try:
+            if self.settings['gpu']:
+                cp._default_memory_pool.free_all_blocks()
+        except:
+            pass
+        # self.start_sim_processor()
         self.removeMarks()
         self.imageAVG = np.zeros_like(self.imageAVG, dtype=np.uint16)
         self.imageSIM = np.zeros_like(self.imageSIM, dtype=np.uint16)
@@ -329,7 +336,7 @@ class HexSimAnalysis(Measurement):
                 self.h.kx = self.kx_input
                 self.h.ky = self.ky_input
             except Exception as e:
-                self.show_text(f'[ERROR] Load pre-calibration: \n{e}')
+                self.show_text(f'[ERROR]\tLoad pre-calibration: \n{e}')
 
 # functions for operation
     @add_run
@@ -337,7 +344,7 @@ class HexSimAnalysis(Measurement):
         if self.isFileLoad:
             self.action = 'calibration'
         else:
-            self.show_text('[WARNING] No loaded file.')
+            self.show_text('[WARNING]\tNo loaded file.')
 
     @add_run
     def reconstructionPressed(self):
@@ -346,7 +353,7 @@ class HexSimAnalysis(Measurement):
         elif len(self.imageRAW[self.current_channel_process()]) == 7:
             self.action = 'standard_process'
         else:
-            self.show_text('[WARNING] NO RAW images.')
+            self.show_text('[WARNING]\tNO RAW images.')
 
     @add_run
     def roiprocessPressed(self):
@@ -355,7 +362,7 @@ class HexSimAnalysis(Measurement):
         elif len(self.imageRAW_ROI[0]) == 7:
             self.action = 'standard_process_roi'
         else:
-            self.show_text('[WARNING] NO ROI RAW images.')
+            self.show_text('[WARNING]\tNO ROI RAW images.')
 
     @add_run
     def resolutionEstimatePressed(self):
@@ -375,10 +382,10 @@ class HexSimAnalysis(Measurement):
             self.h.wienerfilter_store = self.h.wienerfilter
             self.kx_full = self.h.kx
             self.ky_full = self.h.ky
-            self.show_text('[DONE] Calibration.')
+            self.show_text('[DONE]\tCalibration.')
 
         except Exception as e:
-            self.show_text(f'[ERROR] Calibration: \n{e}')
+            self.show_text(f'[ERROR]\tCalibration: \n{e}')
 
     @add_timer
     def standardReconstruction(self):
@@ -394,10 +401,10 @@ class HexSimAnalysis(Measurement):
                 if self.isCalibrated:
                     self.standardReconstruction()
 
-            self.show_text('[DONE] Standard reconstruction.')
+            self.show_text('[DONE]\tStandard reconstruction.')
 
         except Exception as e:
-            self.show_text(f'[ERROR] Reconstruction: \n{e}')
+            self.show_text(f'[ERROR]\tReconstruction: \n{e}')
 
     @add_timer
     def standardReconstructionROI(self):
@@ -428,11 +435,11 @@ class HexSimAnalysis(Measurement):
                     self.p_roi.append(self.h.p)
                     self.wiener_ROI.append(self.h.wienerfilter[np.newaxis, :, :])
 
-                self.show_text('[DONE] ROI standard reconstruction.')
+                self.show_text('[DONE]\tROI standard reconstruction.')
             else:
-                self.show_text('[WARNING] Uncalibrated.')
+                self.show_text('[WARNING]\tUncalibrated.')
         except Exception as e:
-            self.show_text(f'[ERROR] ROI Reconstruction: \n{e}')
+            self.show_text(f'[ERROR]\tROI Reconstruction: \n{e}')
 
     @add_timer
     def batchReconstruction(self):
@@ -454,10 +461,10 @@ class HexSimAnalysis(Measurement):
                 if self.isCalibrated:
                     self.batchReconstruction()
 
-            self.show_text('[DONE] Batch reconstruction.')
+            self.show_text('[DONE]\tBatch reconstruction.')
 
         except Exception as e:
-            self.show_text(f'[ERROR] Batch reconstruction: \n{e}')
+            self.show_text(f'[ERROR]\tBatch reconstruction: \n{e}')
 
     @add_timer
     def batchReconstructionROI(self):
@@ -495,17 +502,17 @@ class HexSimAnalysis(Measurement):
                     self.p_roi.append(self.h.p)
                     self.wiener_ROI.append(self.h.wienerfilter[np.newaxis, :, :])
 
-                self.show_text('[DONE] ROI batch reconstruction.')
+                self.show_text('[DONE]\tROI batch reconstruction.')
             else:
-                self.show_text('[WARNING] Uncalibrated.')
+                self.show_text('[WARNING]\tUncalibrated.')
 
         except Exception as e:
-            self.show_text(f'[ERROR] Batch reconstruction: \n{e}')
+            self.show_text(f'[ERROR]\tBatch reconstruction: \n{e}')
 
     @add_timer
     def resolutionEstimate(self):
         try:
-            self.show_text('[START] Estimating resolution.')
+            self.show_text('[START]\tEstimating resolution.')
             pixelsize_avg = self.settings['pixelsize'] / self.settings['magnification']
             image_avg_temp = self.imageAVG[self.imvAVG.ui.imgSlider.value(), :, :]
             ci_avg = ImageDecorr(image_avg_temp, square_crop=True,pixel_size=pixelsize_avg)
@@ -517,7 +524,7 @@ class HexSimAnalysis(Measurement):
                            \nSIM image resolution:\t {ci_sim.resolution:.3f} um\n"
             self.show_text(txtDisplay)
         except Exception as e:
-            self.show_text(f'[ERROR] Estimating resolution: \n{e}')
+            self.show_text(f'[ERROR]\tEstimating resolution: \n{e}')
 
     def browseFolder(self):
         self.selected_dir = QFileDialog.getExistingDirectory(None, 'Select a folder:', self.app.settings['save_dir'],
@@ -532,13 +539,13 @@ class HexSimAnalysis(Measurement):
                 self.action = 'batch_file'
             else:
                 self.action = None
-                self.show_text('[WARNING] Uncalibrated.')
+                self.show_text('[WARNING]\tUncalibrated.')
         else:
             self.action = None
-            self.show_text('[WARNING] No selected directory.')
+            self.show_text('[WARNING]\tNo selected directory.')
 
     def batchFileProcess(self):
-        self.show_text('\n<START> Batch file processing.')
+        self.show_text('\n<START>\tBatch file processing.')
         file_counter = 0
         cell_counter = 0
         
@@ -586,13 +593,13 @@ class HexSimAnalysis(Measurement):
                         self.saveMeasurements()
                         file_counter = file_counter + 1
                         cell_counter = cell_counter + self.numSets
-                        self.show_text(f'------ Total files: {file_counter:03}')
-                        self.show_text(f'------ Total cells: {cell_counter:03} \n')
+                        self.show_text(f'\t Total files: {file_counter:03}')
+                        self.show_text(f'\t Total cells: {cell_counter:03} \n')
                 else:
                     self.removeMarks()
                     break
 
-        self.show_text('<END> Batch file processing. \n')
+        self.show_text('<END>\tBatch file processing. \n')
 
 # functions for IO
 #     @add_update_display
@@ -602,7 +609,7 @@ class HexSimAnalysis(Measurement):
                                                            filter="H5 files (*Raw.h5)")
         except Exception as e:
             self.isFileLoad = False
-            self.show_text(f'[ERROR] Loading file: \n{e}')
+            self.show_text(f'[ERROR]\tLoading file: \n{e}')
 
         if self.filename:
             self.isFileLoad = True
@@ -621,12 +628,12 @@ class HexSimAnalysis(Measurement):
             self.filetitle = Path(self.filename).stem[:-4]
             self.filepath = os.path.dirname(self.filename)
             self.resetHexSIM()
-            self.show_text('[LOAD] File name: ' + self.filetitle)
+            self.show_text('[LOAD]\tFile name: ' + self.filetitle)
 
         else:
             if not self.imageRAW:
                 self.isFileLoad = False
-            self.show_text('[WARNING] File is not loaded.')
+            self.show_text(f'[WARNING]\tFile is not loaded.')
 
     def saveMeasurements(self):
         timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
@@ -634,7 +641,7 @@ class HexSimAnalysis(Measurement):
         if self.isCalibrated:
             if self.ui.saveH5.isChecked():
                 if list_equal(self.imageSIM_store, self.imageSIM):
-                    self.show_text("[NOT SAVED] SIM images are identical.")
+                    self.show_text("[NOT SAVED]\tSIM images are identical.")
                 else:
                     # create file name for the processed file
                     fname_pro = os.path.join(self.filepath, self.filetitle +f'_{timestamp}_C{self.current_channel_process()}_Processed.h5')
@@ -656,7 +663,7 @@ class HexSimAnalysis(Measurement):
                         dset = self.h5file_pro.create_dataset(sim_name, data=self.imageSIM)
                         dset_1 = self.h5file_pro.create_dataset(avg_name, data=self.imageAVG)
                         dset_2 = self.h5file_pro.create_dataset(std_name, data=self.imageSTD)
-                        self.show_text("[SAVED] SIM images to <H5>.")
+                        self.show_text("[SAVED]\tSIM images to <H5>.")
                     dset.attrs['kx'] = self.kx_full
                     dset.attrs['ky'] = self.ky_full
 
@@ -671,7 +678,7 @@ class HexSimAnalysis(Measurement):
                             sim_set.attrs['ky'] = self.ky_roi[idx]
                             avg_set = self.h5file_pro.create_dataset(roi_group_name + '/avg', data=self.imageAVG_ROI[idx])
                             std_set = self.h5file_pro.create_dataset(roi_group_name + '/std', data=self.imageSTD_ROI[idx])
-                        self.show_text("[SAVED] ROI images to <H5>.")
+                        self.show_text("[SAVED]\tROI images to <H5>.")
 
                     self.h5file_pro.close()
 
@@ -690,7 +697,7 @@ class HexSimAnalysis(Measurement):
                 tif.imwrite(fname_sim, np.single(self.imageSIM))
                 tif.imwrite(fname_avg, np.single(self.imageAVG))
                 tif.imwrite(fname_std, np.single(self.imageSTD))
-                self.show_text("[SAVED] SIM images to <TIFF>.")
+                self.show_text("[SAVED]\tSIM images to <TIFF>.")
             # else:
                 # self.show_text("[UNSAVED] SIM images are empty.")
 
@@ -705,7 +712,7 @@ class HexSimAnalysis(Measurement):
                     tif.imwrite(fname_roi_sim, np.single(self.imageSIM_ROI[idx]))
                     tif.imwrite(fname_roi_avg, np.single(self.imageAVG_ROI[idx]))
                     tif.imwrite(fname_roi_std, np.single(self.imageSTD_ROI[idx]))
-                self.show_text("[SAVED] ROI images to <TIFF>.")
+                self.show_text("[SAVED]\tROI images to <TIFF>.")
 
     @add_update_display
     def loadCalibrationResults(self):
@@ -718,9 +725,9 @@ class HexSimAnalysis(Measurement):
                 print(self.ky_input)
             self.setReconstructor()
             self.isUpdateImageViewer = True
-            self.show_text("[LOAD] kx, ky are loaded.")
+            self.show_text("[LOAD]\tkx, ky are loaded.")
         except:
-            self.show_text("[WARNING] kx, ky are NOT loaded.")
+            self.show_text("[WARNING]\tkx, ky are NOT loaded.")
 
 # functions for display
     def show_text(self, text):
@@ -799,7 +806,7 @@ class HexSimAnalysis(Measurement):
 
         self.isUpdateImageViewer = True
         self.ui.imgTab.setCurrentIndex(1)
-        self.show_text(f'------ Found cells: {self.numSets:02}')
+        self.show_text(f'\t Found cells: {self.numSets:02}')
 
     def findCell_no_ui(self):
         self.oSegment = ImageSegmentation(self.imageRAW[self.current_channel_process()], self.roiSize() // 2,
@@ -819,4 +826,4 @@ class HexSimAnalysis(Measurement):
             for idx in range(self.numSets):
                 self.imageAVG_ROI.append(self.raw2avgImage(self.imageRAW_ROI[idx]))
                 self.imageSTD_ROI.append(self.raw2stdImage(self.imageRAW_ROI[idx]))
-        self.show_text(f'------ Found cells: {self.numSets:02}')
+        self.show_text(f'\t Found cells: {self.numSets:02}')

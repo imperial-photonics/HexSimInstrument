@@ -256,6 +256,7 @@ class StackImageViewer(QtWidgets.QWidget):
         self.ui.nCurrent.setText(str(self.idx_z + 1))
 
     def previousSet(self):
+        self.idx_sets = self.ui.cellCombo.currentIndex()
         self.idx_sets = self.idx_sets - 1
         if self.idx_sets == -1:
             self.idx_sets = self.num_sets - 1
@@ -263,6 +264,7 @@ class StackImageViewer(QtWidgets.QWidget):
         self.ui.cellCombo.setCurrentIndex(self.idx_sets)
 
     def nextSet(self):
+        self.idx_sets = self.ui.cellCombo.currentIndex()
         self.idx_sets = self.idx_sets + 1
         if self.idx_sets == self.num_sets:
             self.idx_sets = 0
