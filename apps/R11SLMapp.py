@@ -16,9 +16,9 @@ class InSLMApp(BaseMicroscopeApp):
         from hardware.ni_do_hardware import NI_DO_hw
 
         self.add_hardware(SLMHW(self))
-        self.add_hardware(TL_CS2100M_HW(self))
-        self.add_hardware(NI_CO_hw(self))
-        self.add_hardware(NI_DO_hw(self))
+        # self.add_hardware(TL_CS2100M_HW(self))
+        # self.add_hardware(NI_CO_hw(self))
+        # self.add_hardware(NI_DO_hw(self))
 
         #Add Measurement components
         from measurements.camera_measurement import ThorlabsMeasurement
