@@ -1,11 +1,6 @@
-/.idea/workspace.xml
+.idea
+*.pyc
 *.txt
-/.idea/HexSimInstrument.iml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/inspectionProfiles/Project_Default.xml
-/.idea/.gitignore
 /TestCode/
 /log/
 /data/standardData.tif
