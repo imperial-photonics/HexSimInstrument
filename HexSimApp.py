@@ -39,8 +39,10 @@ class HexSimApp(BaseMicroscopeApp):
         from hardware.LaserHardware import Laser488HW, Laser561HW
         from hardware.ScreenHardware import ScreenHW
         from hardware.NanoScanHardware import NanoScanHW
+        from hadware.SLM_hardware import SLMHW
 
         self.add_hardware(ScreenHW(self))
+        self.add_hardware(SLMHW(self))
         self.add_hardware(HamamatsuHardware(self))
         self.add_hardware(Laser488HW(self))
         self.add_hardware(Laser561HW(self))
