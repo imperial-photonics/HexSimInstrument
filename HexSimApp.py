@@ -35,6 +35,7 @@ class HexSimApp(BaseMicroscopeApp):
     def setup(self):
 
         print("Adding Hardware Components")
+
         from hardware.CameraHardware import HamamatsuHardware
         from hardware.LaserHardware import Laser488HW, Laser561HW
         from hardware.ScreenHardware import ScreenHW
@@ -49,6 +50,8 @@ class HexSimApp(BaseMicroscopeApp):
         self.add_hardware(Laser488HW(self))
         self.add_hardware(Laser561HW(self))
         self.add_hardware(NanoScanHW(self))
+        self.add_hardware(NI_CO_hw(self))
+        self.add_hardware(NI_DO_hw(self))
 
         print("Adding measurement components")
         # from CameraMeasurement import HamamatsuMeasurement

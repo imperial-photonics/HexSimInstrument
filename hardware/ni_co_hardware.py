@@ -81,6 +81,7 @@ class NI_CO_hw(HardwareComponent):
                 self.CO_device.close()
             del self.CO_device
 
+
         for lq in self.settings.as_list():
             lq.hardware_read_func = None
             lq.hardware_set_func = None
