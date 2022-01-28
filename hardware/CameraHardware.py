@@ -90,6 +90,13 @@ class HamamatsuHardware(HardwareComponent):
                                                  choices=["edge", "syncreadout"], initial='edge',
                                                  reread_from_hardware_after_write=True)
 
+        self.ouchannel = self.add_logged_quantity('output_channel', dtype=int, si=False, ro=0,choices=[1, 2, 3],
+                                                  initial=1, reread_from_hardware_after_write=True)
+
+        self.troutput = self.add_logged_quantity('trigger_output', dtype=str, si=False, ro=0,
+                                                 choices=["low", "exposure", "programmable", "triggerready", "high"],
+                                                 initial='low', reread_from_hardware_after_write=True)
+
     #         self.preset_sizes = self.add_logged_quantity('preset_sizes', dtype=str, si=False, ro = 0,
     #                                                      choices = ["2048x2048",
     #                                                                 "2048x1024",
@@ -129,9 +136,10 @@ class HamamatsuHardware(HardwareComponent):
                                          number_frames=self.number_frames.val, exposure=self.exposure_time.val,
                                          trsource=self.trsource.val, trmode=self.trmode.val,
                                          trpolarity=self.trpolarity.val,
-                                         tractive=self.tractive.val,
-                                         subarrayh_pos=self.subarrayh_pos.val, subarrayv_pos=self.subarrayv_pos.val,
-                                         binning=self.binning.val,
+                                         tractive=self.tractive.val, troutput=self.troutput.val,
+                                         # ouchannel=self.ouchannel.val,
+                                         subarrayh_pos=self.subarrayh_pos.val,
+                                         subarrayv_pos=self.subarrayv_pos.val, binning=self.binning.val,
                                          hardware=self)  # maybe with more cameras we have to change
 
         self.readOnlyWhenOpt()
@@ -143,6 +151,8 @@ class HamamatsuHardware(HardwareComponent):
         self.trmode.hardware_read_func = self.hamamatsu.getTriggerMode
         self.trpolarity.hardware_read_func = self.hamamatsu.getTriggerPolarity
         self.tractive.hardware_read_func = self.hamamatsu.getTriggerActive
+        self.troutput.hardware_read_func = self.hamamatsu.getTriggerOutput
+        # self.ouchannel.hardware_read_func = self.hamamatsu.getOutputChannel
         self.subarrayh.hardware_read_func = self.hamamatsu.getSubarrayH
         self.subarrayv.hardware_read_func = self.hamamatsu.getSubarrayV
         self.subarrayh_pos.hardware_read_func = self.hamamatsu.getSubarrayHpos
@@ -161,6 +171,8 @@ class HamamatsuHardware(HardwareComponent):
         self.trmode.hardware_set_func = self.hamamatsu.setTriggerMode
         self.trpolarity.hardware_set_func = self.hamamatsu.setTriggerPolarity
         self.tractive.hardware_set_func = self.hamamatsu.setTriggerActive
+        self.troutput.hardware_set_func = self.hamamatsu.setTriggerOutput
+        # self.ouchannel.hardware_set_func = self.hamamatsu.setOutputChannel
         self.binning.hardware_set_func = self.hamamatsu.setBinning
 
         self.optimal_offset.hardware_set_func = self.readOnlyWhenOpt
@@ -213,6 +225,8 @@ class HamamatsuHardware(HardwareComponent):
         self.hamamatsu.trmode = self.trmode.val
         self.hamamatsu.trpolarity = self.trpolarity.val
         self.hamamatsu.tractive = self.tractive.val
+        self.hamamatsu.troutput = self.troutput.val
+        self.hamamatsu.ouchannel = self.ouchannel.val
         self.hamamatsu.subarrayh_pos = self.subarrayh_pos.val
         self.hamamatsu.subarrayv_pos = self.subarrayv_pos.val
         self.hamamatsu.binning = self.binning.val

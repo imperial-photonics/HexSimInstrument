@@ -1787,7 +1787,7 @@ class DCAM:
     def __init__(self):
         self._state = None
         self._devices = weakref.WeakValueDictionary()
-        self._lib = ctypes.windll.dcamapi
+        self._lib = ctypes.windll.dcamap
         # force reference to uninit and close so that when close() is invoked
         # by __del__ it doesn't try to inject new members into a dying object
         self.dcam_uninit = self._lib.dcam_uninit

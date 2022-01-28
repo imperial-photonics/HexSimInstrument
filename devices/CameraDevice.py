@@ -19,6 +19,7 @@ import time
 # import Hamamatsu_ScopeFoundry.CameraHardware
 from hardware.CameraHardware import *
 from numpy import log2
+
 # Hamamatsu constants.
 
 # DCAM4 API.
@@ -43,7 +44,6 @@ err_dict = {ctypes.c_int32(0x80000808).value : "DCAMERR_INVALIDPARAM",
             ctypes.c_int32(0x80000106).value : "DCAMERR_TIMEOUT",
             ctypes.c_int32(0x80000301).value : "DCAMERR_LOSTFRAME",
             ctypes.c_int32(0x80000f06).value : "DCAMERR_MISSINGFRAME_TROUBLE",
-            ctypes.c_int32(0x80000828).value : "DCAMERR_NOPROPERTY",
             ctypes.c_int32(0x80000822).value : "DCAMERR_OUTOFRANGE",
             ctypes.c_int32(0x80000827).value : "DCAMERR_WRONGHANDSHAKE",
             ctypes.c_int32(0x83001002).value : "DCAMERR_FAILREADCAMERA",
@@ -93,6 +93,16 @@ DCAMPROP_TRIGGERACTIVE__EDGE = 1
 DCAMPROP_TRIGGERACTIVE__LEVEL = 2
 DCAMPROP_TRIGGERACTIVE__SYNCREADOUT = 3
 
+# DCAMPROP_NUMBEROF_OUTPUTTRIGGERCONNECTOR__ONE_CHANNEL = 1
+# DCAMPROP_NUMBEROF_OUTPUTTRIGGERCONNECTOR__TWO_CHANNELS = 2
+# DCAMPROP_NUMBEROF_OUTPUTTRIGGERCONNECTOR__THREE_CHANNELS = 3
+
+DCAMPROP_OUTPUTTRIGGER_KIND__LOW = 1
+DCAMPROP_OUTPUTTRIGGER_KIND__EXPOSURE = 2
+DCAMPROP_OUTPUTTRIGGER_KIND__PROGRAMMABLE = 3
+DCAMPROP_OUTPUTTRIGGER_KIND__TRIGGERREADY = 4
+DCAMPROP_OUTPUTTRIGGER_KIND__HIGH = 5
+
 DCAMCAP_STATUS_ERROR = int("0x00000000", 0)
 DCAMCAP_STATUS_BUSY = int("0x00000001", 0)
 DCAMCAP_STATUS_READY = int("0x00000002", 0)
@@ -116,6 +126,8 @@ DCAMCAP_START_SEQUENCE = -1
 DCAMCAP_START_SNAP = 0
 
 DCAMBUF_ATTACHKIND_FRAME = 0
+
+
 
 # Hamamatsu structures.
 
@@ -332,13 +344,14 @@ class HamamatsuDevice(object):
     Storage for the data from the camera is allocated dynamically and
     copied out of the camera buffers.
     """
-    def __init__(self, frame_x, frame_y, acquisition_mode, number_frames, exposure, trsource, trmode, trpolarity, tractive,
-                 subarrayh_pos, subarrayv_pos, binning, hardware, camera_id = None, **kwds):
+    def __init__(self, frame_x, frame_y, acquisition_mode, number_frames, exposure, trsource, trmode, trpolarity,
+                 tractive, troutput, subarrayh_pos, subarrayv_pos, binning, hardware, camera_id = None, **kwds):
         """
         Open the connection to the camera specified by camera_id.
         """
         super().__init__(**kwds)
         dcam = ctypes.windll.dcamapi
+        # dcam = ctypes.windll.LoadLibrary('C:/Windows/System32/DCAMAPI/Modules/Digital/dcamapi.dll')
         paraminit = DCAMAPI_INIT(0, 0, 0, 0, None, None) 
         paraminit.size = ctypes.sizeof(paraminit)
         error_code = dcam.dcamapi_init(ctypes.byref(paraminit))
@@ -366,7 +379,12 @@ class HamamatsuDevice(object):
         self.trig_dict_mode = {"normal":DCAMPROP_TRIGGER_MODE__NORMAL, "start":DCAMPROP_TRIGGER_MODE__START}
         self.trig_dict_polarity = {"negative":DCAMPROP_TRIGGERPOLARITY__NEGATIVE, "positive":DCAMPROP_TRIGGERPOLARITY__POSITIVE}
         self.trig_dict_active = {"edge":DCAMPROP_TRIGGERACTIVE__EDGE, "syncreadout":DCAMPROP_TRIGGERACTIVE__SYNCREADOUT}
-
+        # self.trig_dict_output_channel = {
+        #                                  3: DCAMPROP_NUMBEROF_OUTPUTTRIGGERCONNECTOR__THREE_CHANNELS}
+        self.trig_dict_outputtriggerkind = {"low":DCAMPROP_OUTPUTTRIGGER_KIND__LOW, "exposure":DCAMPROP_OUTPUTTRIGGER_KIND__EXPOSURE,
+                                 "programmable":DCAMPROP_OUTPUTTRIGGER_KIND__PROGRAMMABLE,
+                                 "triggerready":DCAMPROP_OUTPUTTRIGGER_KIND__TRIGGERREADY,
+                                 "high":DCAMPROP_OUTPUTTRIGGER_KIND__HIGH}
         self.acquisition_mode = acquisition_mode
         self.number_frames = number_frames
 
@@ -406,6 +424,8 @@ class HamamatsuDevice(object):
             self.setTriggerMode(trmode)
             self.setTriggerPolarity(trpolarity)
             self.setTriggerActive(tractive)
+            self.setTriggerOutput(troutput)
+            # self.setOutputChannel(ouchannel)
             self.setSubarrayHpos(subarrayh_pos)
             self.setSubarrayVpos(subarrayv_pos)
             self.setBinning(binning)
@@ -497,6 +517,7 @@ class HamamatsuDevice(object):
                                                        c_buf,
                                                        ctypes.c_int32(c_buf_len)),
                              "dcamprop_getname")
+        print(properties)
         return properties
 
     
@@ -886,7 +907,17 @@ class HamamatsuDevice(object):
     def getBinning(self):
         
         return self.getPropertyValue("binning")[0]
-    
+
+    # def setOutputChannel(self, ouchannel):
+    #
+    #     if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+    #         self.setPropertyValue("trigger_mode", ouchannel)
+
+    # def getOutputChannel(self):
+    #
+    #     # return self.getPropertyValue("number_of_output_trigger_connector")[0]
+
+
     def setNumberImages(self, num_images):
 #       self.stopAcquisition()
         if num_images < 1:
@@ -929,11 +960,16 @@ class HamamatsuDevice(object):
         
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("trigger_polarity", self.trig_dict_polarity[trpolarity])
-            
+
     def setTriggerActive(self, tractive):
          
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("trigger_active", self.trig_dict_active[tractive])
+
+    def setTriggerOutput(self, troutput):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_kind[0]", self.trig_dict_outputtriggerkind[troutput])
             
     def getTriggerSource(self):
         
@@ -958,7 +994,14 @@ class HamamatsuDevice(object):
         inv_dict = {v: k for k, v in self.trig_dict_active.items()}
 
         return inv_dict[self.getPropertyValue("trigger_active")[0]]
-    
+
+    def getTriggerOutput(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggerkind.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_kind[0]")[0]]
+        print(inv_dict[self.getPropertyValue("output_trigger_kind[0]")[0]])
+
     def isCapturing(self):
         
         captureStatus = ctypes.c_int32(0)
@@ -1691,9 +1734,9 @@ if __name__ == "__main__":
     from qtpy.QtWidgets import QApplication            
     
     hamamatsu = HamamatsuDevice(camera_id=0, frame_x=2048, frame_y=2048, acquisition_mode="fixed_length", 
-                                           number_frames=1, exposure=0.01, 
+                                           number_frames=1, exposure=0.01,
                                            trsource="internal", trmode="normal", trpolarity="positive", tractive="edge",
-                                           subarrayh_pos=0, subarrayv_pos = 0,
+                                troutput="low", subarrayh_pos=0, subarrayv_pos=0,
                                            binning = 1, hardware = None)
     #print("found: {} cameras".format(n_cameras))
     print("camera 0 model:", hamamatsu.getModelInfo())
