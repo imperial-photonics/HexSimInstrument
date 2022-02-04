@@ -103,6 +103,9 @@ DCAMPROP_OUTPUTTRIGGER_KIND__PROGRAMMABLE = 3
 DCAMPROP_OUTPUTTRIGGER_KIND__TRIGGERREADY = 4
 DCAMPROP_OUTPUTTRIGGER_KIND__HIGH = 5
 
+DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE = 1
+DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE = 2
+
 DCAMCAP_STATUS_ERROR = int("0x00000000", 0)
 DCAMCAP_STATUS_BUSY = int("0x00000001", 0)
 DCAMCAP_STATUS_READY = int("0x00000002", 0)
@@ -355,7 +358,8 @@ class HamamatsuDevice(object):
     """
 
     def __init__(self, frame_x, frame_y, acquisition_mode, number_frames, exposure, trsource, trmode, trpolarity,
-                 tractive, ouchannel1, ouchannel2, ouchannel3, subarrayh_pos, subarrayv_pos, binning, hardware, camera_id=None, **kwds):
+                 tractive, ouchannel1, ouchannel2, ouchannel3, subarrayh_pos, subarrayv_pos, binning, hardware,
+                 camera_id=None, **kwds):
         """
         Open the connection to the camera specified by camera_id.
         """
@@ -397,6 +401,9 @@ class HamamatsuDevice(object):
                                             "programmable": DCAMPROP_OUTPUTTRIGGER_KIND__PROGRAMMABLE,
                                             "triggerready": DCAMPROP_OUTPUTTRIGGER_KIND__TRIGGERREADY,
                                             "high": DCAMPROP_OUTPUTTRIGGER_KIND__HIGH}
+        self.trig_dict_outputtriggerpolarity = {"negative": DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE,
+                                                "positive": DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE}
+
         self.acquisition_mode = acquisition_mode
         self.number_frames = number_frames
 
@@ -441,6 +448,9 @@ class HamamatsuDevice(object):
             self.setTriggerPolarity(trpolarity)
             self.setTriggerActive(tractive)
             # self.setOutputChannel1(troutput)
+            self.setOutputTrigger1(ouchannel1)
+            self.setOutputTrigger2(ouchannel2)
+            self.setOutputTrigger3(ouchannel3)
             self.setSubarrayHpos(subarrayh_pos)
             self.setSubarrayVpos(subarrayv_pos)
             self.setBinning(binning)
@@ -980,20 +990,42 @@ class HamamatsuDevice(object):
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("trigger_active", self.trig_dict_active[tractive])
 
-    def setOutputChannel1(self, ouchannel1):
+    def setOutputTrigger1Polarity(self, outrpolarity1):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_polarity[0]", self.trig_dict_outputtriggerpolarity[outrpolarity1])
+
+    def setOutputTrigger2Polarity(self, outrpolarity2):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_polarity[1]", self.trig_dict_outputtriggerpolarity[outrpolarity2])
+
+    def setOutputTrigger3Polarity(self, outrpolarity3):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_polarity[2]", self.trig_dict_outputtriggerpolarity[outrpolarity3])
+
+    #ALL output trigger polarities are set as positive for convenience
+    def setOutputTrigger1(self, ouchannel1):
 
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("output_trigger_kind[0]", self.trig_dict_outputtriggerkind[ouchannel1])
 
-    def setOutputChannel2(self, ouchannel2):
+        self.setOutputTrigger1Polarity("positive")
+
+    def setOutputTrigger2(self, ouchannel2):
 
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("output_trigger_kind[1]", self.trig_dict_outputtriggerkind[ouchannel2])
 
-    def setOutputChannel3(self, ouchannel3):
+        self.setOutputTrigger2Polarity("positive")
+
+    def setOutputTrigger3(self, ouchannel3):
 
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("output_trigger_kind[2]", self.trig_dict_outputtriggerkind[ouchannel3])
+
+        self.setOutputTrigger3Polarity("positive")
 
     def getTriggerSource(self):
 
@@ -1019,23 +1051,41 @@ class HamamatsuDevice(object):
 
         return inv_dict[self.getPropertyValue("trigger_active")[0]]
 
-    def getOutputChannel1(self):
+    def getOutputTrigger1(self):
 
         inv_dict = {v: k for k, v in self.trig_dict_outputtriggerkind.items()}
 
         return inv_dict[self.getPropertyValue("output_trigger_kind[0]")[0]]
 
-    def getOutputChannel2(self):
+    def getOutputTrigger2(self):
 
         inv_dict = {v: k for k, v in self.trig_dict_outputtriggerkind.items()}
 
         return inv_dict[self.getPropertyValue("output_trigger_kind[1]")[0]]
 
-    def getOutputChannel3(self):
+    def getOutputTrigger3(self):
 
         inv_dict = {v: k for k, v in self.trig_dict_outputtriggerkind.items()}
 
         return inv_dict[self.getPropertyValue("output_trigger_kind[2]")[0]]
+
+    def getOutputTrigger1Polarity(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggerpolarity.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_polarity[0]")[0]]
+
+    def getOutputTrigger2Polarity(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggerpolarity.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_polarity[1]")[0]]
+
+    def getOutputTrigger3Polarity(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggerpolarity.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_polarity[2]")[0]]
 
     def isCapturing(self):
 
@@ -1755,7 +1805,8 @@ if __name__ == "__main__":
     hamamatsu = HamamatsuDevice(camera_id=0, frame_x=2048, frame_y=2048, acquisition_mode="fixed_length",
                                 number_frames=1, exposure=0.01,
                                 trsource="internal", trmode="normal", trpolarity="positive", tractive="edge",
-                                ouchannel1="exposure", ouchannel2="programmable", ouchannel3="programmable",subarrayh_pos=0, subarrayv_pos=0,
+                                ouchannel1="low", ouchannel2="low", ouchannel3="low",
+                                subarrayh_pos=0, subarrayv_pos=0,
                                 binning=1, hardware=None)
     # print("found: {} cameras".format(n_cameras))
     print("camera 0 model:", hamamatsu.getModelInfo())
