@@ -106,6 +106,12 @@ DCAMPROP_OUTPUTTRIGGER_KIND__HIGH = 5
 DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE = 1
 DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE = 2
 
+DCAMPROP_OUTPUTTRIGGER_SOURCE__EXPOSURE = 2
+DCAMPROP_OUTPUTTRIGGER_SOURCE__READOUTEND = 3
+DCAMPROP_OUTPUTTRIGGER_SOURCE__VSYNC = 4
+DCAMPROP_OUTPUTTRIGGER_SOURCE__HSYNC = 5
+DCAMPROP_OUTPUTTRIGGER_SOURCE__TRIGGER = 6
+
 DCAMCAP_STATUS_ERROR = int("0x00000000", 0)
 DCAMCAP_STATUS_BUSY = int("0x00000001", 0)
 DCAMCAP_STATUS_READY = int("0x00000002", 0)
@@ -358,8 +364,8 @@ class HamamatsuDevice(object):
     """
 
     def __init__(self, frame_x, frame_y, acquisition_mode, number_frames, exposure, trsource, trmode, trpolarity,
-                 tractive, ouchannel1, ouchannel2, ouchannel3, subarrayh_pos, subarrayv_pos, binning, hardware,
-                 camera_id=None, **kwds):
+                 tractive, ouchannel1, ouchannel2, ouchannel3, outrsource1, outrsource2, outrsource3,subarrayh_pos,
+                 subarrayv_pos, binning, hardware, camera_id=None, **kwds):
         """
         Open the connection to the camera specified by camera_id.
         """
@@ -394,7 +400,7 @@ class HamamatsuDevice(object):
         self.trig_dict_mode = {"normal": DCAMPROP_TRIGGER_MODE__NORMAL, "start": DCAMPROP_TRIGGER_MODE__START}
         self.trig_dict_polarity = {"negative": DCAMPROP_TRIGGERPOLARITY__NEGATIVE,
                                    "positive": DCAMPROP_TRIGGERPOLARITY__POSITIVE}
-        self.trig_dict_active = {"edge": DCAMPROP_TRIGGERACTIVE__EDGE,
+        self.trig_dict_active = {"edge": DCAMPROP_TRIGGERACTIVE__EDGE, "level": DCAMPROP_TRIGGERACTIVE__LEVEL,
                                  "syncreadout": DCAMPROP_TRIGGERACTIVE__SYNCREADOUT}
         self.trig_dict_outputtriggerkind = {"low": DCAMPROP_OUTPUTTRIGGER_KIND__LOW,
                                             "exposure": DCAMPROP_OUTPUTTRIGGER_KIND__EXPOSURE,
@@ -403,6 +409,12 @@ class HamamatsuDevice(object):
                                             "high": DCAMPROP_OUTPUTTRIGGER_KIND__HIGH}
         self.trig_dict_outputtriggerpolarity = {"negative": DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE,
                                                 "positive": DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE}
+
+        self.trig_dict_outputtriggersource = {"exposure": DCAMPROP_OUTPUTTRIGGER_SOURCE__EXPOSURE,
+                                              "readout_end": DCAMPROP_OUTPUTTRIGGER_SOURCE__READOUTEND,
+                                              "readout_start": DCAMPROP_OUTPUTTRIGGER_SOURCE__VSYNC,
+                                              "input_trigger_signal": DCAMPROP_OUTPUTTRIGGER_SOURCE__TRIGGER
+                                              }
 
         self.acquisition_mode = acquisition_mode
         self.number_frames = number_frames
@@ -430,7 +442,11 @@ class HamamatsuDevice(object):
 
         for key in self.properties:
             print(
-                f'name: {key}, id: {self.properties[key]}, value: {self.getPropertyValue(key)}, attr NumberOfElement: {self.getPropertyAttribute(key).iProp_NumberOfElement}, attr PropStep_element: {self.getPropertyAttribute(key).iPropStep_Element}')
+                f'name: {key}, id: {self.properties[key]}, value: {self.getPropertyValue(key)}, '
+                f'attr NumberOfElement: {self.getPropertyAttribute(key).iProp_NumberOfElement}, '
+                f'attr PropStep_element: {self.getPropertyAttribute(key).iPropStep_Element}'
+                f', Property value range: {self.getPropertyRange(key)}'
+            )
 
         # Get camera max width, height.
         self.max_width = self.getPropertyValue("image_width")[0]
@@ -1005,7 +1021,22 @@ class HamamatsuDevice(object):
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
             self.setPropertyValue("output_trigger_polarity[2]", self.trig_dict_outputtriggerpolarity[outrpolarity3])
 
-    #ALL output trigger polarities are set as positive for convenience
+    def setOutputTrigger1Source(self, outrsource1):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_source[0]", self.trig_dict_outputtriggersource[outrsource1])
+
+    def setOutputTrigger2Source(self, outrsource2):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_source[1]", self.trig_dict_outputtriggersource[outrsource2])
+
+    def setOutputTrigger3Source(self, outrsource3):
+
+        if self.isCapturing() != DCAMCAP_STATUS_BUSY:
+            self.setPropertyValue("output_trigger_source[2]", self.trig_dict_outputtriggersource[outrsource3])
+
+    # ALL output trigger polarities are set as positive for convenience
     def setOutputTrigger1(self, ouchannel1):
 
         if self.isCapturing() != DCAMCAP_STATUS_BUSY:
@@ -1050,6 +1081,24 @@ class HamamatsuDevice(object):
         inv_dict = {v: k for k, v in self.trig_dict_active.items()}
 
         return inv_dict[self.getPropertyValue("trigger_active")[0]]
+
+    def getOutputTrigger1Source(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggersource.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_source[0]")[0]]
+
+    def getOutputTrigger2Source(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggersource.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_source[1]")[0]]
+
+    def getOutputTrigger3Source(self):
+
+        inv_dict = {v: k for k, v in self.trig_dict_outputtriggersource.items()}
+
+        return inv_dict[self.getPropertyValue("output_trigger_source[2]")[0]]
 
     def getOutputTrigger1(self):
 
