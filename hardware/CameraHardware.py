@@ -75,7 +75,7 @@ class HamamatsuHardware(HardwareComponent):
                                                 choices=[1, 2, 4], initial=1, reread_from_hardware_after_write=True)
 
         self.trsource = self.add_logged_quantity('trigger_source', dtype=str, si=False, ro=0,
-                                                 choices=["internal", "external"], initial='internal',
+                                                 choices=["internal", "external"], initial='external',
                                                  reread_from_hardware_after_write=True)
 
         self.trmode = self.add_logged_quantity('trigger_mode', dtype=str, si=False, ro=0,
@@ -92,7 +92,7 @@ class HamamatsuHardware(HardwareComponent):
 
         self.ouchannel1 = self.add_logged_quantity('output_channel1', dtype=str, si=False, ro=0,
                                                    choices=["low", "exposure", "programmable", "triggerready", "high"],
-                                                   initial='programmable', reread_from_hardware_after_write=True)
+                                                   initial='exposure', reread_from_hardware_after_write=True)
 
         self.ouchannel2 = self.add_logged_quantity('output_channel2', dtype=str, si=False, ro=0,
                                                    choices=["low", "exposure", "programmable", "triggerready", "high"],
@@ -102,16 +102,14 @@ class HamamatsuHardware(HardwareComponent):
                                                    choices=["low", "exposure", "programmable", "triggerready", "high"],
                                                    initial='programmable', reread_from_hardware_after_write=True)
         self.outrsource1 = self.add_logged_quantity('output_trigger_source1', dtype=str, si=False, ro=0,
-                                                    choices=["exposure", "readout_start", "readout_end",
-                                                             "input_trigger_signal"],
-                                                    initial='exposure', reread_from_hardware_after_write=True)
+                                                    choices=["readout_start", "readout_end", "input_trigger_signal"],
+                                                    initial='input_trigger_signal',
+                                                    reread_from_hardware_after_write=True)
         self.outrsource2 = self.add_logged_quantity('output_trigger_source2', dtype=str, si=False, ro=0,
-                                                    choices=["exposure", "readout_start", "readout_end",
-                                                             "input_trigger_signal"],
+                                                    choices=["readout_start", "readout_end", "input_trigger_signal"],
                                                     initial='readout_start', reread_from_hardware_after_write=True)
         self.outrsource3 = self.add_logged_quantity('output_trigger_source3', dtype=str, si=False, ro=0,
-                                                    choices=["exposure", "readout_start", "readout_end",
-                                                             "input_trigger_signal"],
+                                                    choices=["readout_start", "readout_end", "input_trigger_signal"],
                                                     initial='readout_end', reread_from_hardware_after_write=True)
 
     #         self.preset_sizes = self.add_logged_quantity('preset_sizes', dtype=str, si=False, ro = 0,

@@ -26,7 +26,7 @@ from numpy import log2
 DCAMERR_ERROR = 0
 DCAMERR_NOERROR = 1
 # DCAMERR_INVALIDPARAM = int("0x80000808", 0)
-# DCAMERR_INVALIDPARAM = ctypes.c_int32(0x80000808).value #done this way because ctypes convert properly the hexadecimal (I think it's a problem of two complement convention)
+DCAMERR_INVALIDPARAM = ctypes.c_int32(0x80000808).value #done this way because ctypes convert properly the hexadecimal (I think it's a problem of two complement convention)
 DCAMERR_BUSY = ctypes.c_int32(0x80000101).value
 
 err_dict = {ctypes.c_int32(0x80000808).value: "DCAMERR_INVALIDPARAM",
@@ -106,10 +106,8 @@ DCAMPROP_OUTPUTTRIGGER_KIND__HIGH = 5
 DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE = 1
 DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE = 2
 
-DCAMPROP_OUTPUTTRIGGER_SOURCE__EXPOSURE = 2
-DCAMPROP_OUTPUTTRIGGER_SOURCE__READOUTEND = 3
-DCAMPROP_OUTPUTTRIGGER_SOURCE__VSYNC = 4
-DCAMPROP_OUTPUTTRIGGER_SOURCE__HSYNC = 5
+DCAMPROP_OUTPUTTRIGGER_SOURCE__READOUTEND = 2
+DCAMPROP_OUTPUTTRIGGER_SOURCE__VSYNC = 3
 DCAMPROP_OUTPUTTRIGGER_SOURCE__TRIGGER = 6
 
 DCAMCAP_STATUS_ERROR = int("0x00000000", 0)
@@ -410,8 +408,7 @@ class HamamatsuDevice(object):
         self.trig_dict_outputtriggerpolarity = {"negative": DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE,
                                                 "positive": DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE}
 
-        self.trig_dict_outputtriggersource = {"exposure": DCAMPROP_OUTPUTTRIGGER_SOURCE__EXPOSURE,
-                                              "readout_end": DCAMPROP_OUTPUTTRIGGER_SOURCE__READOUTEND,
+        self.trig_dict_outputtriggersource = {"readout_end": DCAMPROP_OUTPUTTRIGGER_SOURCE__READOUTEND,
                                               "readout_start": DCAMPROP_OUTPUTTRIGGER_SOURCE__VSYNC,
                                               "input_trigger_signal": DCAMPROP_OUTPUTTRIGGER_SOURCE__TRIGGER
                                               }
@@ -919,9 +916,9 @@ class HamamatsuDevice(object):
                                                                 ctypes.byref(p_value),
                                                                 ctypes.c_int32(DCAM_DEFAULT_ARG)),
                                  "dcamprop_setgetvalue", dcamproperty=property_name)
-        # if param == DCAMERR_INVALIDPARAM:
-        #    actual_val = self.getPropertyValue(property_name)[0]
-        #    raise DCAMException(" The parameter is not valid, the set value is: {}".format(actual_val))
+        if param == DCAMERR_INVALIDPARAM:
+           actual_val = self.getPropertyValue(property_name)[0]
+           raise DCAMException(" The parameter is not valid, the set value is: {}".format(actual_val))
 
         return p_value.value
 
@@ -1844,33 +1841,33 @@ class HamamatsuDeviceMR(HamamatsuDevice):
         self.max_backlog = 0
 
 
-if __name__ == "__main__":
-
-    import sys
-    import pyqtgraph as pg
-    import qtpy
-    from qtpy.QtWidgets import QApplication
-
-    hamamatsu = HamamatsuDevice(camera_id=0, frame_x=2048, frame_y=2048, acquisition_mode="fixed_length",
-                                number_frames=1, exposure=0.01,
-                                trsource="internal", trmode="normal", trpolarity="positive", tractive="edge",
-                                ouchannel1="low", ouchannel2="low", ouchannel3="low",
-                                subarrayh_pos=0, subarrayv_pos=0,
-                                binning=1, hardware=None)
-    # print("found: {} cameras".format(n_cameras))
-    print("camera 0 model:", hamamatsu.getModelInfo())
-    print(type(hamamatsu.getModelInfo()))
-    print("=====================")
-    print(hamamatsu.getPropertiesValues())
-
-    hamamatsu.startAcquisition()
-    [frame, dims] = hamamatsu.getLastFrame()
-    np_data = frame.getData()
-    pg.image(np.reshape(np_data, (2048, 2048)).T)
-    hamamatsu.stopAcquisition()
-    hamamatsu.shutdown()
-    if sys.flags.interactive != 1 or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
-        QApplication.exec_()
+# if __name__ == "__main__":
+#
+#     import sys
+#     import pyqtgraph as pg
+#     import qtpy
+#     from qtpy.QtWidgets import QApplication
+#
+#     hamamatsu = HamamatsuDevice(camera_id=0, frame_x=2048, frame_y=2048, acquisition_mode="fixed_length",
+#                                 number_frames=1, exposure=0.01,
+#                                 trsource="internal", trmode="normal", trpolarity="positive", tractive="edge",
+#                                 ouchannel1="low", ouchannel2="low", ouchannel3="low",
+#                                 subarrayh_pos=0, subarrayv_pos=0,
+#                                 binning=1, hardware=None)
+#     # print("found: {} cameras".format(n_cameras))
+#     print("camera 0 model:", hamamatsu.getModelInfo())
+#     print(type(hamamatsu.getModelInfo()))
+#     print("=====================")
+#     print(hamamatsu.getPropertiesValues())
+#
+#     hamamatsu.startAcquisition()
+#     [frame, dims] = hamamatsu.getLastFrame()
+#     np_data = frame.getData()
+#     pg.image(np.reshape(np_data, (2048, 2048)).T)
+#     hamamatsu.stopAcquisition()
+#     hamamatsu.shutdown()
+#     if sys.flags.interactive != 1 or not hasattr(qtpy.QtCore, 'PYQT_VERSION'):
+#         QApplication.exec_()
 #
 # The MIT License
 #
