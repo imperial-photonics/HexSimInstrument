@@ -177,9 +177,9 @@ class HamamatsuHardware(HardwareComponent):
         # self.outrpolarity1.hardware_read_func = self.hamamatsu.getOutputTrigger1Polarity
         # self.outrpolarity2.hardware_read_func = self.hamamatsu.getOutputTrigger2Polarity
         # self.outrpolarity3.hardware_read_func = self.hamamatsu.getOutputTrigger3Polarity
-        self.outrsource1.hardware__read_func = self.hamamatsu.getOutputTrigger1Source
-        self.outrsource2.hardware__read_func = self.hamamatsu.getOutputTrigger2Source
-        self.outrsource3.hardware__read_func = self.hamamatsu.getOutputTrigger3Source
+        self.outrsource1.hardware_read_func = self.hamamatsu.getOutputTrigger1Source
+        self.outrsource2.hardware_read_func = self.hamamatsu.getOutputTrigger2Source
+        self.outrsource3.hardware_read_func = self.hamamatsu.getOutputTrigger3Source
 
         self.subarrayh.hardware_read_func = self.hamamatsu.getSubarrayH
         self.subarrayv.hardware_read_func = self.hamamatsu.getSubarrayV
