@@ -16,7 +16,6 @@ import ctypes
 import ctypes.util
 import numpy as np
 import time
-# import Hamamatsu_ScopeFoundry.CameraHardware
 from hardware.CameraHardware import *
 from numpy import log2
 
