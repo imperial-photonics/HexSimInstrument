@@ -1,6 +1,6 @@
 """
 Python code to control the QXGA SLM
-@copywrite, Ruizhe Lin and Peter Kner, University of Georgia, 2019
+Inspired by Ruizhe Lin and Peter Kner, University of Georgia, 2019
 """
 import ctypes as ct
 import numpy as np
