@@ -3,18 +3,19 @@ Python code to control the Mad City Labs controller (MCL, Nano-Drive® C, 00-55-
 """
 
 import ctypes as ct
+import numpy as np
 import time
 
 
 class MCLPiezo(object):
     def __init__(self):
-        self.piezo = ct.windll.LoadLibrary('C:/Program Files/Mad City Labs/NanoDrive/Madlib.dll')
-        # release existing handles
-        self.piezo.MCL_ReleaseAllHandles()
+        self.mcl = ct.windll.LoadLibrary('C:/Program Files/Mad City Labs/NanoDrive/Madlib.dll')
+        # # release existing handles
+        # self.mcl.MCL_ReleaseAllHandles()
         # create a new handle
-        self.handle = self.piezo.MCL_InitHandle()
+        self.handle = self.mcl.MCL_InitHandle()
         # print the device information
-        self.piezo.MCL_PrintDeviceInfo(self.handle)
+        self.mcl.MCL_PrintDeviceInfo(self.handle)
         # pyadd = []
         # add = (ct.c_int * len(pyadd))(*pyadd)
         # self.piezo.MCL_GetProductInfo.argtypes = [ct.c_char, ct.c_short, ct.c_short, ct.c_short, ct.c_short, ct.c_short]
@@ -29,8 +30,8 @@ class MCLPiezo(object):
             print("Failure to connect the instrument. Make sure the piezo stage is turned on.")
 
     def singleReadZ(self):
-        self.piezo.MCL_SingleReadZ.restype = ct.c_double
-        re = self.piezo.MCL_SingleReadZ(self.handle)
+        self.mcl.MCL_SingleReadZ.restype = ct.c_double
+        re = self.mcl.MCL_SingleReadZ(self.handle)
         # re: return value
         print('Current position: ' + str(re))
 
@@ -42,39 +43,60 @@ class MCLPiezo(object):
             self.ceaseOperation()
             print('The command voltage is too high! Operation ceased.')
         else:
-            self.piezo.MCL_MonitorZ.restype = ct.c_double
-            re = self.piezo.MCL_MonitorZ(ct.c_double(position), self.handle)
+            self.mcl.MCL_MonitorZ.restype = ct.c_double
+            re = self.mcl.MCL_MonitorZ(ct.c_double(position), self.handle)
             print('Position is moved from ' + str(re))
 
     def WfSetup(self):
         """
         This function sets up and trigger a waveform on z axis.
         """
-        pyarray = [x for x in range(0, 18)]
-        for x in pyarray:
-            if x > 20:
-                self.ceaseOperation()
-        print('errrorrrrrrrrrrrrr')
+        # pyarray = [0, 200, 0, 100, 0]
+        pyarray = np.linspace(0, 150, 151)
         array = (ct.c_double * len(pyarray))(* pyarray)
-        # x = axis[0]
-        # y = axis[0]
-        # z = axis[1]
-        # *x, = axis
-        # *y, = axis
-        # *z, = axis
 
         start = time.time()
         print("hello")
-        self.piezo.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(4), ct.pointer(array), self.handle)
+
+        # re = self.mcl.MCL_Setup_LoadWaveFormN(3, len(pyarray),  ct.c_double(4), ct.pointer(array), self.handle)
+        # self.mcl.MCL_Setup_ReadWaveFormN(3, len(pyarray), ct.c_double(4), self.handle)
+        # self.mcl.MCL_TriggerWaveformAcquisition(3, len(pyarray), ct.pointer(array),  self.handle)
+        # self.mcl.MCL_Trigger_LoadWaveFormN(3, self.handle)
+
+
+        r1 = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
+        # time.sleep(10)
+
+        print(r1)
+        print(type(array))
+        # print(r2)
         end = time.time()
+        # print(re)
         print(end - start)
-        # self.piezo.MCL_ReadWaveFormN(3, 9000, ct.c_double(4), self.handle)
+
+    def WfRead(self):
+        # points = 151
+        # array = (ct.c_double * len(pyarray))(*pyarray)
+        # waveform_type = points * ct.c_double
+        # waveform = waveform_type()
+        pyarray = np.arange(0, 151, 1)
+        # pyarray = []
+        array = (ct.c_double * len(pyarray))(*pyarray)
+        re = self.mcl.MCL_ReadWaveFormN(3, 151, ct.c_double(2), array, self.handle)
+        print(re)
+        return array
+        # print(type(waveform))
+        # ct.cast(waveform, ct.c_void_p).value
+        # print(str(waveform[0]))
+        # self.mcl.MCL_LineClock(self.handle)
+
+
 
         # if self.handle:
         #     if points < 1000:
         #         wave_form_data_type = ct.c_double * points
         #         wave_form_data = wave_form_data_type()
-        #         self.piezo.MCL_ReadWaveFormN(ct.c_ulong(3), ct.c_ulong(points), ct.c_double(4.0), wave_form_data, self.handle)
+        #         self.mcl.MCL_ReadWaveFormN(ct.c_ulong(3), ct.c_ulong(points), ct.c_double(4.0), wave_form_data, self.handle)
         #         return wave_form_data
         #
         #     else:
@@ -88,12 +110,23 @@ class MCLPiezo(object):
         # else:
         #     print('fail!' + str(re))
 
+    def bindClock(self):
+        r1 = self.mcl.MCL_IssSetClock(2, 1, self.handle)
+        r2 = self.mcl.MCL_IssBindClockToAxis(2, 3, 3, self.handle)
+        print(r1)
+        print(r2)
+
     def ceaseOperation(self):
         """
         This function moves the stage to 0 and release all handles.
         """
-        self.piezo.MCL_MonitorZ(ct.c_double(0), self.handle)
-        self.piezo.MCL_ReleaseAllHandles()
+        self.mcl.MCL_MonitorZ(ct.c_double(0), self.handle)
+        self.mcl.MCL_ReleaseAllHandles()
+
+    def shutDown(self):
+        mcl.monitorZ(0)
+        self.mcl.MCL_ReleaseHandle(self.handle)
+
 
 
 
@@ -103,18 +136,22 @@ if __name__ == "__main__":
 
     mcl = MCLPiezo()
     mcl.singleReadZ()
-    mcl.monitorZ(0.000)
-    time.sleep(1)
+    mcl.monitorZ(0)
+    time.sleep(2)
     mcl.singleReadZ()
+    # mcl.bindClock()
     mcl.WfSetup()
-    # points = 500
-    # data = [mcl.WfSetup(points)]
-    # fp = open("stage_data.txt", "w")
-    # for i in range(points):
-    #     for datum in data:
-    #         fp.write(str(datum[i]) + ",")
-    #     fp.write("\n")
-
-    time.sleep(1)
+    time.sleep(2)
     mcl.singleReadZ()
-    mcl.piezo.MCL_ReleaseAllHandles()
+    mcl.monitorZ(0)
+    # mcl.WfRead()
+    # time.sleep(3)
+    data = []
+    data.append(mcl.WfRead())
+    fp = open("stage_data.txt", "w")
+    for i in range(151):
+        for datum in data:
+            fp.write(str(datum[i]) + ",")
+        fp.write("\n")
+    mcl.shutDown()
+
