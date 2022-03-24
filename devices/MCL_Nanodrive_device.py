@@ -79,7 +79,7 @@ class MCLPiezo(object):
         # array = (ct.c_double * len(pyarray))(*pyarray)
         # waveform_type = points * ct.c_double
         # waveform = waveform_type()
-        pyarray = np.arange(0, 201, 1)
+        pyarray = np.zeros(200)
         # pyarray = []
         array = (ct.c_double * len(pyarray))(*pyarray)
         re = self.mcl.MCL_ReadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     data = []
     data.append(mcl.WfRead())
     fp = open("stage_data.txt", "w")
-    for i in range(201):
+    for i in range(200):
         for datum in data:
             fp.write(str(datum[i]) + ",")
         fp.write("\n")
