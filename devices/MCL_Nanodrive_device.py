@@ -57,14 +57,15 @@ class MCLPiezo(object):
         start = time.time()
         print("hello")
 
-        # re = self.mcl.MCL_Setup_LoadWaveFormN(3, len(pyarray),  ct.c_double(4), ct.pointer(array), self.handle)
-        # self.mcl.MCL_Setup_ReadWaveFormN(3, len(pyarray), ct.c_double(4), self.handle)
-        # self.mcl.MCL_TriggerWaveformAcquisition(3, len(pyarray), ct.pointer(array),  self.handle)
+        # self.mcl.MCL_Setup_LoadWaveFormN(3, len(pyarray),  ct.c_double(2), array, self.handle)
+        # self.mcl.MCL_Setup_ReadWaveFormN(3, len(pyarray), ct.c_double(2), self.handle)
+        # re = self.mcl.MCL_TriggerWaveformAcquisition(3, len(pyarray), array,  self.handle)
+
         # self.mcl.MCL_Trigger_LoadWaveFormN(3, self.handle)
 
 
         re = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
-        # time.sleep(10)
+
         if re == 0:
             print('Waveform loaded.')
         else:
@@ -73,6 +74,7 @@ class MCLPiezo(object):
         end = time.time()
         # print(re)
         print(end - start)
+        # return array
 
     def WfRead(self):
         # points = 151
@@ -125,9 +127,9 @@ class MCLPiezo(object):
 
     def shutDown(self):
         mcl.monitorZ(0)
-        self.mcl.MCL_ReleaseHandle(self.handle)
-
-
+        time.sleep(3)
+        if self.handle:
+            self.mcl.MCL_ReleaseHandle(self.handle)
 
 
 
@@ -141,16 +143,16 @@ if __name__ == "__main__":
     mcl.singleReadZ()
     # mcl.bindClock()
     mcl.WfLoad()
-    time.sleep(1)
-    mcl.singleReadZ()
-    mcl.monitorZ(0)
+
+    # mcl.monitorZ(0)
     # mcl.WfRead()
-    data = []
-    data.append(mcl.WfRead())
+    data = [mcl.WfRead()]
     fp = open("stage_data.txt", "w")
     for i in range(200):
         for datum in data:
             fp.write(str(datum[i]) + ",")
         fp.write("\n")
+    time.sleep(1)
+    mcl.singleReadZ()
     mcl.shutDown()
 
