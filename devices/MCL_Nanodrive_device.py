@@ -47,12 +47,11 @@ class MCLPiezo(object):
             re = self.mcl.MCL_MonitorZ(ct.c_double(position), self.handle)
             print('Position is moved from ' + str(re))
 
-    def WfSetup(self):
+    def WfLoad(self):
         """
-        This function sets up and trigger a waveform on z axis.
+        This function sets up and trigger a waveform load on z axis.
         """
-        # pyarray = [0, 200, 0, 100, 0]
-        pyarray = np.linspace(0, 150, 151)
+        pyarray = np.linspace(0, 200, 201)
         array = (ct.c_double * len(pyarray))(* pyarray)
 
         start = time.time()
@@ -64,11 +63,12 @@ class MCLPiezo(object):
         # self.mcl.MCL_Trigger_LoadWaveFormN(3, self.handle)
 
 
-        r1 = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
+        re = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
         # time.sleep(10)
-
-        print(r1)
-        print(type(array))
+        if re == 0:
+            print('Waveform loaded.')
+        else:
+            print(re)
         # print(r2)
         end = time.time()
         # print(re)
@@ -79,10 +79,10 @@ class MCLPiezo(object):
         # array = (ct.c_double * len(pyarray))(*pyarray)
         # waveform_type = points * ct.c_double
         # waveform = waveform_type()
-        pyarray = np.arange(0, 151, 1)
+        pyarray = np.arange(0, 201, 1)
         # pyarray = []
         array = (ct.c_double * len(pyarray))(*pyarray)
-        re = self.mcl.MCL_ReadWaveFormN(3, 151, ct.c_double(2), array, self.handle)
+        re = self.mcl.MCL_ReadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
         print(re)
         return array
         # print(type(waveform))
@@ -140,16 +140,15 @@ if __name__ == "__main__":
     time.sleep(2)
     mcl.singleReadZ()
     # mcl.bindClock()
-    mcl.WfSetup()
-    time.sleep(2)
+    mcl.WfLoad()
+    time.sleep(1)
     mcl.singleReadZ()
     mcl.monitorZ(0)
     # mcl.WfRead()
-    # time.sleep(3)
     data = []
     data.append(mcl.WfRead())
     fp = open("stage_data.txt", "w")
-    for i in range(151):
+    for i in range(201):
         for datum in data:
             fp.write(str(datum[i]) + ",")
         fp.write("\n")
