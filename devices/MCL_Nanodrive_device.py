@@ -67,7 +67,7 @@ class MCLPiezo(object):
         re = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
 
         if re == 0:
-            print('Waveform loaded.')
+            print('Waveform loading started.')
         else:
             print(re)
         # print(r2)
