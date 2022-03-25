@@ -49,7 +49,7 @@ class MCLPiezo(object):
         """
         This function sets up and trigger a waveform load on z axis.
         """
-        pyarray = np.linspace(0, 150, 251)
+        pyarray = np.linspace(0, 150, 151)
         array = (ct.c_double * len(pyarray))(* pyarray)
 
 
@@ -74,13 +74,13 @@ class MCLPiezo(object):
         return array
 
     def WfRead(self):
-        points = 200
+        points = 100
         waveform_type = points * ct.c_double
         waveform = waveform_type()
-        pyarray = np.zeros(200)
+        # pyarray = np.zeros(200)
         # pyarray = []
-        array = (ct.c_double * len(pyarray))(*pyarray)
-        re = self.mcl.MCL_ReadWaveFormN(3, len(pyarray), ct.c_double(2), waveform, self.handle)
+        # array = (ct.c_double * len(pyarray))(*pyarray)
+        re = self.mcl.MCL_ReadWaveFormN(3, points, ct.c_double(2), waveform, self.handle)
         if re == 0:
             print('Waveform reading started.')
         else:
@@ -110,7 +110,6 @@ class MCLPiezo(object):
         time.sleep(3)
         self.mcl.MCL_ReleaseHandle(self.handle)
         num = self.mcl.MCL_NumberOfCurrentHandles()
-        print(num)
         if num != 0:
             print('The handle still exist!')
 
@@ -133,7 +132,7 @@ if __name__ == "__main__":
     # time.sleep(2)
     data = [mcl.WfLoad()]
     fp = open("stage_data.txt", "w")
-    for i in range(250):
+    for i in range(150):
         for datum in data:
             fp.write(str(datum[i]) + ",")
         fp.write("\n")
