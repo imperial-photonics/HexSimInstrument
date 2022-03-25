@@ -10,21 +10,19 @@ import time
 class MCLPiezo(object):
     def __init__(self):
         self.mcl = ct.windll.LoadLibrary('C:/Program Files/Mad City Labs/NanoDrive/Madlib.dll')
-        # # release existing handles
-        # self.mcl.MCL_ReleaseAllHandles()
-        # create a new handle
-        self.handle = self.mcl.MCL_InitHandle()
+        num_check = self.mcl.MCL_NumberOfCurrentHandles()
+        if num_check == 0:
+            # create a new handle or get the existing one if the handle is not released properly.
+            self.handle = self.mcl.MCL_InitHandleOrGetExisting()
+        else:
+            print('The current handle number is not zero!\n Handle number: ' + str(num_check))
+
         # print the device information
         self.mcl.MCL_PrintDeviceInfo(self.handle)
-        # pyadd = []
-        # add = (ct.c_int * len(pyadd))(*pyadd)
-        # self.piezo.MCL_GetProductInfo.argtypes = [ct.c_char, ct.c_short, ct.c_short, ct.c_short, ct.c_short, ct.c_short]
-        # re1 = self.piezo.MCL_GetProductInfo(ct.c_char_p(), ct.c_short(), ct.c_short(), ct.c_short(), ct.c_short(), ct.c_short(), self.handle)
-        # print(re1)
-        # print(add.value)
+
 
         # connect to the instrument
-        if self.handle != 0:
+        if self.handle:
             print("Connected to the device with handle: " + str(self.handle))
         else:
             print("Failure to connect the instrument. Make sure the piezo stage is turned on.")
@@ -51,20 +49,20 @@ class MCLPiezo(object):
         """
         This function sets up and trigger a waveform load on z axis.
         """
-        pyarray = np.linspace(0, 200, 201)
+        pyarray = np.linspace(0, 150, 251)
         array = (ct.c_double * len(pyarray))(* pyarray)
+
 
         start = time.time()
         print("hello")
 
-        # self.mcl.MCL_Setup_LoadWaveFormN(3, len(pyarray),  ct.c_double(2), array, self.handle)
-        # self.mcl.MCL_Setup_ReadWaveFormN(3, len(pyarray), ct.c_double(2), self.handle)
-        # re = self.mcl.MCL_TriggerWaveformAcquisition(3, len(pyarray), array,  self.handle)
+        self.mcl.MCL_Setup_LoadWaveFormN(3, len(pyarray),  ct.c_double(2), array, self.handle)
+        self.mcl.MCL_Setup_ReadWaveFormN(3, len(pyarray), ct.c_double(2), self.handle)
+        re = self.mcl.MCL_TriggerWaveformAcquisition(3, len(pyarray), array,  self.handle)
 
         # self.mcl.MCL_Trigger_LoadWaveFormN(3, self.handle)
 
-
-        re = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
+        # re = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
 
         if re == 0:
             print('Waveform loading started.')
@@ -72,45 +70,27 @@ class MCLPiezo(object):
             print(re)
         # print(r2)
         end = time.time()
-        # print(re)
         print(end - start)
-        # return array
+        return array
 
     def WfRead(self):
-        # points = 151
-        # array = (ct.c_double * len(pyarray))(*pyarray)
-        # waveform_type = points * ct.c_double
-        # waveform = waveform_type()
+        points = 200
+        waveform_type = points * ct.c_double
+        waveform = waveform_type()
         pyarray = np.zeros(200)
         # pyarray = []
         array = (ct.c_double * len(pyarray))(*pyarray)
-        re = self.mcl.MCL_ReadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
-        print(re)
-        return array
+        re = self.mcl.MCL_ReadWaveFormN(3, len(pyarray), ct.c_double(2), waveform, self.handle)
+        if re == 0:
+            print('Waveform reading started.')
+        else:
+            print(re)
+        return waveform
         # print(type(waveform))
         # ct.cast(waveform, ct.c_void_p).value
         # print(str(waveform[0]))
         # self.mcl.MCL_LineClock(self.handle)
 
-
-
-        # if self.handle:
-        #     if points < 1000:
-        #         wave_form_data_type = ct.c_double * points
-        #         wave_form_data = wave_form_data_type()
-        #         self.mcl.MCL_ReadWaveFormN(ct.c_ulong(3), ct.c_ulong(points), ct.c_double(4.0), wave_form_data, self.handle)
-        #         return wave_form_data
-        #
-        #     else:
-        #         print
-        #         "MCL stage can only acquire a maximum of 999 points"
-
-
-        # re = self.piezo.MCL_TriggerWaveformAcquisition(3, 1000, ct.pointer(array), self.handle)
-        # if re == 0:
-        #     print("Waveform is prepared")
-        # else:
-        #     print('fail!' + str(re))
 
     def bindClock(self):
         r1 = self.mcl.MCL_IssSetClock(2, 1, self.handle)
@@ -128,8 +108,12 @@ class MCLPiezo(object):
     def shutDown(self):
         mcl.monitorZ(0)
         time.sleep(3)
-        if self.handle:
-            self.mcl.MCL_ReleaseHandle(self.handle)
+        self.mcl.MCL_ReleaseHandle(self.handle)
+        num = self.mcl.MCL_NumberOfCurrentHandles()
+        print(num)
+        if num != 0:
+            print('The handle still exist!')
+
 
 
 
@@ -142,17 +126,18 @@ if __name__ == "__main__":
     time.sleep(2)
     mcl.singleReadZ()
     # mcl.bindClock()
-    mcl.WfLoad()
-
+    # mcl.WfLoad()
     # mcl.monitorZ(0)
     # mcl.WfRead()
-    data = [mcl.WfRead()]
+    # data = [mcl.WfRead()]
+    # time.sleep(2)
+    data = [mcl.WfLoad()]
     fp = open("stage_data.txt", "w")
-    for i in range(200):
+    for i in range(250):
         for datum in data:
             fp.write(str(datum[i]) + ",")
         fp.write("\n")
-    time.sleep(1)
+    # time.sleep(1)
     mcl.singleReadZ()
     mcl.shutDown()
 
