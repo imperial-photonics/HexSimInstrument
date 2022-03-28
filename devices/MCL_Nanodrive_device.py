@@ -49,7 +49,11 @@ class MCLPiezo(object):
         """
         This function sets up and trigger a waveform load on z axis.
         """
-        pyarray = np.linspace(0, 150, 151)
+        r1 = self.mcl.MCL_PixelClock(self.handle)
+        r2 = self.mcl.MCL_IssBindClockToAxis(1, 3, 3, self.handle)
+        print(r1)
+        print(r2)
+        pyarray = np.linspace(0, 200, 201)
         array = (ct.c_double * len(pyarray))(* pyarray)
 
 
@@ -132,7 +136,7 @@ if __name__ == "__main__":
     # time.sleep(2)
     data = [mcl.WfLoad()]
     fp = open("stage_data.txt", "w")
-    for i in range(150):
+    for i in range(200):
         for datum in data:
             fp.write(str(datum[i]) + ",")
         fp.write("\n")
