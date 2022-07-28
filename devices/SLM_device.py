@@ -24,7 +24,7 @@ class SLMDev(object):
         self.RS485_DEV_TIMEOUT = ct.c_uint16(1000)
         # RS485_BAUDRATE = ct.c_uint32(256000)
         # RS232_BAUDRATE = ct.c_uint32(115200)
-        self.r11 = ct.windll.LoadLibrary('C:/Program Files/MetroCon-4.1/RepTools/R11CommLib-1.8-x64.dll')
+        self.r11 = ct.windll.LoadLibrary('C:/Program Files/MetroCon-4.1/R11CommLib-1.8-x64.dll')
     def initiate(self):
         ver = ct.create_string_buffer(8)
         maxlen = ct.c_uint8(10)

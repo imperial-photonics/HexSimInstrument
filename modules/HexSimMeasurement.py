@@ -51,7 +51,7 @@ class HexSimMeasurement(Measurement):
         # Connect to hardware components
         self.camera = self.app.hardware['HamamatsuHardware']
         self.screen = self.app.hardware['ScreenHardware']
-        self.stage = self.app.hardware['NanoScanHardware']
+        self.stage = self.app.hardware['NanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
         # Measurement component settings
@@ -179,8 +179,8 @@ class HexSimMeasurement(Measurement):
         self.ui.previousPatternButton.clicked.connect(self.previousPattern)
         self.ui.nextPatternButton.clicked.connect(self.nextPattern)
         # stage
-        self.ui.stagePositionIncrease.clicked.connect(self.stage.moveUpHW)
-        self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
+        # self.ui.stagePositionIncrease.clicked.connect(self.stage.singleReadZ)
+        # self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
