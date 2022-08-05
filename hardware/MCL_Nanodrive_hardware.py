@@ -1,3 +1,5 @@
+__author__ = "Meizhu Liang @Imperial College London"
+
 from ScopeFoundry import HardwareComponent
 from devices.MCL_Nanodrive_device import MCLPiezo
 
@@ -13,7 +15,7 @@ class NanoDriveHW(HardwareComponent):
         self.nanoscanz = MCLPiezo()
         self.settings.absolute_position.connect_to_hardware(
             read_func=self.nanoscanz.singleReadZ,
-            write_func=self.nanoscanz.monitorZ
+            write_func=self.setPositionHW
         )
         self.read_from_hardware()
 
@@ -23,12 +25,9 @@ class NanoDriveHW(HardwareComponent):
             del self.nanoscanz
             self.settings.disconnect_all_from_hardware()
 
-    def moveZeroPositionHW(self):
-        pass
-
-    def setPositionHW(self,value):
+    def setPositionHW(self, value):
         if hasattr(self, 'nanoscanz'):
-            self.nanoscanz.monitorZ(value)
+            self.nanoscanz.singleWriteZ(value)
             self.updateHardware()
 
     def updateHardware(self):
@@ -36,6 +35,6 @@ class NanoDriveHW(HardwareComponent):
             # self.settings.relative_position.read_from_hardware()
             self.settings.absolute_position.read_from_hardware()
             # print('REL position: ',self.settings.relative_position.val)
-            print('ABS position: ',self.settings.absolute_position.val,'um')
+            print('ABS position: ', self.settings.absolute_position.val, 'μm')
 
 

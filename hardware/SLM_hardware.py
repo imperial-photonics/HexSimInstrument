@@ -58,7 +58,7 @@ class SLMHW(HardwareComponent):
     def getRO(self):
         self.slm.getRO()
 
-    def changeRO(self,setROindex):
+    def changeRO(self, setROindex):
         self.slm.setRO(setROindex)
         self.settings["activation_mode"] = 'Activate'
 

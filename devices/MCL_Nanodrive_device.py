@@ -1,14 +1,31 @@
 """
 Python code to control the Mad City Labs controller (MCL, Nano-Drive® C, 00-55-550-0800) of the piezo stage.
 """
+__author__ = "Meizhu Liang @Imperial College London"
 
 import ctypes as ct
 import numpy as np
 import time
 import matplotlib.pyplot as plt
 
+err_dict = {
+    0: 'Task has been completed successfully.',
+    -1: 'These errors generally occur due to an internal sanity check failing.',
+    -2: 'A problem occurred when transferring data to the Nano-Drive.  It is likely that the Nano-Drive will have to be 	 power cycled to correct these errors.',
+    -3: 'The Nano-Drive cannot complete the task because it is not attached.',
+    -4: 'Using a function from the library which the Nano-Drive does not support causes these errors.',
+    -5: 'The Nano-Drive is currently completing or waiting to complete another task.',
+    -6: 'An argument is out of range or a required pointer is equal to NULL.',
+    -7: 'Attempting an operation on an axis that does not exist in the Nano-Drive.', -8:
+        'The handle is not valid.  Or at least is not valid in this instance of the DLL.'
+}
+
 
 class MCLPiezo(object):
+    """
+    Device driver of the MCL piezo z-stage.
+    """
+
     def __init__(self):
         self.mcl = ct.windll.LoadLibrary('C:/Program Files/Mad City Labs/NanoDrive/Madlib.dll')
         num_check = self.mcl.MCL_NumberOfCurrentHandles()
@@ -17,7 +34,7 @@ class MCLPiezo(object):
             self.handle = self.mcl.MCL_InitHandleOrGetExisting()
         else:
             print('The current handle number is not zero!\n Handle number: ' + str(num_check))
-        self.mcl.MCL_PrintDeviceInfo(self.handle)  #print the device information
+        self.mcl.MCL_PrintDeviceInfo(self.handle)  # print the device information
         # connect to the instrument
         if self.handle:
             print("Connected to the device with handle: " + str(self.handle))
@@ -25,28 +42,35 @@ class MCLPiezo(object):
             raise Exception("Failure to connect the instrument. Make sure the piezo stage is turned on.")
 
     def singleReadZ(self):
+        """
+        Returns the current z-position.
+        """
         self.mcl.MCL_SingleReadZ.restype = ct.c_double
-        return self.mcl.MCL_SingleReadZ(self.handle)
-            # 'Current position: ' + str(re) + 'μm'
+        re = self.mcl.MCL_SingleReadZ(self.handle)
+        self.checkError(re)
+        return re
 
-    def monitorZ(self, position):
+    def singleWriteZ(self, position):
+        """
+        Moves the stage to the absolute position in μm.
+        """
         if (position < 0) | (position > 300):
             raise ValueError('The command position should be from 0 to 300 inclusive.')
         else:
-            self.mcl.MCL_MonitorZ.restype = ct.c_double
-            re1 = self.mcl.MCL_MonitorZ(ct.c_double(position), self.handle)
-            print(f'Position is moved from {re1} to {self.singleReadZ()}μm')
+            re = self.mcl.MCL_SingleWriteZ(ct.c_double(position), self.handle)
+            time.sleep(0.1)
+            self.checkError(re)
 
     def WfAcquisition(self, sign):
         """
-        This function sets up load and read waveform functions and then triggers them simultaneously.
+        Sets up load and read waveform functions and then triggers them simultaneously.
         """
 
         self.t = np.linspace(0, 9999, 10000)
         self.pyarray = 140 + sign * 140 * np.cos(self.t * 2 * np.pi / 600)
-        array = (ct.c_double * len(self.pyarray))(* self.pyarray)
+        array = (ct.c_double * len(self.pyarray))(*self.pyarray)
         pyarray_out = np.zeros_like(self.pyarray)
-        self.array_out = (ct.c_double * len(self.pyarray))(* pyarray_out)
+        self.array_out = (ct.c_double * len(self.pyarray))(*pyarray_out)
 
         start = time.time()
 
@@ -54,7 +78,7 @@ class MCLPiezo(object):
         time.sleep(0.01)
         re2 = self.mcl.MCL_Setup_ReadWaveFormN(3, len(self.pyarray), ct.c_double(0.1), self.handle)
         time.sleep(0.01)
-        re3 = self.mcl.MCL_TriggerWaveformAcquisition(3, len(self.pyarray), self.array_out,  self.handle)
+        re3 = self.mcl.MCL_TriggerWaveformAcquisition(3, len(self.pyarray), self.array_out, self.handle)
 
         # plt.figure()
         # plt.plot(self.t, np.array(self.array_out))
@@ -87,19 +111,9 @@ class MCLPiezo(object):
             print(re)
         return waveform
 
-    def bindClock(self):
-        r1 = self.mcl.MCL_FrameClock(self.handle)
-        # r1 = self.mcl.MCL_IssSetClock(2, 1, self.handle)
-        r2 = self.mcl.MCL_IssBindClockToAxis(3, 2, 6, self.handle)
-        print(r1)
-        print(r2)
-
-    def clock(self):
-        print(self.mcl.MCL_IssSetClock(2, 1, self.handle))
-
     def characterisation(self, sign):
         """
-        This function characterises the stage by running the waveform acquisition function and plotting figures.
+        Characterises the stage by running the waveform acquisition function and plotting figures.
         """
         self.WfAcquisition(sign)
         plt.figure()
@@ -112,24 +126,38 @@ class MCLPiezo(object):
         plt.show()
 
     def shutDown(self):
-        self.monitorZ(0)
-        # time.sleep(1)
-        self.singleReadZ()
+        """
+        Moves to zero position and releases the handle.
+        """
+        self.singleWriteZ(0)
         self.mcl.MCL_ReleaseHandle(self.handle)
         num = self.mcl.MCL_NumberOfCurrentHandles()
         if num != 0:
             raise Exception('Fail to release the handle')
 
+    @staticmethod
+    def checkError(code):
+        for n, e in err_dict.items():
+            if (code == n) & (code != 0):
+                raise Exception(f'Error code: {n, e}')
+
+
 if __name__ == "__main__":
     import ctypes as ct
+    import time
 
     stage = MCLPiezo()
     stage.singleReadZ()
+    print(stage.singleReadZ())
     # print(stage.mcl.MCL_PrintDeviceInfo(stage.handle))
 
-    stage.monitorZ(20)
-    stage.monitorZ(0)
-    time.sleep(1)
+    stage.singleWriteZ(30)
+    # time.sleep(1)
+    print(stage.singleReadZ())
+
+    stage.singleWriteZ(20)
+    # time.sleep(1)
+    print(stage.singleReadZ())
 
     #
 
@@ -155,6 +183,3 @@ if __name__ == "__main__":
     #     time.sleep(1)
     #     stage.singleReadZ()
     stage.shutDown()
-
-
-
