@@ -11,13 +11,14 @@ import matplotlib.pyplot as plt
 err_dict = {
     0: 'Task has been completed successfully.',
     -1: 'These errors generally occur due to an internal sanity check failing.',
-    -2: 'A problem occurred when transferring data to the Nano-Drive.  It is likely that the Nano-Drive will have to be 	 power cycled to correct these errors.',
+    -2: 'A problem occurred when transferring data to the Nano-Drive. It is likely that the Nano-Drive will have to be '
+        'power cycled to correct these errors.',
     -3: 'The Nano-Drive cannot complete the task because it is not attached.',
     -4: 'Using a function from the library which the Nano-Drive does not support causes these errors.',
     -5: 'The Nano-Drive is currently completing or waiting to complete another task.',
     -6: 'An argument is out of range or a required pointer is equal to NULL.',
-    -7: 'Attempting an operation on an axis that does not exist in the Nano-Drive.', -8:
-        'The handle is not valid.  Or at least is not valid in this instance of the DLL.'
+    -7: 'Attempting an operation on an axis that does not exist in the Nano-Drive.',
+    -8: 'The handle is not valid.  Or at least is not valid in this instance of the DLL.'
 }
 
 
@@ -61,24 +62,54 @@ class MCLPiezo(object):
             time.sleep(0.1)
             self.checkError(re)
 
+    def wfLoad(self, axis, DataPoints, ms, waveform):
+        """
+        Sets up and triggers a waveform load on z axis.
+        axis(int): Which axis to move.  (X=1,Y=2,Z=3,AUX=4)
+        DataPoints(int):	Number of data points to read. 16 bit: Range: 1 – 10000, 20 bit: Range: 1 – 6666
+        milliseconds(int): Rate at which to write data. 16 bit: Range: 5ms – 1/30ms, 20 bit: Range: 5ms – 1/6ms
+        waveform(int): Pointer to an array of commanded positions.
+        handle		[IN]	Specifies which Nano-Drive to communicate with.
+        """
+        re = self.mcl.MCL_LoadWaveFormN(axis, DataPoints, ct.c_double(ms), waveform, self.handle)
+        self.checkError(re)
+
+    def zScan(self, pos, nStep, stepSize):
+        """
+        Scans from the current position to the relative highest position. The waveform is a stairs-shape square wave.
+        pos(μm): the current position
+        nStep: the number of steps along z axis.
+        stepSize(μm): the size of the step.
+        """
+        nPoints = 2  # nPoints * rate(ms) should be slightly longer than the exposure of the camera
+        data = np.zeros(nPoints) + pos
+        for i in range(1, nStep):
+            data = np.append(data, pos + np.ones(nPoints) * i * stepSize)
+        ctData = (ct.c_double * len(data))(*data)
+        self.wfLoad(3, len(data), 5, ctData)
+
     def WfAcquisition(self, sign):
+    # def WfAcquisition(self):
         """
         Sets up load and read waveform functions and then triggers them simultaneously.
         """
-
-        self.t = np.linspace(0, 9999, 10000)
+        self.t = np.linspace(0, 999, 1000)
         self.pyarray = 140 + sign * 140 * np.cos(self.t * 2 * np.pi / 600)
+        # self.pyarray_r = np.linspace(0, 9999, 1591)
         array = (ct.c_double * len(self.pyarray))(*self.pyarray)
         pyarray_out = np.zeros_like(self.pyarray)
         self.array_out = (ct.c_double * len(self.pyarray))(*pyarray_out)
 
         start = time.time()
 
-        re1 = self.mcl.MCL_Setup_LoadWaveFormN(3, len(self.pyarray), ct.c_double(0.1), array, self.handle)
+        re1 = self.mcl.MCL_Setup_LoadWaveFormN(3, len(self.pyarray), ct.c_double(5), array, self.handle)
+        re4 = self.mcl.MCL_Trigger_LoadWaveFormN(3, self.handle)
         time.sleep(0.01)
-        re2 = self.mcl.MCL_Setup_ReadWaveFormN(3, len(self.pyarray), ct.c_double(0.1), self.handle)
+        re2 = self.mcl.MCL_Setup_ReadWaveFormN(3, len(self.pyarray), ct.c_double(5), self.handle)
         time.sleep(0.01)
         re3 = self.mcl.MCL_TriggerWaveformAcquisition(3, len(self.pyarray), self.array_out, self.handle)
+
+
 
         # plt.figure()
         # plt.plot(self.t, np.array(self.array_out))
@@ -90,11 +121,11 @@ class MCLPiezo(object):
 
         # re = self.mcl.MCL_LoadWaveFormN(3, len(pyarray), ct.c_double(2), array, self.handle)
 
-        if re1 + re2 + re3 == 0:
+        if re2 + re3 == 0:
             print('Waveform loading started.')
         else:
-            print(re1, re2, re3)
-        # print(r2)
+            print( re2, re3)
+        # print(re1, re2, re3, re4)
         end = time.time()
         print(end - start)
         return self.array_out
@@ -119,11 +150,23 @@ class MCLPiezo(object):
         plt.figure()
         # Plot loaded and resultant waveforms (input and output voltages)
         plt.plot(self.t, np.array(self.array_out))
-        plt.plot(self.t + 244, self.pyarray)
+        # plt.plot(self.t + 244, self.pyarray)
+        plt.plot(self.t, self.pyarray)
         plt.figure()
         # Plot relationship between the input and output voltages
         plt.plot(self.pyarray, np.array(self.array_out))
         plt.show()
+
+    def binClock(self):
+        """
+        Bound an external clock pulse to the read of a particular axis.
+        """
+        # re1 = self.mcl.MCL_IssSetClock(1, 1, self.handle)
+        re = self.mcl.MCL_IssBindClockToAxis(4, 3, 5, self.handle)
+        # re0 = self.mcl.MCL_PixelClock(self.handle)
+        self.checkError(re)
+        # self.checkError(re0)
+        # self.checkError(re1)
 
     def shutDown(self):
         """
@@ -147,23 +190,27 @@ if __name__ == "__main__":
     import time
 
     stage = MCLPiezo()
-    stage.singleReadZ()
-    print(stage.singleReadZ())
-    # print(stage.mcl.MCL_PrintDeviceInfo(stage.handle))
+    # stage.binClock()
+    # stage.WfAcquisition()
 
-    stage.singleWriteZ(30)
+    # stage.singleWriteZ(30)
     # time.sleep(1)
     print(stage.singleReadZ())
+    stage.zScan(0, 10, 20)
 
-    stage.singleWriteZ(20)
-    # time.sleep(1)
+    # stage.singleWriteZ(20)
+    time.sleep(8)
     print(stage.singleReadZ())
 
     #
-
+    #
+    # for x in range(2):
+    #     stage.WfAcquisition(1 - 2 * x)
+        # stage.characterisation(1 - 2 * x)
     # for x in range(2):
     #     # stage.WfAcquisition(1 - 2 * x)
-    #     stage.characterisation(2 * x - 1)
+    #     stage.characterisation(1 - 2 * x)
+
     # #     stage.monitorZ(140)
     # #     time.sleep(1)
     # #     stage.singleReadZ()

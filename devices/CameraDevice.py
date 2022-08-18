@@ -398,7 +398,7 @@ class HamamatsuDevice(object):
         self.trig_dict_outputtriggerkind = {"low": DCAMPROP_OUTPUTTRIGGER_KIND__LOW,
                                             "exposure": DCAMPROP_OUTPUTTRIGGER_KIND__EXPOSURE,
                                             "programmable": DCAMPROP_OUTPUTTRIGGER_KIND__PROGRAMMABLE,
-                                            "triggerready": DCAMPROP_OUTPUTTRIGGER_KIND__TRIGGERREADY,
+                                            "trigger ready": DCAMPROP_OUTPUTTRIGGER_KIND__TRIGGERREADY,
                                             "high": DCAMPROP_OUTPUTTRIGGER_KIND__HIGH}
         self.trig_dict_outputtriggerpolarity = {"negative": DCAMPROP_OUTPUTTRIGGER_POLARITY__NEGATIVE,
                                                 "positive": DCAMPROP_OUTPUTTRIGGER_POLARITY__POSITIVE}
@@ -976,7 +976,7 @@ class HamamatsuDevice(object):
             self.acquisition_mode = mode
             self.number_frames = number_frames
         else:
-            raise DCAMException("Unrecognized acqusition mode: " + mode)
+            raise DCAMException("Unrecognised acquisition mode: " + mode)
 
     def setTriggerSource(self, trsource):
 

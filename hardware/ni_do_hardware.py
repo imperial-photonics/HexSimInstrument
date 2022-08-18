@@ -54,3 +54,14 @@ class NI_DO_hw(HardwareComponent):
             terminals.append(line.name)
               
         return board, terminals
+
+if __name__ == '__main__':
+
+    import time
+    d = NI_DO_hw(HardwareComponent)
+    d.setup()
+    d.connect()
+    time.sleep(3)
+    d.value.val = 1
+    d.disconnect()
+

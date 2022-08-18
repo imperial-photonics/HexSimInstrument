@@ -13,17 +13,17 @@ class NI_CO_hw(HardwareComponent):
         board, terminals, trig = self.update_channels()
 
         self.devices = self.add_logged_quantity('device', dtype=str, initial=board)
-        self.channel1 = self.add_logged_quantity('cam_exp', dtype=str, choices=terminals, initial=terminals[0])
-        self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.01,
+        self.channel1 = self.add_logged_quantity('Ext_exposure', dtype=str, choices=terminals, initial=terminals[0])
+        self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.1,
                                                    vmin=0.0001,spinbox_decimals=3, unit='s')
         self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.07, vmin=0.0001,
                                                   spinbox_decimals=3, unit='s')
-        self.channel2 = self.add_logged_quantity('Ext_finish', dtype=str, choices=terminals, initial=terminals[0])
-        self.high_time2 = self.add_logged_quantity('exposure_time2(Ext)', dtype=float, initial=0.01, vmin=0.0001,
+        self.channel2 = self.add_logged_quantity('Ext_run', dtype=str, choices=terminals, initial=terminals[1])
+        self.high_time2 = self.add_logged_quantity('high_time', dtype=float, initial=1.2, vmin=0.0001,
                                                    spinbox_decimals=3, unit='s')
-        self.period2 = self.add_logged_quantity('period2(Ext)', dtype=float, initial=0.08,
-                                                  vmin=0.0001, spinbox_decimals=3, unit='s')
-        self.initial_delay_chan1 = self.add_logged_quantity('initial_delay_chan1', dtype=float, initial=0.02, vmin=0,
+        self.period2 = self.add_logged_quantity('period', dtype=float, initial=1.250, vmin=0.0001,
+                                                spinbox_decimals=3, unit='s')
+        self.initial_delay_chan1 = self.add_logged_quantity('initial_delay_chan1', dtype=float, initial=0, vmin=0,
                                                             spinbox_decimals=6, unit='s')
         self.initial_delay_chan2 = self.add_logged_quantity('initial_delay_chan2', dtype=float, initial=0, vmin=0,
                                                             spinbox_decimals=6, unit='s')
