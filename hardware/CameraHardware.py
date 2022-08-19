@@ -48,11 +48,11 @@ class HamamatsuHardware(HardwareComponent):
 
         # For subarray we have imposed float, since otherwise I cannot modify the step (I should modify the logged quantities script, but I prefer left it untouched)
         self.subarrayh = self.add_logged_quantity("subarray_hsize", dtype=float, si=False, ro=0,
-                                                  spinbox_step=4, spinbox_decimals=0, initial=512, vmin=4, vmax=2304,
+                                                  spinbox_step=4, spinbox_decimals=0, initial=2304, vmin=4, vmax=2304,
                                                   reread_from_hardware_after_write=True)
 
         self.subarrayv = self.add_logged_quantity("subarray_vsize", dtype=float, si=False, ro=0,
-                                                  spinbox_step=4, spinbox_decimals=0, initial=512, vmin=4, vmax=2304,
+                                                  spinbox_step=4, spinbox_decimals=0, initial=2304, vmin=4, vmax=2304,
                                                   reread_from_hardware_after_write=True)
 
         self.submode = self.add_logged_quantity("subarray_mode", dtype=str, si=False, ro=1,
@@ -87,7 +87,7 @@ class HamamatsuHardware(HardwareComponent):
                                                    reread_from_hardware_after_write=True)
 
         self.tractive = self.add_logged_quantity('trigger_active', dtype=str, si=False, ro=0,
-                                                 choices=["edge", "level", "syncreadout"], initial='edge',
+                                                 choices=["edge", "level", "syncreadout"], initial='level',
                                                  reread_from_hardware_after_write=True)
 
         self.ouchannel1 = self.add_logged_quantity('output_channel1', dtype=str, si=False, ro=0,
@@ -100,7 +100,7 @@ class HamamatsuHardware(HardwareComponent):
 
         self.ouchannel3 = self.add_logged_quantity('output_channel3', dtype=str, si=False, ro=0,
                                                    choices=["low", "exposure", "programmable", "trigger ready", "high"],
-                                                   initial='programmable', reread_from_hardware_after_write=True)
+                                                   initial="trigger ready", reread_from_hardware_after_write=True)
         self.outrsource1 = self.add_logged_quantity('output_trigger_source1', dtype=str, si=False, ro=0,
                                                     choices=["readout_start", "readout_end", "input_trigger_signal"],
                                                     initial='input_trigger_signal',
