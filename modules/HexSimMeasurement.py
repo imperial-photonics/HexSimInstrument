@@ -278,7 +278,7 @@ class HexSimMeasurement(Measurement):
                         self.saveMeasurements()
 
                 elif self.action == 'batch_capture':
-                    self.batchCapture()
+                    self.batchCapture_test()
                     self.resetHexSIM()
                     if self.ui.autoCalibration.isChecked():
                         self.calibration()
@@ -581,8 +581,6 @@ class HexSimMeasurement(Measurement):
             # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
             # Also how to synchronise the NI_CO signal and the acquisition????
             frames = self.getFrameStack(n_stack)
-            print(len(frames))
-            # self.camera.hamamatsu.stopAcquisition()
             for i in range(int(n_stack/2)):
                 self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
                 self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
@@ -608,6 +606,30 @@ class HexSimMeasurement(Measurement):
             # # self.stage.moveAbsolutePositionHW(25)    # Move the stage back to the middle position
             # self.isUpdateImageViewer = True
 
+        except Exception as e:
+            self.show_text(f'Batch capture encountered an error: {e}')
+
+    def batchCapture_test(self):
+        try:
+            n_stack = 7 * self.ui.nStack.value()      # Initialize the raw image array
+
+
+            # step_size = self.z_stage.stepsize.val
+            # stage_offset = n_stack*step_size
+            # pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+            # self.z_stage.movePositionHW(pos)
+
+            # extend the raw image storage of stacks
+            self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                             np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+
+            # pos_tmp = pos
+            # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
+            # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
+            # Also how to synchronise the NI_CO signal and the acquisition????
+            frames = self.getFrameStack(n_stack)
+            for i in range(n_stack):
+                self.imageRAW[0][i, :, :] = frames[i, :, :]
         except Exception as e:
             self.show_text(f'Batch capture encountered an error: {e}')
 
@@ -786,7 +808,7 @@ class HexSimMeasurement(Measurement):
                 self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), dims)
         else:
             self.image_stack = None
-            print("Camera buffer empty")
+            print("Frame number is incorrect")
 
         return self.image_stack
 
