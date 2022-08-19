@@ -406,12 +406,15 @@ class HexSimMeasurement(Measurement):
 
 # functions for operation
     def standardCapturePressed(self):
-        if not self.screen.slm_dev.isVisible():
-            self.show_text('Open SLM!')
-        else:
-            self.isCameraRun = False
-            self.channelChanged()
-            self.action = 'standard_capture'
+        # if not self.screen.slm_dev.isVisible():
+        #     self.show_text('Open SLM!')
+        # else:
+        #     self.isCameraRun = False
+        #     self.channelChanged()
+        #     self.action = 'standard_capture'
+        self.isCameraRun = False
+        self.channelChanged()
+        self.action = 'standard_capture'
 
     def batchCapturePressed(self):
         # if not self.screen.slm_dev.isVisible():
@@ -456,32 +459,32 @@ class HexSimMeasurement(Measurement):
 
             if self.ui.dualWavelength.isChecked():
                 # switch to 488 nm laser pattern
-                self.screen.slm_dev.setPatterns(0.488)
-                self.screen.openSLM()
+                # self.screen.slm_dev.setPatterns(0.488)
+                # self.screen.openSLM()
                 # project the patterns of 488nm pattern and acquire 7 raw images
                 for i in range(7):
-                    self.screen.slm_dev.displayFrameN(i)
+                    # self.screen.slm_dev.displayFrameN(i)
                     time.sleep(0.05)
                     # time.sleep(self.getAcquisitionInterval() / 1000.0)
                     self.imageRAW[0][i, :, :] = self.getOneFrame()
                     self.show_text(f'[488 nm] Capture frame: {i+1}')
                 # switch to 561 nm laser pattern
-                self.screen.slm_dev.setPatterns(0.561)
+                # self.screen.slm_dev.setPatterns(0.561)
                 self.screen.openSLM()
                 # project the patterns of 488nm pattern and acquire 7 raw images
                 for i in range(7):
-                    self.screen.slm_dev.displayFrameN(i)
+                    # self.screen.slm_dev.displayFrameN(i)
                     time.sleep(0.05)
                     # time.sleep(self.getAcquisitionInterval() / 1000.0)
                     self.imageRAW[1][i, :, :] = self.getOneFrame()
                     self.show_text(f'[561 nm] Capture frame: {i+1}')
                 # restore SLM setting
-                self.controlSLM()
+                # self.controlSLM()
 
             else:
                 # project the patterns and acquire 7 raw images
                 for i in range(7):
-                    self.screen.slm_dev.displayFrameN(i)
+                    # self.screen.slm_dev.displayFrameN(i)
                     time.sleep(0.05)
                     # time.sleep(self.getAcquisitionInterval() / 1000.0)
                     self.imageRAW[self.current_channel_caputure()][i, :, :] = self.getOneFrame()
@@ -570,29 +573,23 @@ class HexSimMeasurement(Measurement):
             pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
             self.z_stage.movePositionHW(pos)
 
-            if self.ui.dualWavelength.isChecked():
-                # extend the raw image storage of stacks
-                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                                 np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-                pos_tmp = pos
-                self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n_stack)
-                # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
-                # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
-                # Also how to synchronise the NI_CO signal and the acquisition????
-                self.camera.hamamatsu.startAcquisition()
-                [frames, dims] = self.camera.hamamatsu.getFrames()
-                print(frames[0])
-                self.camera.hamamatsu.stopAcquisition()
-                if len(frames) > 0:
-                    for i in range(n_stack):
-                        self.imageRAW[0][i, :, :] = np.reshape(frames[2 * i].getData().astype(np.uint16), dims)[np.newaxis, :, :]
-                        self.imageRAW[1][i, :, :] = np.reshape(frames[2 * i + 1].getData().astype(np.uint16), dims)[np.newaxis, :, :]
-                        # move the stage to position
-                        # pos_tmp = pos_tmp + step_size
-                        # self.stage.moveAbsolutePositionHW(pos_tmp)
-                        # self.show_text(f'Capture frame : {i + 1} / {n_stack}')
-                else:
-                    print("Camera buffer empty")
+            # extend the raw image storage of stacks
+            self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                             np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+            pos_tmp = pos
+            # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
+            # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
+            # Also how to synchronise the NI_CO signal and the acquisition????
+            frames = self.getFrameStack(n_stack)
+            print(len(frames))
+            # self.camera.hamamatsu.stopAcquisition()
+            for i in range(int(n_stack/2)):
+                self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
+                self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
+                # move the stage to position
+                # pos_tmp = pos_tmp + step_size
+                # self.stage.moveAbsolutePositionHW(pos_tmp)
+                # self.show_text(f'Capture frame : {i + 1} / {n_stack}')
             # else:
             #     ch = self.current_channel_caputure()
             #     self.imageRAW[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
@@ -612,7 +609,7 @@ class HexSimMeasurement(Measurement):
             # self.isUpdateImageViewer = True
 
         except Exception as e:
-            self.show_text(f'Batch capture encountered an error \n{e}')
+            self.show_text(f'Batch capture encountered an error: {e}')
 
 # functions for processing
     @add_timer
@@ -778,20 +775,20 @@ class HexSimMeasurement(Measurement):
 
         return self.last_image[np.newaxis, :, :]
 
-    # def getFrameStack(self, n_frames):
-    #     self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n_frames)
-    #     self.camera.hamamatsu.startAcquisition()
-    #     [frames, dims] = self.camera.hamamatsu.getFrames()
-    #     self.camera.hamamatsu.stopAcquisition()
-    #     self.image = np.zero
-    #     if len(frames) > 0:
-    #         for i in range(n_frames):
-    #             self.image = np.reshape(frames[i].getData().astype(np.uint16), dims)
-    #     else:
-    #         self.last_image = np.zeros([self.eff_subarrayv, self.eff_subarrayh])
-    #         print("Camera buffer empty")
-    #
-    #     return self.last_image[np.newaxis, :, :]
+    def getFrameStack(self, n_frames):
+        self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n_frames)
+        self.camera.hamamatsu.startAcquisition()
+        [frames, dims] = self.camera.hamamatsu.getFrames()
+        self.camera.hamamatsu.stopAcquisition()
+        self.image_stack = np.zeros((n_frames, dims[0], dims[1]))
+        if len(frames) == n_frames:
+            for i in range(n_frames):
+                self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), dims)
+        else:
+            self.image_stack = None
+            print("Camera buffer empty")
+
+        return self.image_stack
 
     def cameraRun(self):
 

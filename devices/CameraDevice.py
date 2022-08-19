@@ -938,7 +938,7 @@ class HamamatsuDevice(object):
             return "ON"
 
     def setAcquisition(self, acq_mode):
-        #        self.stopAcquisition()
+               # self.stopAcquisition()
         self.acquisition_mode = acq_mode
 
     def setBinning(self, binning):
@@ -1190,7 +1190,9 @@ class HamamatsuDevice(object):
     
         This will block waiting for at least one new frame.
         """
-
+        if self.acquisition_mode == "fixed_length":
+            while self.getTransferInfo()[1] != self.number_image_buffers:
+                time.sleep(0.05)
         cur_buffer_index, cur_frame_number = self.getTransferInfo()
 
         # Check that we have not acquired more frames than we can store in our buffer.
@@ -1470,7 +1472,6 @@ class HamamatsuDevice(object):
         if self.acquisition_mode == "run_till_abort":
             # n_buffers = int(20.0*self.getPropertyValue("internal_frame_rate")[0])
             n_buffers = self.number_frames
-
 
         elif self.acquisition_mode == "fixed_length":
             n_buffers = self.number_frames
