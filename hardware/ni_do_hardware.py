@@ -42,6 +42,7 @@ class NI_DO_hw(HardwareComponent):
     def write_value(self):
         
         self.DO_device.write(self.value.val)
+        print(f'write {self.value.val}')
         
               
     def update_channels(self):

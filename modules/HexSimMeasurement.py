@@ -55,6 +55,7 @@ class HexSimMeasurement(Measurement):
         self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
+        self.ni_do = self.app.hardware['NI_DO_hw']
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
         self.display_update_period = self.settings.refresh_period.val
@@ -146,8 +147,8 @@ class HexSimMeasurement(Measurement):
 
         # image viewers
         self.imvRaw     = StackImageViewer(image_sets=self.imageRAW[0], set_levels=[1, 1])
-        self.imvWF      = StackImageViewer(image_sets=self.imageWF,set_levels=[1,1])
-        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI,set_levels=[1,1])
+        self.imvWF      = StackImageViewer(image_sets=self.imageWF, set_levels=[1,1])
+        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI, set_levels=[1,1])
         self.imvSIM     = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8])
         self.imvSIM_ROI = StackImageViewer(image_sets=self.imageSIM_ROI, set_levels=[0, 0.8])
 
@@ -800,12 +801,20 @@ class HexSimMeasurement(Measurement):
     def getFrameStack(self, n_frames):
         self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n_frames)
         self.camera.hamamatsu.startAcquisition()
+        if self.ni_do.value.val == 1:
+            self.ni_do.value.val = 0
+            self.ni_do.write_value()
+        self.ni_do.value.val = 1
+        self.ni_do.write_value()
         [frames, dims] = self.camera.hamamatsu.getFrames()
         self.camera.hamamatsu.stopAcquisition()
-        self.image_stack = np.zeros((n_frames, dims[0], dims[1]))
+        self.ni_do.value.val = 0
+        self.ni_do.write_value()
+        self.image_stack = np.zeros((n_frames, dims[1], dims[0]))
+        print(dims)
         if len(frames) == n_frames:
             for i in range(n_frames):
-                self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), dims)
+                self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), (dims[1], dims[0]))
         else:
             self.image_stack = None
             print("Frame number is incorrect")

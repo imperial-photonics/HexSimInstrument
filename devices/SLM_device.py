@@ -59,8 +59,7 @@ class SLMDev(object):
             raise Exception(' Fail to open the port ')
 
     def activate(self,):
-        res = self.r11.R11_RpcRoActivate(ct.c_void_p())
-        if res == 0:
+        if self.r11.R11_RpcRoActivate(ct.c_void_p()) == 0:
             print('Activate QXGA successfully')
         else:
             raise Exception('Fail to activate QXGA')
@@ -126,8 +125,8 @@ class SLMDev(object):
 
     def getState(self):
         actState = ct.c_uint8(0)
-        re = self.r11.R11_RpcRoGetActivationState(ct.byref(actState))
-        self.state = actState.value
+        self.r11.R11_RpcRoGetActivationState(ct.byref(actState))
+        return actState.value
 
     def close(self):
         res = self.r11.FDD_DevClose()

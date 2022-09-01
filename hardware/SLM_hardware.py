@@ -1,21 +1,25 @@
 from ScopeFoundry import HardwareComponent
 from devices.SLM_device import SLMDev
 import numpy as np
-from numpy import sin,cos,pi,sqrt,floor
+from numpy import meshgrid, sin, cos, pi, sqrt, floor
+import cv2
 import subprocess, os, tifffile
 
 class SLMHW(HardwareComponent):
     name = 'SLM_hardware'
 
     def setup(self):
-        self.activation_mode = self.settings.New(name='activation_mode', dtype=str,
-                                                  choices=['Activate', 'Deactivate'], initial='Deactivate', ro=False)
+        self.settings.activation_state = self.add_logged_quantity(name='State', dtype=str,
+                                                  # choices=['Activate', 'Deactivate'], initial='Deactivate', ro=False)
+        ro = True)
+        self.activation= self.add_logged_quantity(name='', dtype=str,
+                                                                  choices=['Activate', 'Deactivate'], initial='Deactivate', ro=False)
         self.add_operation(name='Get RO', op_func=self.getRO)
         self.setROindex = self.settings.New(name='Running Order', initial=3, vmax=3, vmin=0, spinbox_step=1,
                                             dtype=int, ro=False)
         # self.getAT = self.settings.New(name='Get Activation Type', dtype=bool,initial=False,ro=False)
         self.add_operation(name='Get Activation Type', op_func=self.getAT)
-        self.add_operation(name='Get Activation State', op_func=self.actState)
+        # self.add_operation(name='Get Activation State', op_func=self.actState)
         self.add_operation(name='Generate rep', op_func=self.repGen)
         self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
         self.add_operation(name='Repsend', op_func=self.sendRep)
@@ -31,10 +35,11 @@ class SLMHW(HardwareComponent):
         self.slm.open_usb_port()
 
         # Connect settings to hardware:
-        self.activation_mode.hardware_set_func = self.activation
+        self.activation.hardware_set_func = self.setActState
         self.sendBitplane.hardware_set_func = self.sendBitmaps
         self.eraseBitplane.hardware_set_func = self.slm.eraseBitplane
         self.setROindex.hardware_set_func = self.changeRO
+        self.settings.activation_state.connect_to_hardware(read_func=self.getActState)
         self.read_from_hardware()
 
     def disconnect(self):
@@ -45,12 +50,14 @@ class SLMHW(HardwareComponent):
 
 
     # define operations
-    def activation(self,activation_mode):
-        actMode = activation_mode
-        if actMode == 'Activate':
-            self.slm.activate()
-        elif actMode == 'Deactivate':
-            self.slm.deactivate()
+    def setActState(self, setState):
+        """Set activation state"""
+        if hasattr(self, 'slm'):
+            if setState == 'Activate':
+                self.slm.activate()
+            elif setState == 'Deactivate':
+                self.slm.deactivate()
+            self.updateHardware()
 
     def getAT(self):
         self.slm.getActivationType()
@@ -63,23 +70,33 @@ class SLMHW(HardwareComponent):
         self.settings["activation_mode"] = 'Activate'
 
     def closeCheck(self):
-        self.slm.getState()
-        if self.slm.state == 0x56:
+
+        if self.slm.getState() == 0x56:
             self.slm.deactivate()
             print('Deactivate successfully before close')
 
-    def actState(self):
-        self.slm.getState()
-        if self.slm.state == 0x52:
-            print('Maintenance – Software deactivated')
-        elif self.slm.state == 0x53:
-            print('Maintenance – Hardware and Software deactivated')
-        elif self.slm.state == 0x56:
-            print('Active')
-        elif self.slm.state == 0x54:
-            print('Maintenance – Hardware deactivated')
-        else:
-            print(self.slm.state)
+    def getActState(self):
+        if hasattr(self, 'slm'):
+            state = self.slm.getState()
+            if state == 0x50:
+                return 'Repertoire loading'
+            elif state == 0x51:
+                return 'Starting'
+            elif state == 0x52:
+                return 'Software deactivated'
+            elif state == 0x53:
+                return 'Hardware and Software deactivated'
+            elif state == 0x54:
+                return 'Hardware deactivated'
+            elif state == 0x55:
+                return 'Activating'
+            elif state == 0x56:
+                return 'Active'
+            elif state == 0x57:
+                return 'No Repertoire available'
+            else:
+                raise Exception('Unrecognised activation state')
+            self.updateHardware()
 
     def sendBitmaps(self,sendBitplane):
         self.slm.deactivate()
@@ -173,7 +190,66 @@ class SLMHW(HardwareComponent):
 
     def repGen(self):
         fns = input('new rep file name:')
-        rep(fns)
+        # rep(fns)
+
+    def genStripes(self):
+        """Generate sinusoidal striped holograms"""
+        h = 1536
+        w = 2048
+        p = 10
+        x = np.arange(2048)
+        y = np.arange(1536)
+        nr = np.arange(8)
+        xv, yv = np.meshgrid(x, y)
+        g = np.zeros((h, w), dtype=np.uint8)
+        k = 1 / p
+        for i in range(7):
+            t = i * pi / 7
+            px = k * (i - 3)
+            py = 2 * k
+            g = g + (cos(px * xv * pi + py * yv * pi) > 0) * (2 ** i)
+            # cv2.imwrite('stripes_%d_%.2f.png'%(i,p),(cos(px * xv * np.pi + py * yv * np.pi) > 0)*1, [cv2.IMWRITE_PNG_BILEVEL, 1])
+            cv2.imwrite('stripes_%d_%.2f.png' % (i, p), (cos(px * xv * np.pi + py * yv * np.pi) > 0) * 1,
+                        [cv2.IMWRITE_PNG_BILEVEL, 1])
+
+    def genHexgans(self):
+        """Generate hexagonal holograms hexagons"""
+        h = 1536
+        w = 2048
+
+        wavelength = 488 * 10 ** -6
+        f = 160
+
+        p = 1 / (1.8 / wavelength / f) / 0.0082
+        r0 = sqrt(sqrt(3) / np.pi) * p / 2
+        img = np.ones([h, w, 7])
+        deg_num = 18
+        orientation = deg_num * pi / 180
+
+        # x, y = meshgrid(np.arange(w), np.arange(h))
+
+        x, y = meshgrid(np.arange(w) * np.sqrt(1 - (1.25 / 6) ** 2), np.arange(h))
+        # 0.94 corresponds to the angle between the laser source and the imaging system
+        # (the imaging system was not perpendicular to the SLM)
+
+        for i in range(7):
+            phase = i * 2 * pi / 7
+            xr = -x * sin(orientation) + y * cos(orientation) - 1.0 * p * phase / (2 * pi)
+            yr = -x * cos(orientation) - y * sin(orientation) + 2.0 / sqrt(3) * p * phase / (2 * pi)
+            yi = np.floor(yr / (p * sqrt(3) / 2) + 0.5)
+            xi = np.floor((xr / p) - (yi % 2.0) / 2.0 + 0.5) + (yi % 2.0) / 2.0
+            y0 = yi * p * sqrt(3) / 2
+            x0 = xi * p
+            r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
+            img[:, :, i] = 255 * (r < r0)
+            print(np.sum(r > r0) / np.sum(r < r0))
+            hol = (r < r0) * 1
+            cv2.imwrite(f'hex_{i}_{p:.2f}_deg{deg_num}.png', hol, [cv2.IMWRITE_PNG_BILEVEL, 1])
+
+
+    def updateHardware(self):
+        if hasattr(self, 'slm'):
+            self.settings.activation_state.read_from_hardware()
 
 
 

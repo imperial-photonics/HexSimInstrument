@@ -63,8 +63,6 @@ class HexSimApp(BaseMicroscopeApp):
         from modules.HexSimAnalysis import HexSimAnalysis
         from modules.HexSimMeasurement import HexSimMeasurement
         # self.add_measurement(HamamatsuMeasurement(self))
-        # self.add_measurement(HexSimAnalysis(self))
-        # self.add_measurement(HexSimMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
 

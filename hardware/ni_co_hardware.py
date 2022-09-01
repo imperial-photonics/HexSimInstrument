@@ -16,7 +16,7 @@ class NI_CO_hw(HardwareComponent):
         self.channel1 = self.add_logged_quantity('Ext_exposure', dtype=str, choices=terminals, initial=terminals[0])
         self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.05,
                                                    vmin=0.0001,spinbox_decimals=3, unit='s')
-        self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.035, vmin=0.0001,
+        self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.045, vmin=0.0001,
                                                   spinbox_decimals=3, unit='s')
         self.channel2 = self.add_logged_quantity('Ext_run', dtype=str, choices=terminals, initial=terminals[1])
         self.high_time2 = self.add_logged_quantity('high_time', dtype=float, initial=1.2, vmin=0.0001,
