@@ -25,8 +25,6 @@ class SLMDev(object):
 
         self.NULL = ct.POINTER(ct.c_int)()
         self.RS485_DEV_TIMEOUT = ct.c_uint16(1000)
-        # RS485_BAUDRATE = ct.c_uint32(256000)
-        # RS232_BAUDRATE = ct.c_uint32(115200)
         self.r11 = ct.windll.LoadLibrary('C:/Program Files/MetroCon-4.1/R11CommLib-1.8-x64.dll')
 
     def initiate(self):
@@ -81,37 +79,34 @@ class SLMDev(object):
             raise Exception('Fail to get the order number')
 
     def getActivationType(self):
+        """Retrieve the activation typr of the currently loaded running order"""
         actType = ct.c_uint8(0)
         res = self.r11.R11_RpcRoGetActivationType(ct.byref(actType))
         if res == 0:
-            num = actType.value
-            if num == 1:
-                print(f'activation type: Immediate')
-            elif num == 2:
-                print(f'activation type: Software')
-            elif num == 4:
-                print(f'activation type: Hardware')
+            return actType.value
         else:
             raise Exception('Failed to get activation type')
 
     def getRO(self):
         roindex = ct.c_uint16(0)
         res_index = self.r11.R11_RpcRoGetSelected(ct.byref(roindex))
-
-        roName = ct.create_string_buffer(b'xxxxxxxx')
-        print(f'Running order index: {roindex.value}\nRO name:{roName.value} {len(roName)} ')
-
-        maxlen = ct.c_uint8(10)
-        res_name = self.r11.R11_RpcRoGetName(ct.byref(roindex), roName, len(roName))
-        # res_name = self.r11. R11_RpcSysGetRepertoireName(roName, len(roName))
-
+        roName = ct.create_string_buffer(255)
+        res_name = self.r11.R11_RpcRoGetName(roindex, roName, len(roName))
         if (res_index == 0) & (res_name == 0):
-            print(f'Running order index: {roindex.value}\nRO name:{roName.value} {len(roName)}')
-        elif (res_index != 0):
+            return roindex.value, roName.value
+        elif res_index != 0:
             raise Exception('Failed to get RO index')
-        elif (res_name != 0):
+        elif res_name != 0:
             raise Exception('Failed to get RO name')
 
+    def getRepName(self):
+        """Retrieve the name of the repertoire loaded on the board."""
+        repName = ct.create_string_buffer(255)
+        re = self.r11.R11_RpcSysGetRepertoireName(repName, len(repName))
+        if re == 0:
+            return repName.value
+        else:
+            raise Exception('Failed to get repertoire name')
 
     def setRO(self, n):
         roindex = ct.c_uint16(n)

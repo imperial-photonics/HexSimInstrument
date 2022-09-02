@@ -9,17 +9,13 @@ class SLMHW(HardwareComponent):
     name = 'SLM_hardware'
 
     def setup(self):
-        self.settings.activation_state = self.add_logged_quantity(name='State', dtype=str,
-                                                  # choices=['Activate', 'Deactivate'], initial='Deactivate', ro=False)
-        ro = True)
-        self.activation= self.add_logged_quantity(name='', dtype=str,
-                                                                  choices=['Activate', 'Deactivate'], initial='Deactivate', ro=False)
-        self.add_operation(name='Get RO', op_func=self.getRO)
-        self.setROindex = self.settings.New(name='Running Order', initial=3, vmax=3, vmin=0, spinbox_step=1,
-                                            dtype=int, ro=False)
-        # self.getAT = self.settings.New(name='Get Activation Type', dtype=bool,initial=False,ro=False)
-        self.add_operation(name='Get Activation Type', op_func=self.getAT)
-        # self.add_operation(name='Get Activation State', op_func=self.actState)
+        self.activation= self.add_logged_quantity(name='', dtype=str, choices=['Activate', 'Deactivate'],
+                                                  initial='Deactivate', ro=False)
+        self.settings.activation_state = self.add_logged_quantity(name='State', dtype=str, ro=True)
+        self.settings.rep_name = self.add_logged_quantity(name="Repertoire name", dtype=str, ro=True)
+        self.settings.activation_type = self.add_logged_quantity(name='Activation type', dtype=str, ro=True)
+        self.settings.roIndex = self.add_logged_quantity(name='Running Order index', spinbox_step=1, dtype=int, ro=False)
+        self.settings.roName = self.add_logged_quantity(name='Running Order name', dtype=str, ro=True)
         self.add_operation(name='Generate rep', op_func=self.repGen)
         self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
         self.add_operation(name='Repsend', op_func=self.sendRep)
@@ -38,8 +34,11 @@ class SLMHW(HardwareComponent):
         self.activation.hardware_set_func = self.setActState
         self.sendBitplane.hardware_set_func = self.sendBitmaps
         self.eraseBitplane.hardware_set_func = self.slm.eraseBitplane
-        self.setROindex.hardware_set_func = self.changeRO
         self.settings.activation_state.connect_to_hardware(read_func=self.getActState)
+        self.settings.rep_name.connect_to_hardware(read_func=self.repName)
+        self.settings.activation_type.connect_to_hardware(read_func=self.getAT)
+        self.settings.roIndex.connect_to_hardware(write_func=self.changeRO, read_func=self.getRoIndex)
+        self.settings.roName.connect_to_hardware(read_func=self.getRoName)
         self.read_from_hardware()
 
     def disconnect(self):
@@ -51,7 +50,6 @@ class SLMHW(HardwareComponent):
 
     # define operations
     def setActState(self, setState):
-        """Set activation state"""
         if hasattr(self, 'slm'):
             if setState == 'Activate':
                 self.slm.activate()
@@ -59,18 +57,34 @@ class SLMHW(HardwareComponent):
                 self.slm.deactivate()
             self.updateHardware()
 
-    def getAT(self):
-        self.slm.getActivationType()
+    def repName(self):
+        if hasattr(self, 'slm'):
+            return self.slm.getRepName()
 
-    def getRO(self):
-        self.slm.getRO()
+    def getAT(self):
+        if hasattr(self, 'slm'):
+            re = self.slm.getActivationType()
+            if re == 1:
+                return 'Immediate'
+            elif re == 2:
+                return 'Software'
+            elif re == 4:
+                return 'Hardware'
+
+    def getRoIndex(self):
+        if hasattr(self, 'slm'):
+            return self.slm.getRO()[0]
+
+    def getRoName(self):
+        if hasattr(self, 'slm'):
+            return self.slm.getRO()[1]
 
     def changeRO(self, setROindex):
-        self.slm.setRO(setROindex)
-        self.settings["activation_mode"] = 'Activate'
+        if hasattr(self, 'slm'):
+            self.slm.setRO(setROindex)
+            self.updateHardware()
 
     def closeCheck(self):
-
         if self.slm.getState() == 0x56:
             self.slm.deactivate()
             print('Deactivate successfully before close')
@@ -96,7 +110,6 @@ class SLMHW(HardwareComponent):
                 return 'No Repertoire available'
             else:
                 raise Exception('Unrecognised activation state')
-            self.updateHardware()
 
     def sendBitmaps(self,sendBitplane):
         self.slm.deactivate()
@@ -187,7 +200,6 @@ class SLMHW(HardwareComponent):
         self.connect()
         self.settings["activation_mode"] = 'Deactivate'
 
-
     def repGen(self):
         fns = input('new rep file name:')
         # rep(fns)
@@ -217,20 +229,29 @@ class SLMHW(HardwareComponent):
         h = 1536
         w = 2048
 
-        wavelength = 488 * 10 ** -6
-        f = 160
+        nm = 10 ** -9
+        mm = 0.001
+        wavelength = 520 * nm
+        f = 160 * mm
+        p_mask = 2.1 * mm
+        # pitch of the pinhole mask
+        u_mask = mm * 2.1 * sqrt(3) / 2
+        # u_mask: coordinate in x direction in FT plane
+        p = 1 / (u_mask / wavelength / f) / (0.0082 * mm)
+        # SLM's pixel size: 0.0082mm
+        # p: pitch of the hexagonal hologram (distance between two dots)
 
-        p = 1 / (1.8 / wavelength / f) / 0.0082
         r0 = sqrt(sqrt(3) / np.pi) * p / 2
-        img = np.ones([h, w, 7])
+        # The relationship between r0 and p makes sure the black and white part in the hologram has the same area for the
+        # maximum diffraction.
+
         deg_num = 18
         orientation = deg_num * pi / 180
 
-        # x, y = meshgrid(np.arange(w), np.arange(h))
-
-        x, y = meshgrid(np.arange(w) * np.sqrt(1 - (1.25 / 6) ** 2), np.arange(h))
-        # 0.94 corresponds to the angle between the laser source and the imaging system
+        distort = (1 - (66 / 2 / 132) ** 2) ** 0.5
+        # The distorted pattern corresponds to the angle between the laser source and the imaging system
         # (the imaging system was not perpendicular to the SLM)
+        x, y = meshgrid(np.arange(w) * distort, np.arange(h))
 
         for i in range(7):
             phase = i * 2 * pi / 7
@@ -241,15 +262,30 @@ class SLMHW(HardwareComponent):
             y0 = yi * p * sqrt(3) / 2
             x0 = xi * p
             r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
-            img[:, :, i] = 255 * (r < r0)
             print(np.sum(r > r0) / np.sum(r < r0))
             hol = (r < r0) * 1
-            cv2.imwrite(f'hex_{i}_{p:.2f}_deg{deg_num}.png', hol, [cv2.IMWRITE_PNG_BILEVEL, 1])
+            # hol: hologram
+            mask = np.zeros((h, w))
+            for n in range(int(w / 2 - 40), int(w / 2 + 41)):
+                mask[:, n] = 1
+            for n in range(int(h / 2 - 40), int(h / 2 + 41)):
+                mask[n, :] = 1
+            hol_mask = hol * mask
+
+            # img[:, :, i] = 255 * r
+
+            cv2.imwrite(f'hex_{i}_p{p_mask}_deg{deg_num}.png', hol_mask,
+                        [cv2.IMWRITE_PNG_BILEVEL, 1])
+            # print(f'p:{p*8.2/4.8/(sqrt(3)/2)}')
 
 
     def updateHardware(self):
         if hasattr(self, 'slm'):
             self.settings.activation_state.read_from_hardware()
+            self.settings.rep_name.read_from_hardware()
+            self.settings.activation_type.read_from_hardware()
+            self.settings.roIndex.read_from_hardware()
+            self.settings.roName.read_from_hardware()
 
 
 
