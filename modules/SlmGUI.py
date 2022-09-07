@@ -15,6 +15,8 @@ from ScopeFoundry import Measurement
 from ScopeFoundry.helper_funcs import load_qt_ui_file
 from utils.StackImageViewer import StackImageViewer
 from qtwidgets import Toggle
+import tkinter as tk
+from tkinter import filedialog
 
 def add_update_display(function):
     """Function decorator to to update display at the end of the execution
@@ -29,7 +31,7 @@ def add_update_display(function):
     return inner
 
 class SlmMeasurement(Measurement):
-    name = 'HexSIM_Measure'
+    name = 'SLM_Measure'
 
     def setup(self):
         # load ui file
@@ -39,8 +41,8 @@ class SlmMeasurement(Measurement):
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
         self.display_update_period = self.settings.refresh_period.val
-        self.settings.New('debug', dtype=bool, initial=False,
-                          hardware_set_func = self.setReconstructor)
+        # self.settings.New('debug', dtype=bool, initial=False,
+        #                   hardware_set_func = self.setReconstructor)
         # initialise condition labels
         self.isSlmRun = False
         self.saveRep = True
@@ -49,9 +51,9 @@ class SlmMeasurement(Measurement):
         self.kx_full = np.zeros((3, 1), dtype=np.single)  # frequency of full field of view
         self.ky_full = np.zeros((3, 1), dtype=np.single)
         # initialise images
-        v = 1536
-        h = 2048
-        self.imageHol = [np.zeros((7, v, h), dtype=np.uint16), np.zeros((7, v, h), dtype=np.uint16)]  # a set of images
+        self.v = 1536
+        self.h = 2048
+        self.imageHol = np.zeros((14, self.v, self.h), dtype=np.uint16)  # a set of images
 
     def setup_figure(self):
         # self.ui.imgTab.setCurrentIndex(0)
@@ -105,50 +107,31 @@ class SlmMeasurement(Measurement):
         while not self.interrupt_measurement_called:
             # time.sleep(0.01)
             if self.isSlmRun:
-                # self.camera.updateCameraSettings()
-                self.cameraRun()
+            #     # self.camera.updateCameraSettings()
+                self.slmRun()
 
             if self.action is not None:
-                if self.action == 'standard_capture':
-                    self.standardCapture()
-                    self.resetHexSIM()
-                    if self.ui.autoCalibration.isChecked():
-                        self.calibration()
-                    if self.ui.autoSave.isChecked():
-                        self.saveMeasurements()
+                if self.action == 'generate_holograms':
+                    if self.ui.hex_holRadioButton.isChecked():
+                        re = self.genHex()
+                        if self.ui.repSaveCheckBox.isChecked():
+                            self.slm.writeRep('hexagons_'+re[3], len(re[0])+len(re[1]), [re[0], re[1]])
+                            if self.ui.sendCheckBox.isCheked():
+                                self.slm. sendRep(self, 'hexagons_'+re[3])
+                    elif self.ui.stripe_holRadioButoon.isChecked():
+                        re = self.genStripes()
+                        if self.ui.repSaveCheckBox.isChecked():
+                            self.slm.writeRep('stripes_'+re[1], len(re[0]), re[0])
+                            if self.ui.sendCheckBox.isCheked():
+                                self.slm. sendRep('stripes_'+re[1])
 
-                elif self.action == 'batch_capture':
-                    self.batchCapture_test()
-                    self.resetHexSIM()
-                    if self.ui.autoCalibration.isChecked():
-                        self.calibration()
-                    if self.ui.autoSave.isChecked():
-                        self.saveMeasurements()
-
-                elif self.action == 'calibration':
-                    self.calibration()
-                    self.ui.simTab.setCurrentIndex(2)
-
-                elif self.action == 'standard_process':
-                    self.standardReconstruction()
-                    self.ui.simTab.setCurrentIndex(0)
-
-                elif self.action == 'standard_process_roi':
-                    self.standardReconstructionROI()
-                    self.ui.simTab.setCurrentIndex(1)
-
-                elif self.action == 'batch_process':
-                    self.batchReconstruction()
-                    self.ui.simTab.setCurrentIndex(0)
-
-                elif self.action == 'batch_process_roi':
-                    self.batchReconstructionROI()
-                    self.ui.simTab.setCurrentIndex(1)
+                elif self.action == 'select_repertoire':
+                    selected_rep = self.select()
+                    self.slm.sendRep(selected_rep)
 
                 self.isUpdateImageViewer = True
                 self.action = None
-                self.controlCAM()
-                # self.ui.imgTab.setCurrentIndex(2)
+                self.controlSLM()
 
     def post_run(self):
         if hasattr(self,'camera'):
@@ -174,59 +157,73 @@ class SlmMeasurement(Measurement):
         self.ui.messageBox.ensureCursorVisible()
         print(text)
 
+    def updateImageViewer(self):
+        self.imv.showImageSet(self.imageRAW)
+        try:
+            self.imageWF = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
+            self.imvWF.showImageSet(self.imageWF)
+        except:
+            pass
+        self.imvWF_ROI.showImageSet(self.imageWF_ROI)
+        self.imvSIM.showImageSet(self.imageSIM)
+        self.imvSIM_ROI.showImageSet(self.imageSIM_ROI)
+        self.imvWiener_ROI.showImageSet(self.wiener_ROI)
+        self.imvCalibration.update(self.h)
+
+    def removeMarks(self):
+        if self.roiRect:
+            for item in self.roiRect:
+                self.imvWF.imv.getView().removeItem(item)
+            self.roiRect = []
+
+    def raw2WideFieldImage(self, rawImages):
+        wfImages = np.zeros((rawImages.shape[0] // 7, rawImages.shape[1], rawImages.shape[2]))
+        for idx in range(rawImages.shape[0] // 7):
+            wfImages[idx, :, :] = np.sum(rawImages[idx * 7:(idx + 1) * 7, :, :], axis=0) / 7
+        return wfImages
+
 # functions for operation
     def genHolPressed(self):
-        self.isSlmRun = False
+        # self.isSlmRun = False
         self.action = 'generate_holograms'
 
     def selectPressed(self):
-        self.isSlmRun = False
+        # self.isSlmRun = False
         self.action = 'select_repertoire'
 
     def sendPressed(self):
-        self.isSlmRun = False
+        # self.isSlmRun = False
         self.action = 'send_repertoire'
 
 # functions for slm
     def slmRun(self):
-
         try:
             self.slm.read_from_hardware()
-            self.slm.ini
-            index = 0
-
-            if self.camera.acquisition_mode.val == "fixed_length":
-                while index < self.camera.hamamatsu.number_image_buffers:
-                    # Get frames.
-                    # The camera stops acquiring once the buffer is terminated (in snapshot mode)
-                    [frames, dims] = self.camera.hamamatsu.getFrames()
-                    # Save frames.
-                    for aframe in frames:
-                        np_data = aframe.getData()
-                        self.imageCAM = np.reshape(np_data, (self.eff_subarrayv, self.eff_subarrayh))
-                        if not self.isCameraRun:
-                            break
-                        index += 1
-                        print(index)
-                    if not self.isCameraRun or self.interrupt_measurement_called:
-                        break
-
-            elif self.camera.acquisition_mode.val == "run_till_abort":
-                while self.isCameraRun and not self.interrupt_measurement_called:
-                    try:
-                        [frame, dims] = self.camera.hamamatsu.getLastFrame()
-                        np_data = frame.getData()
-                    except:
-                        np_data = np.zeros((self.eff_subarrayv, self.eff_subarrayh))
-                        self.show_text('Camera read data fail.')
-
-                    self.imageCAM = np.reshape(np_data, (self.eff_subarrayv, self.eff_subarrayh))
-
-                    if self.isSnapshot:
-                        tif.imwrite('snapshot.tif', np.uint16(self.imageCAM))
-                        self.isSnapshot = False
-                        self.show_text('Saved one image.')
-                    if not self.isCameraRun or self.interrupt_measurement_called:
-                        break
+            self.slm.act()
+            while (self.slm.sle.getState()!= 0x52) or (self.slm.sle.getState()!=0x53) or (self.slm.sle.getState()!=0x54):
+                if not self.isSlmRun or self.interrupt_measurement_called:
+                    break
         finally:
-            self.camera.hamamatsu.stopAcquisition()
+            self.slm.deact()
+
+    def genHex(self):
+        """generate hexagonal holograms"""
+        for i in range(7):
+            re1 = self.slm.genHexgans(488)
+            re2 = self.slm.genHexgans(561)
+            self.imageHol[2 * i, :, :] = re1[0]
+            self.imageHol[2 * i + 1, :, :] = re2[0]
+        return re1[1], re2[1], re1[2], re2[2]
+
+    def genStripes(self):
+        """generate 7 striped holograms"""
+        self.imageHol = np.zeros((7, self.v, self.h), dtype=np.uint16)  # initialise the holograms
+        re = self.slm.genStripes()
+        self.imageHol = re[0]
+        return re[1], re[2]
+
+    def select(self):
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.askopenfilename()
+        return file_path

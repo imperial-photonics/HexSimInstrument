@@ -2,26 +2,25 @@ from ScopeFoundry import HardwareComponent
 from devices.SLM_device import SLMDev
 import numpy as np
 from numpy import meshgrid, sin, cos, pi, sqrt, floor
-import cv2
-import subprocess, os, tifffile
+import subprocess, os, tifffile, cv2, time
 
 class SLMHW(HardwareComponent):
     name = 'SLM_hardware'
 
     def setup(self):
-        self.activation= self.add_logged_quantity(name='', dtype=str, choices=['Activate', 'Deactivate'],
-                                                  initial='Deactivate', ro=False)
+        # self.activation= self.add_logged_quantity(name='', dtype=str, choices=['Activate', 'Deactivate'],
+        #                                           initial='Deactivate', ro=False)
         self.settings.activation_state = self.add_logged_quantity(name='State', dtype=str, ro=True)
         self.settings.rep_name = self.add_logged_quantity(name="Repertoire name", dtype=str, ro=True)
         self.settings.activation_type = self.add_logged_quantity(name='Activation type', dtype=str, ro=True)
         self.settings.roIndex = self.add_logged_quantity(name='Running Order index', spinbox_step=1, dtype=int, ro=False)
         self.settings.roName = self.add_logged_quantity(name='Running Order name', dtype=str, ro=True)
-        self.add_operation(name='Generate rep', op_func=self.repGen)
-        self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
-        self.add_operation(name='Repsend', op_func=self.sendRep)
-        self.sendBitplane = self.settings.New(name='sendBitplane', dtype=str,
-                                              choices=[' ', 'Hexagon', 'Stripe'], initial=' ', ro=False)
-        self.eraseBitplane = self.settings.New(name='eraseBitplane', dtype=int, ro=False, unit='px')
+        # self.add_operation(name='Generate rep', op_func=self.repGen)
+        # self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
+        # self.add_operation(name='Repsend', op_func=self.sendRep)
+        # self.sendBitplane = self.settings.New(name='sendBitplane', dtype=str,
+        #                                       choices=[' ', 'Hexagon', 'Stripe'], initial=' ', ro=False)
+        # self.eraseBitplane = self.settings.New(name='eraseBitplane', dtype=int, ro=False, unit='px')
 
 
     def connect(self):
@@ -31,9 +30,9 @@ class SLMHW(HardwareComponent):
         self.slm.open_usb_port()
 
         # Connect settings to hardware:
-        self.activation.hardware_set_func = self.setActState
-        self.sendBitplane.hardware_set_func = self.sendBitmaps
-        self.eraseBitplane.hardware_set_func = self.slm.eraseBitplane
+        # self.activation.hardware_set_func = self.setActState
+        # self.sendBitplane.hardware_set_func = self.sendBitmaps
+        # self.eraseBitplane.hardware_set_func = self.slm.eraseBitplane
         self.settings.activation_state.connect_to_hardware(read_func=self.getActState)
         self.settings.rep_name.connect_to_hardware(read_func=self.repName)
         self.settings.activation_type.connect_to_hardware(read_func=self.getAT)
@@ -49,13 +48,21 @@ class SLMHW(HardwareComponent):
 
 
     # define operations
-    def setActState(self, setState):
+    # def setActState(self, setState):
+    #     if hasattr(self, 'slm'):
+    #         if setState == 'Activate':
+    #             self.slm.activate()
+    #         elif setState == 'Deactivate':
+    #             self.slm.deactivate()
+    #         self.updateHardware()
+
+    def act(self):
         if hasattr(self, 'slm'):
-            if setState == 'Activate':
-                self.slm.activate()
-            elif setState == 'Deactivate':
-                self.slm.deactivate()
-            self.updateHardware()
+            self.slm.activate()
+
+    def deact(self):
+        if hasattr(self, 'slm'):
+            self.slm.deactivate()
 
     def repName(self):
         if hasattr(self, 'slm'):
@@ -179,26 +186,19 @@ class SLMHW(HardwareComponent):
         else:
             print(output.stderr)
 
-    def sendRep(self):
+    def sendRep(self, fn):
+        """Send the repz.11 file to the board. fn: file name."""
         self.slm.close()
-        fns = input('repz.11 file name:')
-
-        os.chdir("repertoires")
-
-        # output = subprocess.Popen([filepath, '-z', self.fns, '-d', '0175000881'],
-        # stdout=subprocess.PIPE).communicate()[0]
-        output = subprocess.run(['RepSender', '-z', fns + '.repz11', '-d', '0175000881'], shell=True,
+        os.chdir('./gen_repertoires')
+        output = subprocess.run(['RepSender', '-z', fn + '.repz11', '-d', '0175000881'], shell=True,
                                 stdout=subprocess.PIPE)
         if output.returncode == 0:
             print(output.stdout.decode())
         else:
             print(output.stderr)
-
-        os.chdir(r"C:" + os.sep + "Users" + os.sep + "ML2618" + os.sep + "PycharmProjects"+ os.sep +
-                 "Integrated-R11-SLM")
-
+        os.getcwd()
+        os.chdir('./hardware')
         self.connect()
-        self.settings["activation_mode"] = 'Deactivate'
 
     def repGen(self):
         fns = input('new rep file name:')
@@ -215,23 +215,30 @@ class SLMHW(HardwareComponent):
         xv, yv = np.meshgrid(x, y)
         g = np.zeros((h, w), dtype=np.uint8)
         k = 1 / p
+        img = []
+        imgNameList = []
         for i in range(7):
             t = i * pi / 7
             px = k * (i - 3)
             py = 2 * k
             g = g + (cos(px * xv * pi + py * yv * pi) > 0) * (2 ** i)
-            # cv2.imwrite('stripes_%d_%.2f.png'%(i,p),(cos(px * xv * np.pi + py * yv * np.pi) > 0)*1, [cv2.IMWRITE_PNG_BILEVEL, 1])
-            cv2.imwrite('stripes_%d_%.2f.png' % (i, p), (cos(px * xv * np.pi + py * yv * np.pi) > 0) * 1,
-                        [cv2.IMWRITE_PNG_BILEVEL, 1])
+            hol = (cos(px * xv * np.pi + py * yv * np.pi) > 0) * 1
+            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+            path = os.path.join('./gen_repertoires')
+            imgN = f'stripes_%d_%.2f_{timestamp}.png' % (i, p)
+            cv2.imwrite(path, imgN, hol, [cv2.IMWRITE_PNG_BILEVEL, 1])
+            img.append(hol)
+            imgNameList.append(imgN)
+        return img, imgNameList, timestamp
 
-    def genHexgans(self):
+    def genHexgans(self, lamda):
         """Generate hexagonal holograms hexagons"""
         h = 1536
         w = 2048
 
         nm = 10 ** -9
         mm = 0.001
-        wavelength = 520 * nm
+        wavelength = lamda * nm
         f = 160 * mm
         p_mask = 2.1 * mm
         # pitch of the pinhole mask
@@ -252,7 +259,8 @@ class SLMHW(HardwareComponent):
         # The distorted pattern corresponds to the angle between the laser source and the imaging system
         # (the imaging system was not perpendicular to the SLM)
         x, y = meshgrid(np.arange(w) * distort, np.arange(h))
-
+        img = []
+        imgNameList = []
         for i in range(7):
             phase = i * 2 * pi / 7
             xr = -x * sin(orientation) + y * cos(orientation) - 1.0 * p * phase / (2 * pi)
@@ -263,21 +271,69 @@ class SLMHW(HardwareComponent):
             x0 = xi * p
             r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
             print(np.sum(r > r0) / np.sum(r < r0))
-            hol = (r < r0) * 1
-            # hol: hologram
-            mask = np.zeros((h, w))
-            for n in range(int(w / 2 - 40), int(w / 2 + 41)):
-                mask[:, n] = 1
-            for n in range(int(h / 2 - 40), int(h / 2 + 41)):
-                mask[n, :] = 1
-            hol_mask = hol * mask
-
+            hol = (r < r0) * 1  # hol: hologram
             # img[:, :, i] = 255 * r
-
-            cv2.imwrite(f'hex_{i}_p{p_mask}_deg{deg_num}.png', hol_mask,
+            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+            path = os.path.join('./gen_repertoires')
+            imgN = f'hex_{i}_p{p_mask}_deg{deg_num}_{timestamp}.png'
+            cv2.imwrite(path, imgN, hol,
                         [cv2.IMWRITE_PNG_BILEVEL, 1])
-            # print(f'p:{p*8.2/4.8/(sqrt(3)/2)}')
+            img.append(hol)
+            imgNameList.append(imgN)
+        return img, imgNameList, timestamp
 
+    def writeRep(self, fns, n_frames, imgns):
+        """write a text file of the repertoire and save it as .rep format, and then build it to a .repz11 file"""
+        os.chdir('./gen_repertoires')
+        with open(f'{fns}.txt', 'w') as f:
+            data = ("ID\n"
+                    '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
+                    "ID_END\n\n"
+                    "PLATFORM\n"
+                    '"R11"\n'
+                    "PLATFORM_END\n\n"
+                    "DISPLAY\n"
+                    '"QXGA"\n'
+                    "DISPLAY_END\n\n"
+                    "FORMATVERSION\n"
+                    '"FV4"\n'
+                    "FORMATVERSION_END\n\n"
+                    "SEQUENCES\n")
+            f.write(data)
+
+            data2 = ('A "48061 2ms 1-bit Balanced.seq11"\n'
+                     'SEQUENCES_END\n\n'
+                     'IMAGES\n')
+            f.write(data2)
+
+            for i in range(n_frames):
+                    data3 =(f' 1 "{imgns[i]}.png"\n')
+            f.write(data3)
+
+            data4 = ('IMAGES_END\n'
+                     'DEFAULT "RO1"\n'
+                     '[HWA h\n')
+            f.write(data4)
+
+            for i in range(n_frames):
+                data5 = ('{f (A,%d)\n}'%i)
+                f.write(data5)
+
+            data6 = (']')
+            f.write(data6)
+
+        os.rename(f'{fns}.txt', f'{fns}.rep')
+        print('New rep file created')
+
+        # build the rep to a repz11 file
+        output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
+                                stdout=subprocess.PIPE)
+        if output.returncode == 0:
+            print(output.stdout.decode())
+            print('repz11 file created')
+        else:
+            print(output.stderr)
+        os.chdir('./hardware')
 
     def updateHardware(self):
         if hasattr(self, 'slm'):

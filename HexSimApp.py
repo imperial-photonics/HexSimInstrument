@@ -62,9 +62,11 @@ class HexSimApp(BaseMicroscopeApp):
         # from modules.HexSimAnalysis2 import HexSimAnalysis
         from modules.HexSimAnalysis import HexSimAnalysis
         from modules.HexSimMeasurement import HexSimMeasurement
+        from modules.SlmGUI import SlmMeasurement
         # self.add_measurement(HamamatsuMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
+        self.add_measurement(SlmMeasurement(self))
 
         self.ui.show()
         self.ui.activateWindow()

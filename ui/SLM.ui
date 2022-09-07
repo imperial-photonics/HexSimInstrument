@@ -75,6 +75,20 @@
           <string>Hologram generation</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_5">
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="sendCheckBox">
+            <property name="text">
+             <string>Send to board</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="holGenButton">
+            <property name="text">
+             <string>Generate</string>
+            </property>
+           </widget>
+          </item>
           <item row="0" column="0">
            <widget class="QTabWidget" name="SettingsGroup_2">
             <property name="sizePolicy">
@@ -113,7 +127,7 @@
               <string>Hexagonal dots</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_6">
-              <item row="0" column="0">
+              <item row="1" column="0">
                <layout class="QHBoxLayout" name="horizontalLayout_5">
                 <item>
                  <layout class="QVBoxLayout" name="verticalLayout_20">
@@ -639,9 +653,16 @@
           <item row="0" column="1">
            <layout class="QVBoxLayout" name="verticalLayout_13">
             <item>
-             <widget class="QPushButton" name="holGenButton">
+             <widget class="QRadioButton" name="hex_holRadioButton">
               <property name="text">
-               <string>Generate</string>
+               <string>Hexagonal Hologram</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="stripe_holRadioButoon">
+              <property name="text">
+               <string>Striped Hologram</string>
               </property>
              </widget>
             </item>
@@ -649,13 +670,6 @@
              <widget class="QCheckBox" name="repCheckBox">
               <property name="text">
                <string>Save as a repertoire</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="sendCheckBox">
-              <property name="text">
-               <string>Send to board</string>
               </property>
              </widget>
             </item>
