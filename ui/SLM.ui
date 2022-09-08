@@ -667,7 +667,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QCheckBox" name="repCheckBox">
+             <widget class="QCheckBox" name="repSaveCheckBox">
               <property name="text">
                <string>Save as a repertoire</string>
               </property>
@@ -821,98 +821,98 @@
                    </property>
                   </layout>
                  </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
-             <widget class="QGroupBox" name="OperationGroup">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>360</width>
-                <height>175</height>
-               </size>
-              </property>
-              <property name="font">
-               <font>
-                <weight>50</weight>
-                <bold>false</bold>
-                <stylestrategy>PreferDefault</stylestrategy>
-                <kerning>true</kerning>
-               </font>
-              </property>
-              <property name="title">
-               <string>Current status</string>
-              </property>
-              <layout class="QHBoxLayout" name="horizontalLayout">
-               <item>
-                <layout class="QVBoxLayout" name="verticalLayout_14">
-                 <property name="spacing">
-                  <number>0</number>
-                 </property>
                  <item>
-                  <widget class="QLabel" name="statusLable">
-                   <property name="text">
-                    <string>Status</string>
+                  <widget class="QGroupBox" name="OperationGroup">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="repLabel">
-                   <property name="text">
-                    <string>Repertoire</string>
+                   <property name="minimumSize">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="acTypeLable">
-                   <property name="text">
-                    <string>Activation type</string>
+                   <property name="maximumSize">
+                    <size>
+                     <width>360</width>
+                     <height>175</height>
+                    </size>
                    </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="roLable">
-                   <property name="text">
-                    <string>Running order</string>
+                   <property name="font">
+                    <font>
+                     <weight>50</weight>
+                     <bold>false</bold>
+                     <stylestrategy>PreferDefault</stylestrategy>
+                     <kerning>true</kerning>
+                    </font>
                    </property>
+                   <property name="title">
+                    <string>Current status</string>
+                   </property>
+                   <layout class="QHBoxLayout" name="horizontalLayout">
+                    <item>
+                     <layout class="QVBoxLayout" name="verticalLayout_14">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <item>
+                       <widget class="QLabel" name="statusLable">
+                        <property name="text">
+                         <string>Status</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="repLabel">
+                        <property name="text">
+                         <string>Repertoire</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="acTypeLable">
+                        <property name="text">
+                         <string>Activation type</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="roLable">
+                        <property name="text">
+                         <string>Running order</string>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QVBoxLayout" name="verticalLayout_15">
+                      <item>
+                       <widget class="QTextBrowser" name="statusDisplay"/>
+                      </item>
+                      <item>
+                       <widget class="QTextBrowser" name="repDisplay"/>
+                      </item>
+                      <item>
+                       <widget class="QTextBrowser" name="acTypeDisplay"/>
+                      </item>
+                      <item>
+                       <layout class="QHBoxLayout" name="horizontalLayout_8">
+                        <item>
+                         <widget class="QLCDNumber" name="roCountDisplay"/>
+                        </item>
+                        <item>
+                         <widget class="QTextBrowser" name="roNameDisplay"/>
+                        </item>
+                       </layout>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
                   </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <layout class="QVBoxLayout" name="verticalLayout_15">
-                 <item>
-                  <widget class="QTextBrowser" name="statusDisplay"/>
-                 </item>
-                 <item>
-                  <widget class="QTextBrowser" name="repDisplay"/>
-                 </item>
-                 <item>
-                  <widget class="QTextBrowser" name="acTypeDisplay"/>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_8">
-                   <item>
-                    <widget class="QLCDNumber" name="roCountDisplay"/>
-                   </item>
-                   <item>
-                    <widget class="QTextBrowser" name="roNameDisplay"/>
-                   </item>
-                  </layout>
                  </item>
                 </layout>
                </item>

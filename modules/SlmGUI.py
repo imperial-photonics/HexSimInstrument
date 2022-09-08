@@ -55,12 +55,15 @@ class SlmMeasurement(Measurement):
         self.h = 2048
         self.imageHol = np.zeros((14, self.v, self.h), dtype=np.uint16)  # a set of images
 
+        self.action = None
+        self.isUpdateImageViewer = False
+
     def setup_figure(self):
         # self.ui.imgTab.setCurrentIndex(0)
         # camera UI
         self.imv = pg.ImageView()
-        # self.imv.ui.roiBtn.hide()
-        # self.imv.ui.menuBtn.hide()
+        self.imv.ui.roiBtn.hide()
+        self.imv.ui.menuBtn.hide()
 
         # image viewers
         self.imvHol= StackImageViewer(image_sets=self.imageHol, set_levels=[1, 1])
@@ -86,18 +89,31 @@ class SlmMeasurement(Measurement):
     def update_display(self):
         # update SLM status
         try:
-            self.ui.statusDisplay.display(self.settings.activation_state)
-            self.ui.repDisplay.display(self.settings.self.settings.rep_name)
-            self.ui.acTypeDisplay.display(self.settings.self.settings.activation_type)
-            self.ui.roCountDisplay.display(self.settings.self.settings.roIndex)
-            self.ui.roNameDisplay.display(self.settings.self.settings.roName)
+            self.ui.statusDisplay.insertPlainText(f'{self.slm.settings.activation_state}')
+            self.ui.statusDisplay.ensureCursorVisible()
+            self.ui.repDisplay.insertPlainText(f'{self.slm.settings.rep_name}')
+            self.ui.repDisplay.ensureCursorVisible()
+            self.ui.acTypeDisplay.insertPlainText(f'{self.slm.settings.activation_type}')
+            self.ui.acTypeDisplay.ensureCursorVisible()
+            self.ui.roCountDisplay.display(f'{self.slm.settings.roIndex}')
+            self.ui.roNameDisplay.insertPlainText(f'{self.slm.settings.roName}')
+            self.ui.roNameDisplay.ensureCursorVisible()
         except Exception as e:
             txtDisplay = f'update_display error: {e}'
             self.show_text(txtDisplay)
 
         # update camera viewer
         if self.isSlmRun:
-            self.imv.setImage(self.imageHol.T, autoLevels = True, autoRange=True)
+            self.imv.setImage(self.imageHol, autoLevels=True, autoRange=True)
+        else:
+            pass
+
+        # update hexsim viwer
+        if self.isUpdateImageViewer:
+            self.updateImageViewer()
+            self.isUpdateImageViewer = False
+        else:
+            pass
 
     def pre_run(self):
         if hasattr(self, 'slm'):
@@ -113,11 +129,12 @@ class SlmMeasurement(Measurement):
             if self.action is not None:
                 if self.action == 'generate_holograms':
                     if self.ui.hex_holRadioButton.isChecked():
+                        self.show_text('Start holograms generation')
                         re = self.genHex()
                         if self.ui.repSaveCheckBox.isChecked():
-                            self.slm.writeRep('hexagons_'+re[3], len(re[0])+len(re[1]), [re[0], re[1]])
-                            if self.ui.sendCheckBox.isCheked():
-                                self.slm. sendRep(self, 'hexagons_'+re[3])
+                            self.slm.writeRep('hexagons_'+re[2], len(re[0]), re[0])
+                            if self.ui.sendCheckBox.isChecked():
+                                self.slm. sendRep('hexagons_'+re[2])
                     elif self.ui.stripe_holRadioButoon.isChecked():
                         re = self.genStripes()
                         if self.ui.repSaveCheckBox.isChecked():
@@ -134,8 +151,8 @@ class SlmMeasurement(Measurement):
                 self.controlSLM()
 
     def post_run(self):
-        if hasattr(self,'camera'):
-            self.cameraInterrupt()
+        if hasattr(self, 'slm'):
+            self.slmInterrupt()
 
 # functions for hardware
     def controlSLM(self):
@@ -158,41 +175,29 @@ class SlmMeasurement(Measurement):
         print(text)
 
     def updateImageViewer(self):
-        self.imv.showImageSet(self.imageRAW)
-        try:
-            self.imageWF = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
-            self.imvWF.showImageSet(self.imageWF)
-        except:
-            pass
-        self.imvWF_ROI.showImageSet(self.imageWF_ROI)
-        self.imvSIM.showImageSet(self.imageSIM)
-        self.imvSIM_ROI.showImageSet(self.imageSIM_ROI)
-        self.imvWiener_ROI.showImageSet(self.wiener_ROI)
-        self.imvCalibration.update(self.h)
-
-    def removeMarks(self):
-        if self.roiRect:
-            for item in self.roiRect:
-                self.imvWF.imv.getView().removeItem(item)
-            self.roiRect = []
-
-    def raw2WideFieldImage(self, rawImages):
-        wfImages = np.zeros((rawImages.shape[0] // 7, rawImages.shape[1], rawImages.shape[2]))
-        for idx in range(rawImages.shape[0] // 7):
-            wfImages[idx, :, :] = np.sum(rawImages[idx * 7:(idx + 1) * 7, :, :], axis=0) / 7
-        return wfImages
+        self.imvHol.showImageSet(self.imageHol)
+        # try:
+        #     self.imageWF = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
+        #     self.imvWF.showImageSet(self.imageWF)
+        # except:
+        #     pass
+        # self.imvWF_ROI.showImageSet(self.imageWF_ROI)
+        # self.imvSIM.showImageSet(self.imageSIM)
+        # self.imvSIM_ROI.showImageSet(self.imageSIM_ROI)
+        # self.imvWiener_ROI.showImageSet(self.wiener_ROI)
+        # self.imvCalibration.update(self.h)
 
 # functions for operation
     def genHolPressed(self):
-        # self.isSlmRun = False
+        self.isSlmRun = False
         self.action = 'generate_holograms'
 
     def selectPressed(self):
-        # self.isSlmRun = False
+        self.isSlmRun = False
         self.action = 'select_repertoire'
 
     def sendPressed(self):
-        # self.isSlmRun = False
+        self.isSlmRun = False
         self.action = 'send_repertoire'
 
 # functions for slm
@@ -200,20 +205,27 @@ class SlmMeasurement(Measurement):
         try:
             self.slm.read_from_hardware()
             self.slm.act()
-            while (self.slm.sle.getState()!= 0x52) or (self.slm.sle.getState()!=0x53) or (self.slm.sle.getState()!=0x54):
+            while (self.slm.slm.getState() != 0x52) or (self.slm.sle.getState() !=0x53) or (self.slm.sle.getState()!=0x54):
                 if not self.isSlmRun or self.interrupt_measurement_called:
                     break
         finally:
             self.slm.deact()
 
+    def slmInterrupt(self):
+        self.isSlmRun = False
+        self.ui.switchSLM.setChecked(False)
+
     def genHex(self):
         """generate hexagonal holograms"""
+        re1 = self.slm.genHexgans(488)
+        re2 = self.slm.genHexgans(561)
+        nameList = [None] * 14
         for i in range(7):
-            re1 = self.slm.genHexgans(488)
-            re2 = self.slm.genHexgans(561)
-            self.imageHol[2 * i, :, :] = re1[0]
-            self.imageHol[2 * i + 1, :, :] = re2[0]
-        return re1[1], re2[1], re1[2], re2[2]
+            self.imageHol[int(2 * i), :, :] = re1[0][i]
+            self.imageHol[int(2 * i + 1), :, :] = re2[0][i]
+            nameList[2 * i] = re1[1][i]
+            nameList[2 * i + 1] = re2[1][i]
+        return nameList, re1[2], re2[2]
 
     def genStripes(self):
         """generate 7 striped holograms"""

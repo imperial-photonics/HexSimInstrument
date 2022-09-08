@@ -197,7 +197,7 @@ class SLMHW(HardwareComponent):
         else:
             print(output.stderr)
         os.getcwd()
-        os.chdir('./hardware')
+        os.chdir('..')
         self.connect()
 
     def repGen(self):
@@ -226,13 +226,15 @@ class SLMHW(HardwareComponent):
             timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
             path = os.path.join('./gen_repertoires')
             imgN = f'stripes_%d_%.2f_{timestamp}.png' % (i, p)
-            cv2.imwrite(path, imgN, hol, [cv2.IMWRITE_PNG_BILEVEL, 1])
+            cv2.imwrite(os.path.join('./gen_repertoires', imgN), hol,
+                        [cv2.IMWRITE_PNG_BILEVEL, 1])
             img.append(hol)
             imgNameList.append(imgN)
         return img, imgNameList, timestamp
 
     def genHexgans(self, lamda):
         """Generate hexagonal holograms hexagons"""
+        print('genHexgans')
         h = 1536
         w = 2048
 
@@ -275,8 +277,8 @@ class SLMHW(HardwareComponent):
             # img[:, :, i] = 255 * r
             timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
             path = os.path.join('./gen_repertoires')
-            imgN = f'hex_{i}_p{p_mask}_deg{deg_num}_{timestamp}.png'
-            cv2.imwrite(path, imgN, hol,
+            imgN = f'hex_{i}_deg{deg_num}_{timestamp}.png'
+            cv2.imwrite(os.path.join('./gen_repertoires', imgN), hol,
                         [cv2.IMWRITE_PNG_BILEVEL, 1])
             img.append(hol)
             imgNameList.append(imgN)
@@ -307,7 +309,8 @@ class SLMHW(HardwareComponent):
             f.write(data2)
 
             for i in range(n_frames):
-                    data3 =(f' 1 "{imgns[i]}.png"\n')
+                print(i)
+                data3 =(f' 1 "{imgns[i]}.png"\n')
             f.write(data3)
 
             data4 = ('IMAGES_END\n'
@@ -316,7 +319,7 @@ class SLMHW(HardwareComponent):
             f.write(data4)
 
             for i in range(n_frames):
-                data5 = ('{f (A,%d)\n}'%i)
+                data5 = ('{f (A,%d)}\n'%i)
                 f.write(data5)
 
             data6 = (']')
@@ -333,7 +336,7 @@ class SLMHW(HardwareComponent):
             print('repz11 file created')
         else:
             print(output.stderr)
-        os.chdir('./hardware')
+        os.chdir('..')
 
     def updateHardware(self):
         if hasattr(self, 'slm'):
