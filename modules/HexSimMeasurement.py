@@ -2,6 +2,7 @@ import os, time, h5py
 import numpy as np
 import pyqtgraph as pg
 import tifffile as tif
+import tkinter as tk
 
 from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
@@ -13,6 +14,8 @@ from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.MessageWindow import CalibrationResults
 from utils.StackImageViewer import StackImageViewer, list_equal
 from utils.ImageSegmentation import ImageSegmentation
+from tkinter import filedialog
+
 
 from PyQt5.QtCore import QTimer
 def add_timer(function):
@@ -50,7 +53,8 @@ class HexSimMeasurement(Measurement):
         self.ui = load_qt_ui_file(".\\ui\\hexsim_measure.ui")
         # Connect to hardware components
         self.camera = self.app.hardware['HamamatsuHardware']
-        self.screen = self.app.hardware['ScreenHardware']
+        # self.screen = self.app.hardware['ScreenHardware']
+        self.slm = self.app.hardware['SLM_hardware']
         # self.stage = self.app.hardware['NanoDriveHardware']
         self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
@@ -104,6 +108,9 @@ class HexSimMeasurement(Measurement):
         self.isGpuenable = True  # using GPU for accelerating
         self.isCompact = True  # using compact mode in batch reconstruction to save memory
         self.isFindCarrier = True
+        # self.isSlmRun = False
+        # self.saveRep = True
+        # self.sendRep = True
 
         self.action = None
 
@@ -176,13 +183,17 @@ class HexSimMeasurement(Measurement):
         self.ui.cameraToggleLayout.addWidget(self.ui.switchCAM)
         self.ui.switchCAM.stateChanged.connect(self.controlCAM)
         self.ui.snapshot.clicked.connect(self.snapshotPressed)
-        # screen
-        self.ui.slmSlider.valueChanged.connect(self.controlSLM)
-        self.ui.previousPatternButton.clicked.connect(self.previousPattern)
-        self.ui.nextPatternButton.clicked.connect(self.nextPattern)
+        # # screen
+        # self.ui.slmSlider.valueChanged.connect(self.controlSLM)
+        # self.ui.previousPatternButton.clicked.connect(self.previousPattern)
+        # self.ui.nextPatternButton.clicked.connect(self.nextPattern)
         # stage
         # self.ui.stagePositionIncrease.clicked.connect(self.stage.singleReadZ)
         # self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
+        # SLM
+        self.ui.holGenButton.clicked.connect(self.genHolPressed)
+        self.ui.selectPushButton.clicked.connect(self.selectPressed)
+        self.ui.sendPushButton.clicked.connect(self.sendPressed)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -260,6 +271,25 @@ class HexSimMeasurement(Measurement):
             self.controlSLM()
 
     def run(self):
+        if self.action == 'generate_holograms':
+            if self.ui.hex_holRadioButton.isChecked():
+                self.show_text('Start holograms generation')
+                re = self.genHex()
+                if self.ui.repSaveCheckBox.isChecked():
+                    self.slm.writeRep('hexagons_' + re[2], len(re[0]), re[0])
+                    print(len(re[0]))
+                    if self.ui.sendCheckBox.isChecked():
+                        self.slm.repSend('hexagons_' + re[2])
+            elif self.ui.stripe_holRadioButton.isChecked():
+                re = self.genStr()
+                if self.ui.repSaveCheckBox.isChecked():
+                    self.slm.writeRep('stripes_' + re[1], len(re[0]), re[0])
+                    if self.ui.sendCheckBox.isCheked():
+                        self.slm.repSend('stripes_' + re[1])
+
+        elif self.action == 'select_repertoire':
+            selected_rep = self.select()
+            self.slm.repSend(selected_rep)
 
         while not self.interrupt_measurement_called:
             time.sleep(0.01)
@@ -405,6 +435,33 @@ class HexSimMeasurement(Measurement):
             # self.imvRAW.displaySet(1)
             # self.imvRAW.ui.cellCombo.setCurrentIndex(1)
 
+# functions for SLM
+    def genHex(self):
+        """generate hexagonal holograms"""
+        re1 = self.slm.genHexgans(488)
+        re2 = self.slm.genHexgans(561)
+        nameList = [None] * 14
+        for i in range(7):
+            self.imageHol[int(2 * i), :, :] = re1[0][i]
+            self.imageHol[int(2 * i + 1), :, :] = re2[0][i]
+            nameList[2 * i] = re1[1][i]
+            nameList[2 * i + 1] = re2[1][i]
+        return nameList, re1[2], re2[2]
+
+    def genStr(self):
+        """generate 7 striped holograms"""
+        self.imageHol = np.zeros((7, self.v, self.h), dtype=np.uint16)  # initialise the holograms
+        re = self.slm.genStripes()
+        self.imageHol = re[0]
+        return re[1], re[2]
+
+    def select(self):
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.askopenfilename()
+        return file_path
+
+
 # functions for operation
     def standardCapturePressed(self):
         # if not self.screen.slm_dev.isVisible():
@@ -450,6 +507,18 @@ class HexSimMeasurement(Measurement):
             self.action = 'standard_process_roi'
         else:
             self.show_text('ROI raw images are not acquired.')
+
+    def genHolPressed(self):
+        self.isSlmRun = False
+        self.action = 'generate_holograms'
+
+    def selectPressed(self):
+        self.isSlmRun = False
+        self.action = 'select_repertoire'
+
+    def sendPressed(self):
+        self.isSlmRun = False
+        self.action = 'send_repertoire'
 
 # functions for measurement
     def standardCapture(self):

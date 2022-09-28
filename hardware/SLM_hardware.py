@@ -186,7 +186,7 @@ class SLMHW(HardwareComponent):
         else:
             print(output.stderr)
 
-    def sendRep(self, fn):
+    def repSend(self, fn):
         """Send the repz.11 file to the board. fn: file name."""
         self.slm.close()
         os.chdir('./gen_repertoires')
