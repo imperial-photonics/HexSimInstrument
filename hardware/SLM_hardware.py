@@ -309,9 +309,8 @@ class SLMHW(HardwareComponent):
             f.write(data2)
 
             for i in range(n_frames):
-                print(i)
-                data3 =(f' 1 "{imgns[i]}.png"\n')
-            f.write(data3)
+                data3 =(f' 1 "{imgns[i]}"\n')
+                f.write(data3)
 
             data4 = ('IMAGES_END\n'
                      'DEFAULT "RO1"\n'

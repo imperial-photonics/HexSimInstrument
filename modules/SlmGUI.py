@@ -133,6 +133,7 @@ class SlmMeasurement(Measurement):
                         re = self.genHex()
                         if self.ui.repSaveCheckBox.isChecked():
                             self.slm.writeRep('hexagons_'+re[2], len(re[0]), re[0])
+                            print(len(re[0]))
                             if self.ui.sendCheckBox.isChecked():
                                 self.slm. sendRep('hexagons_'+re[2])
                     elif self.ui.stripe_holRadioButoon.isChecked():
