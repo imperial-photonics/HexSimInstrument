@@ -190,7 +190,7 @@ class SLMHW(HardwareComponent):
         """Send the repz.11 file to the board. fn: file name."""
         self.slm.close()
         os.chdir('./gen_repertoires')
-        output = subprocess.run(['RepSender', '-z', fn + '.repz11', '-d', '0175000881'], shell=True,
+        output = subprocess.run(['RepSender', '-z', fn, '-d', '0175000881'], shell=True,
                                 stdout=subprocess.PIPE)
         if output.returncode == 0:
             print(output.stdout.decode())

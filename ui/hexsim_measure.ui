@@ -327,14 +327,7 @@
            <item>
             <widget class="QPushButton" name="selectPushButton">
              <property name="text">
-              <string>Select</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="sendPushButton">
-             <property name="text">
-              <string>Send to board</string>
+              <string>Select and Send</string>
              </property>
             </widget>
            </item>
@@ -1654,11 +1647,11 @@ border : 1px;
        <item>
         <widget class="QGroupBox" name="groupBox_2">
          <property name="title">
-          <string>GroupBox</string>
+          <string>Message</string>
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_12">
           <item>
-           <widget class="QTextBrowser" name="textBrowser"/>
+           <widget class="QTextBrowser" name="MessageBox"/>
           </item>
          </layout>
         </widget>

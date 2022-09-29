@@ -193,7 +193,6 @@ class HexSimMeasurement(Measurement):
         # SLM
         self.ui.holGenButton.clicked.connect(self.genHolPressed)
         self.ui.selectPushButton.clicked.connect(self.selectPressed)
-        self.ui.sendPushButton.clicked.connect(self.sendPressed)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -256,8 +255,8 @@ class HexSimMeasurement(Measurement):
         else:
             pass
 
-        if hasattr(self.screen, 'slm_dev'):
-            self.ui.patternNumber.setText(str(self.screen.slm_dev.counter%7))
+        # if hasattr(self.screen, 'slm_dev'):
+        #     self.ui.patternNumber.setText(str(self.screen.slm_dev.counter%7))
 
         if self.isCalibrated:
             self.ui.calibrationProgress.setValue(100)
@@ -267,30 +266,11 @@ class HexSimMeasurement(Measurement):
             self.ui.calibrationProgress.setFormat('Uncalibrated')
 
     def pre_run(self):
-        if hasattr(self,'screen'):
-            self.controlSLM()
+        pass
+        # if hasattr(self,'screen'):
+        #     self.controlSLM()
 
     def run(self):
-        if self.action == 'generate_holograms':
-            if self.ui.hex_holRadioButton.isChecked():
-                self.show_text('Start holograms generation')
-                re = self.genHex()
-                if self.ui.repSaveCheckBox.isChecked():
-                    self.slm.writeRep('hexagons_' + re[2], len(re[0]), re[0])
-                    print(len(re[0]))
-                    if self.ui.sendCheckBox.isChecked():
-                        self.slm.repSend('hexagons_' + re[2])
-            elif self.ui.stripe_holRadioButton.isChecked():
-                re = self.genStr()
-                if self.ui.repSaveCheckBox.isChecked():
-                    self.slm.writeRep('stripes_' + re[1], len(re[0]), re[0])
-                    if self.ui.sendCheckBox.isCheked():
-                        self.slm.repSend('stripes_' + re[1])
-
-        elif self.action == 'select_repertoire':
-            selected_rep = self.select()
-            self.slm.repSend(selected_rep)
-
         while not self.interrupt_measurement_called:
             time.sleep(0.01)
             if self.isCameraRun:
@@ -438,6 +418,7 @@ class HexSimMeasurement(Measurement):
 # functions for SLM
     def genHex(self):
         """generate hexagonal holograms"""
+        self.imageHol = np.zeros((14, 1536, 2048), dtype=np.uint16)  # a set of images
         re1 = self.slm.genHexgans(488)
         re2 = self.slm.genHexgans(561)
         nameList = [None] * 14
@@ -450,7 +431,7 @@ class HexSimMeasurement(Measurement):
 
     def genStr(self):
         """generate 7 striped holograms"""
-        self.imageHol = np.zeros((7, self.v, self.h), dtype=np.uint16)  # initialise the holograms
+        self.imageHol = np.zeros((7, 1536, 2048), dtype=np.uint16)  # initialise the holograms
         re = self.slm.genStripes()
         self.imageHol = re[0]
         return re[1], re[2]
@@ -459,8 +440,10 @@ class HexSimMeasurement(Measurement):
         root = tk.Tk()
         root.withdraw()
         file_path = filedialog.askopenfilename()
+        file_name = os.path.basename(file_path)
+        txtDisplay = f'Selected {os.path.basename(file_name)}'
+        self.show_text(txtDisplay)
         return file_path
-
 
 # functions for operation
     def standardCapturePressed(self):
@@ -509,16 +492,31 @@ class HexSimMeasurement(Measurement):
             self.show_text('ROI raw images are not acquired.')
 
     def genHolPressed(self):
-        self.isSlmRun = False
-        self.action = 'generate_holograms'
+        if hasattr(self.slm, 'slm'):
+            if self.ui.hex_holRadioButton.isChecked():
+                self.show_text('Start holograms generation')
+                re = self.genHex()
+                if self.ui.repSaveCheckBox.isChecked():
+                    self.slm.writeRep('hexagons_' + re[2], len(re[0]), re[0])
+                    if self.ui.sendCheckBox.isChecked():
+                        self.slm.repSend(f'hexagons_{re[2]}.repz11')
+                        self.show_text('Repertoire updated')
+            elif self.ui.stripe_holRadioButton.isChecked():
+                re = self.genStr()
+                if self.ui.repSaveCheckBox.isChecked():
+                    self.slm.writeRep(f'stripes_{re[1]}', len(re[0]), re[0])
+                    if self.ui.sendCheckBox.isChecked():
+                        self.slm.repSend(f'stripes_{re[1]}.repz11')
+                        self.show_text('Repertoire updated')
+
 
     def selectPressed(self):
-        self.isSlmRun = False
-        self.action = 'select_repertoire'
-
-    def sendPressed(self):
-        self.isSlmRun = False
-        self.action = 'send_repertoire'
+        # self.isCameraRun = False
+        # self.action = 'select_repertoire'
+        if hasattr(self.slm, 'slm'):
+            selected_rep = self.select()
+            self.slm.repSend(selected_rep)
+            self.show_text('Repertoire updated')
 
 # functions for measurement
     def standardCapture(self):
