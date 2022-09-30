@@ -275,7 +275,7 @@
        <item>
         <widget class="QTabWidget" name="repTabs">
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="Holograms">
           <attribute name="title">
@@ -305,6 +305,9 @@
            </item>
            <item>
             <widget class="QCheckBox" name="sendCheckBox">
+             <property name="enabled">
+              <bool>true</bool>
+             </property>
              <property name="text">
               <string>Send to board</string>
              </property>
@@ -1191,7 +1194,7 @@
                  <number>560</number>
                 </property>
                 <property name="value">
-                 <number>10</number>
+                 <number>1</number>
                 </property>
                </widget>
               </item>
@@ -1544,6 +1547,9 @@ border : 1px;
               <property name="text">
                <string>Dual wavelength</string>
               </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
              </widget>
             </item>
             <item>
@@ -1594,7 +1600,7 @@ border : 1px;
                <string>Save .tif; .ini</string>
               </property>
               <property name="checked">
-               <bool>false</bool>
+               <bool>true</bool>
               </property>
              </widget>
             </item>
@@ -1610,7 +1616,7 @@ border : 1px;
                <string>Save .h5</string>
               </property>
               <property name="checked">
-               <bool>true</bool>
+               <bool>false</bool>
               </property>
              </widget>
             </item>

@@ -14,9 +14,9 @@ class NI_CO_hw(HardwareComponent):
 
         self.devices = self.add_logged_quantity('device', dtype=str, initial=board)
         self.channel1 = self.add_logged_quantity('Ext_exposure', dtype=str, choices=terminals, initial=terminals[0])
-        self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.05,
+        self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.1,
                                                    vmin=0.0001,spinbox_decimals=3, unit='s')
-        self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.045, vmin=0.0001,
+        self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.07, vmin=0.0001,
                                                   spinbox_decimals=3, unit='s')
         self.channel2 = self.add_logged_quantity('Ext_run', dtype=str, choices=terminals, initial=terminals[1])
         self.high_time2 = self.add_logged_quantity('high_time', dtype=float, initial=1.2, vmin=0.0001,
@@ -28,7 +28,7 @@ class NI_CO_hw(HardwareComponent):
         self.initial_delay_chan2 = self.add_logged_quantity('initial_delay_chan2', dtype=float, initial=0, vmin=0,
                                                             spinbox_decimals=6, unit='s')
 
-        self.trigger = self.add_logged_quantity('trigger', dtype=bool, initial=False)
+        self.trigger = self.add_logged_quantity('trigger', dtype=bool, initial=True)
         self.trigger_source = self.add_logged_quantity('trigger_source', dtype=str, choices=trig, initial=trig[0])
         self.trigger_edge = self.add_logged_quantity('trigger_edge', dtype=str, choices=['rising', 'falling'],
                                                      initial='rising')

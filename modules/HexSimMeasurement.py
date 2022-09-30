@@ -443,6 +443,7 @@ class HexSimMeasurement(Measurement):
         file_name = os.path.basename(file_path)
         txtDisplay = f'Selected {os.path.basename(file_name)}'
         self.show_text(txtDisplay)
+        print(file_path)
         return file_path
 
 # functions for operation
@@ -516,7 +517,6 @@ class HexSimMeasurement(Measurement):
         if hasattr(self.slm, 'slm'):
             selected_rep = self.select()
             self.slm.repSend(selected_rep)
-            self.show_text('Repertoire updated')
 
 # functions for measurement
     def standardCapture(self):
@@ -679,25 +679,28 @@ class HexSimMeasurement(Measurement):
 
     def batchCapture_test(self):
         try:
-            n_stack = 7 * self.ui.nStack.value()      # Initialize the raw image array
+            n_stack = 7 * self.ui.nStack.value()
+            if self.ui.dualWavelength.isChecked():
+                # step_size = self.z_stage.stepsize.val
+                # stage_offset = n_stack*step_size
+                # pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+                # self.z_stage.movePositionHW(pos)
+                # extend the raw image storage of stacks
+                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                                 np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
 
-
-            # step_size = self.z_stage.stepsize.val
-            # stage_offset = n_stack*step_size
-            # pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
-            # self.z_stage.movePositionHW(pos)
-
-            # extend the raw image storage of stacks
-            self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                             np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-
-            # pos_tmp = pos
-            # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
-            # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
-            # Also how to synchronise the NI_CO signal and the acquisition????
-            frames = self.getFrameStack(n_stack)
-            for i in range(n_stack):
-                self.imageRAW[0][i, :, :] = frames[i, :, :]
+                # pos_tmp = pos
+                # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
+                # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
+                # Also how to synchronise the NI_CO signal and the acquisition????
+                frames = self.getFrameStack(n_stack * 2)
+                for i in range(n_stack):
+                    self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
+                    self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
+            else:
+                frames = self.getFrameStack(n_stack)
+                for i in range(n_stack):
+                    self.imageRAW[0][i, :, :] = frames[i, :, :]
         except Exception as e:
             self.show_text(f'Batch capture encountered an error: {e}')
 
@@ -875,17 +878,13 @@ class HexSimMeasurement(Measurement):
         self.ni_do.write_value()
         [frames, dims] = self.camera.hamamatsu.getFrames()
         self.camera.hamamatsu.stopAcquisition()
-        self.ni_do.value.val = 0
-        self.ni_do.write_value()
         self.image_stack = np.zeros((n_frames, dims[1], dims[0]))
-        print(dims)
         if len(frames) == n_frames:
             for i in range(n_frames):
                 self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), (dims[1], dims[0]))
         else:
             self.image_stack = None
             print("Frame number is incorrect")
-
         return self.image_stack
 
     def cameraRun(self):

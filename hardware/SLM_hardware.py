@@ -8,14 +8,13 @@ class SLMHW(HardwareComponent):
     name = 'SLM_hardware'
 
     def setup(self):
-        # self.activation= self.add_logged_quantity(name='', dtype=str, choices=['Activate', 'Deactivate'],
-        #                                           initial='Deactivate', ro=False)
+        self.add_operation(name='Activate', op_func=self.act)
+        self.add_operation(name='Deactivate', op_func=self.deact)
         self.settings.activation_state = self.add_logged_quantity(name='State', dtype=str, ro=True)
         self.settings.rep_name = self.add_logged_quantity(name="Repertoire name", dtype=str, ro=True)
         self.settings.activation_type = self.add_logged_quantity(name='Activation type', dtype=str, ro=True)
         self.settings.roIndex = self.add_logged_quantity(name='Running Order index', spinbox_step=1, dtype=int, ro=False)
         self.settings.roName = self.add_logged_quantity(name='Running Order name', dtype=str, ro=True)
-        # self.add_operation(name='Generate rep', op_func=self.repGen)
         # self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
         # self.add_operation(name='Repsend', op_func=self.sendRep)
         # self.sendBitplane = self.settings.New(name='sendBitplane', dtype=str,
@@ -59,10 +58,12 @@ class SLMHW(HardwareComponent):
     def act(self):
         if hasattr(self, 'slm'):
             self.slm.activate()
+            self.updateHardware()
 
     def deact(self):
         if hasattr(self, 'slm'):
             self.slm.deactivate()
+            self.updateHardware()
 
     def repName(self):
         if hasattr(self, 'slm'):
@@ -222,7 +223,8 @@ class SLMHW(HardwareComponent):
             px = k * (i - 3)
             py = 2 * k
             g = g + (cos(px * xv * pi + py * yv * pi) > 0) * (2 ** i)
-            hol = (cos(px * xv * np.pi + py * yv * np.pi) > 0) * 1
+            hol = g * 1
+            # hol = (cos(px * xv * np.pi + py * yv * np.pi) > 0) * 1
             timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
             path = os.path.join('./gen_repertoires')
             imgN = f'stripes_%d_%.2f_{timestamp}.png' % (i, p)

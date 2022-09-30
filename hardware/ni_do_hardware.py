@@ -40,7 +40,6 @@ class NI_DO_hw(HardwareComponent):
             lq.hardware_set_func = None
             
     def write_value(self):
-        
         self.DO_device.write(self.value.val)
         print(f'write {self.value.val}')
         
