@@ -13,6 +13,7 @@ from qtwidgets import Toggle
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.MessageWindow import CalibrationResults
 from utils.StackImageViewer import StackImageViewer, list_equal
+# from utils.StackImageViewer import StackImageViewer
 from utils.ImageSegmentation import ImageSegmentation
 from tkinter import filedialog
 
@@ -98,6 +99,8 @@ class HexSimMeasurement(Measurement):
                           hardware_set_func = self.setReconstructor)
         self.settings.New('find_carrier', dtype=bool, initial=True,
                           hardware_set_func=self.setReconstructor)
+        self.settings.New('pmask', dtype=float, initial=2.1, spinbox_decimals=3)
+        self.settings.New('hex_orientation', dtype=float, initial=18)
 
         # initialize condition labels
         self.isStreamRun = False
@@ -215,6 +218,9 @@ class HexSimMeasurement(Measurement):
         self.settings.eta.connect_to_widget(self.ui.etaValue)
         self.settings.otf_model.connect_to_widget(self.ui.otfModel)
         self.camera.settings.exposure_time.connect_to_widget(self.ui.exposureTime)
+
+        self.settings.pmask.connect_to_widget(self.ui.pmaskValue)
+        self.settings.hex_orientation.connect_to_widget(self.ui.orientationValue)
 
         # Measure
         self.ui.captureStandardButton.clicked.connect(self.standardCapturePressed)
@@ -419,8 +425,8 @@ class HexSimMeasurement(Measurement):
     def genHex(self):
         """generate hexagonal holograms"""
         self.imageHol = np.zeros((14, 1536, 2048), dtype=np.uint16)  # a set of images
-        re1 = self.slm.genHexgans(488)
-        re2 = self.slm.genHexgans(561)
+        re1 = self.slm.genHexagons(488, self.settings.pmask.val, self.settings.hex_orientation.val)
+        re2 = self.slm.genHexagons(561, self.settings.pmask.val, self.settings.hex_orientation.val)
         nameList = [None] * 14
         for i in range(7):
             self.imageHol[int(2 * i), :, :] = re1[0][i]
@@ -644,10 +650,6 @@ class HexSimMeasurement(Measurement):
             # extend the raw image storage of stacks
             self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-            pos_tmp = pos
-            # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
-            # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
-            # Also how to synchronise the NI_CO signal and the acquisition????
             frames = self.getFrameStack(n_stack)
             for i in range(int(n_stack/2)):
                 self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
@@ -657,9 +659,7 @@ class HexSimMeasurement(Measurement):
                 # self.stage.moveAbsolutePositionHW(pos_tmp)
                 # self.show_text(f'Capture frame : {i + 1} / {n_stack}')
             # else:
-            #     ch = self.current_channel_caputure()
-            #     self.imageRAW[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-            #     # print(self.imageRAW[ch].shape)
+            #
             #     # project the patterns of CURRENT wavelength pattern and acquire n_stack raw images
             #     for i in range(n_stack):
             #         self.screen.slm_dev.displayFrameN(i % 7)
@@ -680,27 +680,24 @@ class HexSimMeasurement(Measurement):
     def batchCapture_test(self):
         try:
             n_stack = 7 * self.ui.nStack.value()
+            step_size = self.z_stage.stepsize.val
+            stage_offset = n_stack * step_size
+            pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+            self.z_stage.movePositionHW(pos)
             if self.ui.dualWavelength.isChecked():
-                # step_size = self.z_stage.stepsize.val
-                # stage_offset = n_stack*step_size
-                # pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
-                # self.z_stage.movePositionHW(pos)
                 # extend the raw image storage of stacks
                 self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                                  np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-
-                # pos_tmp = pos
-                # self.z_stage.zScanHW(pos_tmp, self.ui.nStack.value())
-                # not sure if this is multithreading, maybe we need to excute z-stage manully!!!!!!!!!!!
-                # Also how to synchronise the NI_CO signal and the acquisition????
                 frames = self.getFrameStack(n_stack * 2)
                 for i in range(n_stack):
                     self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
                     self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
             else:
-                frames = self.getFrameStack(n_stack)
+                self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
                 for i in range(n_stack):
-                    self.imageRAW[0][i, :, :] = frames[i, :, :]
+                    self.imageRAW[0][i, :, :] = self.getOneFrame()
+                    self.show_text(f'Capture frame: {i + 1} / {n_stack}')
+                    self.z_stage.moveUpHW()
         except Exception as e:
             self.show_text(f'Batch capture encountered an error: {e}')
 
@@ -876,7 +873,9 @@ class HexSimMeasurement(Measurement):
             self.ni_do.write_value()
         self.ni_do.value.val = 1
         self.ni_do.write_value()
-        [frames, dims] = self.camera.hamamatsu.getFrames()
+        def moveZfunc():
+            self.z_stage.moveUpHW()
+        [frames, dims] = self.camera.hamamatsu.getFrames_2wl(moveZfunc)
         self.camera.hamamatsu.stopAcquisition()
         self.image_stack = np.zeros((n_frames, dims[1], dims[0]))
         if len(frames) == n_frames:
@@ -940,51 +939,47 @@ class HexSimMeasurement(Measurement):
 
 # functions for IO
     def saveMeasurements(self):
-        if list_equal(self.imageRaw_store, self.imageRAW):
-            self.show_text("Raw images are not saved: the same measurement.")
+        timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+        sample = self.app.settings['sample']
+        if sample == '':
+            sample_name = '_'.join([timestamp, self.name])
         else:
-        #
-        # if list_equal(self.imageRaw_store, self.imageRAW):
-            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
-            sample = self.app.settings['sample']
-            if sample == '':
-                sample_name = '_'.join([timestamp, self.name])
-            else:
-                sample_name = '_'.join([timestamp, self.name, sample])
-            # create file path for both h5 and other types of files
-            pathname = os.path.join(self.app.settings['save_dir'], sample_name)
-            Path(pathname).mkdir(parents=True, exist_ok=True)
-            self.pathname = pathname
-            self.sample_name = sample_name
+            sample_name = '_'.join([timestamp, self.name, sample])
+        # create file path for both h5 and other types of files
+        pathname = os.path.join(self.app.settings['save_dir'], sample_name)
+        Path(pathname).mkdir(parents=True, exist_ok=True)
+        self.pathname = pathname
+        self.sample_name = sample_name
 
-            # create h5 base file if the h5 file is not exist
-            if self.ui.saveH5.isChecked():
-                # create h5 file for raw
-                fname_raw = os.path.join(pathname, sample_name + '_Raw.h5')
-                self.h5file_raw = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_raw)
-                # save measure component settings
-                h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_raw)
-                for ch_idx in range(2):
-                    gname = f'data/c{ch_idx}/raw'
-                    if np.sum(self.imageRAW[ch_idx]) == 0:  # remove the empty channel
-                        self.h5file_raw.create_dataset(gname, data = h5py.Empty("f"))
-                        self.show_text("[H5] Raw images are empty.")
-                    else:
-                        self.h5file_raw.create_dataset(gname, data = self.imageRAW[ch_idx])
-                        self.show_text("[H5] Raw images are saved.")
+        # create h5 base file if the h5 file is not exist
+        if self.ui.saveH5.isChecked():
+            # create h5 file for raw
+            fname_raw = os.path.join(pathname, sample_name + '_Raw.h5')
+            self.h5file_raw = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_raw)
+            # save measure component settings
+            h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_raw)
+            for ch_idx in range(2):
+                gname = f'data/c{ch_idx}/raw'
+                if np.sum(self.imageRAW[ch_idx]) == 0:  # remove the empty channel
+                    self.h5file_raw.create_dataset(gname, data = h5py.Empty("f"))
+                    self.show_text("[H5] Raw images are empty.")
+                else:
+                    self.h5file_raw.create_dataset(gname, data = self.imageRAW[ch_idx])
+                    self.show_text("[H5] Raw images are saved.")
 
-                self.h5file_raw.close()
+            self.h5file_raw.close()
 
-            if self.ui.saveTif.isChecked():
-                for ch_idx in range(2):
-                    fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
-                    if np.sum(self.imageRAW[ch_idx]) != 0:  # remove the empty channel
-                        tif.imwrite(fname_raw, np.single(self.imageRAW[ch_idx]))
-                        self.show_text("[Tif] Raw images are saved.")
-                    else:
-                        self.show_text("[Tif] Raw images are empty.")
+        if self.ui.saveTif.isChecked():
+            for ch_idx in range(2):
+                fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
+                if np.sum(self.imageRAW[ch_idx]) != 0:  # remove the empty channel
+                    tif.imwrite(fname_raw, np.single(self.imageRAW[ch_idx]))
+                    self.show_text("[Tif] Raw images are saved.")
+                else:
+                    self.show_text("[Tif] Raw images are empty.")
 
-            self.imageRaw_store = self.imageRAW # store the imageRAW for comparision
+        self.imageRaw_store = self.imageRAW # store the imageRAW for comparision
+        # print(self.imageRaw_store[0][0:20:1000])
 
         if self.isCalibrated:
             if self.ui.saveH5.isChecked():

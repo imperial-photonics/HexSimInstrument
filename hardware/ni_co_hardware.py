@@ -14,9 +14,9 @@ class NI_CO_hw(HardwareComponent):
 
         self.devices = self.add_logged_quantity('device', dtype=str, initial=board)
         self.channel1 = self.add_logged_quantity('Ext_exposure', dtype=str, choices=terminals, initial=terminals[0])
-        self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.1,
+        self.high_time1 = self.add_logged_quantity('high_time(exp)', dtype=float, initial=0.5,
                                                    vmin=0.0001,spinbox_decimals=3, unit='s')
-        self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.07, vmin=0.0001,
+        self.low_time1 = self.add_logged_quantity('low_time(exp)', dtype=float, initial=0.47, vmin=0.0001,
                                                   spinbox_decimals=3, unit='s')
         self.channel2 = self.add_logged_quantity('Ext_run', dtype=str, choices=terminals, initial=terminals[1])
         self.high_time2 = self.add_logged_quantity('high_time', dtype=float, initial=1.2, vmin=0.0001,
@@ -87,11 +87,19 @@ class NI_CO_hw(HardwareComponent):
             lq.hardware_set_func = None
 
     def start(self):
+        # if hasattr(self.CO_device, 'task_ni'):
+        #     if self.CO_device.task_ni._handle != None:
+        #         print('Current task is not closed yet')
+        # else:
         self.CO_device.start_task()
 
     def stop(self):
-
+        print(self.CO_device.task_ni.is_task_done())
         self.CO_device.stop_task()
+        if hasattr(self.CO_device.task_ni, '_handle'):
+            print(self.CO_device.task_ni._handle)
+        else:
+            print('no')
 
     def update_channels(self):
         ''' Find a NI device and return board + do_terminals + trigger terminals'''

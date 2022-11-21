@@ -107,74 +107,16 @@
          <property name="frameShadow">
           <enum>QFrame::Plain</enum>
          </property>
-         <layout class="QGridLayout" name="gridLayout_4">
-          <property name="leftMargin">
-           <number>2</number>
-          </property>
-          <property name="topMargin">
-           <number>2</number>
-          </property>
-          <property name="rightMargin">
-           <number>2</number>
-          </property>
-          <property name="bottomMargin">
-           <number>2</number>
-          </property>
-          <property name="horizontalSpacing">
-           <number>0</number>
-          </property>
-          <property name="verticalSpacing">
-           <number>9</number>
-          </property>
-          <item row="1" column="0">
-           <layout class="QVBoxLayout" name="verticalLayout_7">
-            <property name="spacing">
-             <number>0</number>
-            </property>
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-           </layout>
-          </item>
+         <layout class="QGridLayout" name="gridLayout_3">
           <item row="0" column="1">
-           <widget class="QGroupBox" name="groupBox_3">
-            <property name="maximumSize">
-             <size>
-              <width>200</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="font">
-             <font>
-              <pointsize>8</pointsize>
-              <weight>50</weight>
-              <bold>false</bold>
-              <stylestrategy>PreferDefault</stylestrategy>
-              <kerning>true</kerning>
-             </font>
-            </property>
-            <property name="title">
-             <string>CAMERA</string>
-            </property>
-            <property name="flat">
-             <bool>false</bool>
-            </property>
-            <property name="checkable">
-             <bool>false</bool>
-            </property>
-            <layout class="QGridLayout" name="gridLayout_5">
-             <item row="0" column="0">
-              <layout class="QVBoxLayout" name="cameraToggleLayout">
-               <property name="spacing">
-                <number>0</number>
-               </property>
-              </layout>
-             </item>
-            </layout>
-           </widget>
-          </item>
-          <item row="1" column="1">
            <layout class="QVBoxLayout" name="verticalLayout_28">
+            <item>
+             <layout class="QVBoxLayout" name="cameraToggleLayout">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+             </layout>
+            </item>
             <item>
              <widget class="QLabel" name="label_2">
               <property name="maximumSize">
@@ -193,8 +135,7 @@
                </font>
               </property>
               <property name="text">
-               <string>Z 
- (um)</string>
+               <string>Z  (um)</string>
               </property>
               <property name="alignment">
                <set>Qt::AlignCenter</set>
@@ -241,7 +182,7 @@
                <bool>false</bool>
               </property>
               <property name="digitCount">
-               <number>5</number>
+               <number>6</number>
               </property>
               <property name="segmentStyle">
                <enum>QLCDNumber::Flat</enum>
@@ -275,35 +216,21 @@
        <item>
         <widget class="QTabWidget" name="repTabs">
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="Holograms">
           <attribute name="title">
-           <string>Hologram</string>
+           <string>Repertoires</string>
           </attribute>
-          <layout class="QVBoxLayout" name="verticalLayout_11">
-           <item>
-            <widget class="QRadioButton" name="hex_holRadioButton">
-             <property name="text">
-              <string>Hexagons</string>
-             </property>
-            </widget>
-           </item>
-           <item>
+          <layout class="QGridLayout" name="gridLayout_4">
+           <item row="3" column="0">
             <widget class="QRadioButton" name="stripe_holRadioButton">
              <property name="text">
               <string>Stripes</string>
              </property>
             </widget>
            </item>
-           <item>
-            <widget class="QCheckBox" name="repSaveCheckBox">
-             <property name="text">
-              <string>Save as a repertoire</string>
-             </property>
-            </widget>
-           </item>
-           <item>
+           <item row="5" column="0">
             <widget class="QCheckBox" name="sendCheckBox">
              <property name="enabled">
               <bool>true</bool>
@@ -313,7 +240,21 @@
              </property>
             </widget>
            </item>
-           <item>
+           <item row="1" column="0">
+            <widget class="QRadioButton" name="hex_holRadioButton">
+             <property name="text">
+              <string>Hexagons</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QCheckBox" name="repSaveCheckBox">
+             <property name="text">
+              <string>Save as a repertoire</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0">
             <widget class="QPushButton" name="holGenButton">
              <property name="text">
               <string>Generate</string>
@@ -322,9 +263,9 @@
            </item>
           </layout>
          </widget>
-         <widget class="QWidget" name="Repertoires">
+         <widget class="QWidget" name="RepertoireSettings">
           <attribute name="title">
-           <string>Repertoire</string>
+           <string>Settings</string>
           </attribute>
           <layout class="QVBoxLayout" name="verticalLayout_4">
            <item>
@@ -333,6 +274,44 @@
               <string>Select and Send</string>
              </property>
             </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_19">
+             <item>
+              <widget class="QLabel" name="label">
+               <property name="text">
+                <string>P_mask
+ (mm)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QDoubleSpinBox" name="pmaskValue">
+               <property name="value">
+                <double>2.100000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_20">
+             <item>
+              <widget class="QLabel" name="label_3">
+               <property name="text">
+                <string>Orientation
+ (degree)</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QDoubleSpinBox" name="orientationValue">
+               <property name="value">
+                <double>18.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+            </layout>
            </item>
           </layout>
          </widget>
@@ -1939,6 +1918,35 @@ border : 1px;
              <property name="spacing">
               <number>0</number>
              </property>
+             <item>
+              <widget class="QGroupBox" name="groupBox_3">
+               <property name="maximumSize">
+                <size>
+                 <width>200</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="font">
+                <font>
+                 <pointsize>8</pointsize>
+                 <weight>50</weight>
+                 <bold>false</bold>
+                 <stylestrategy>PreferDefault</stylestrategy>
+                 <kerning>true</kerning>
+                </font>
+               </property>
+               <property name="title">
+                <string/>
+               </property>
+               <property name="flat">
+                <bool>false</bool>
+               </property>
+               <property name="checkable">
+                <bool>false</bool>
+               </property>
+               <layout class="QGridLayout" name="gridLayout_5"/>
+              </widget>
+             </item>
             </layout>
            </item>
           </layout>

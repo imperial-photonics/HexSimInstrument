@@ -93,9 +93,8 @@ class SLMHW(HardwareComponent):
             self.updateHardware()
 
     def closeCheck(self):
-        if self.slm.getState() == 0x56:
+        if self.slm.getState() == 0x54 or self.slm.getState() == 0x56:
             self.slm.deactivate()
-            print('Deactivate successfully before close')
 
     def getActState(self):
         if hasattr(self, 'slm'):
@@ -234,7 +233,7 @@ class SLMHW(HardwareComponent):
             imgNameList.append(imgN)
         return img, imgNameList, timestamp
 
-    def genHexgans(self, lamda):
+    def genHexagons(self, lamda, pm, deg_num):
         """Generate hexagonal holograms hexagons"""
         print('genHexgans')
         h = 1536
@@ -244,9 +243,9 @@ class SLMHW(HardwareComponent):
         mm = 0.001
         wavelength = lamda * nm
         f = 160 * mm
-        p_mask = 2.1 * mm
+        p_mask = pm * mm
         # pitch of the pinhole mask
-        u_mask = mm * 2.1 * sqrt(3) / 2
+        u_mask = p_mask * sqrt(3) / 2
         # u_mask: coordinate in x direction in FT plane
         p = 1 / (u_mask / wavelength / f) / (0.0082 * mm)
         # SLM's pixel size: 0.0082mm
@@ -256,10 +255,10 @@ class SLMHW(HardwareComponent):
         # The relationship between r0 and p makes sure the black and white part in the hologram has the same area for the
         # maximum diffraction.
 
-        deg_num = 18
         orientation = deg_num * pi / 180
 
-        distort = (1 - (66 / 2 / 132) ** 2) ** 0.5
+        # distort = (1 - (66 / 2 / 132) ** 2) ** 0.5
+        distort = 1
         # The distorted pattern corresponds to the angle between the laser source and the imaging system
         # (the imaging system was not perpendicular to the SLM)
         x, y = meshgrid(np.arange(w) * distort, np.arange(h))

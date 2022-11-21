@@ -198,7 +198,7 @@ if __name__ == "__main__":
     print(stage.singleReadZ())
     stage.zScan(0, 10, 20)
 
-    # stage.singleWriteZ(20)
+
     time.sleep(8)
     print(stage.singleReadZ())
 

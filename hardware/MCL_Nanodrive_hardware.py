@@ -8,7 +8,7 @@ class NanoDriveHW(HardwareComponent):
 
     def setup(self):
         self.settings.absolute_position = self.add_logged_quantity(name='Absolute position', dtype=float, unit='μm',
-                                                                   vmin=0, vmax=300, ro=False)
+                                                                   vmin=0, vmax=300, initial=150, ro=False)
         self.stepsize = self.settings.New(name='Step size', dtype=float, unit='μm', vmin=0, vmax=50, initial=0.05,
                                                           ro=False)
         self.add_operation(name='Z scan', op_func=self.zScanHW)
@@ -19,6 +19,7 @@ class NanoDriveHW(HardwareComponent):
             read_func=self.nanoscanz.singleReadZ,
             write_func=self.movePositionHW
         )
+        self.movePositionHW(150)
         self.read_from_hardware()
 
     def disconnect(self):
@@ -38,6 +39,11 @@ class NanoDriveHW(HardwareComponent):
             self.settings.absolute_position.read_from_hardware()
             # print('REL position: ',self.settings.relative_position.val)
             print('ABS position: ', self.settings.absolute_position.val, 'μm')
+
+    def moveUpHW(self):
+        if hasattr(self, 'nanoscanz'):
+            self.nanoscanz.singleWriteZ(self.settings.absolute_position.val + self.stepsize.val)
+            self.updateHardware()
 
     def moveDownHW(self):
         if hasattr(self, 'nanoscanz'):
