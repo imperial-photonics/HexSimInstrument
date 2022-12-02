@@ -295,7 +295,7 @@ class HexSimMeasurement(Measurement):
                         self.saveMeasurements()
 
                 elif self.action == 'batch_capture':
-                    self.batchCapture_test()
+                    self.batchCapture()
                     self.resetHexSIM()
                     if self.ui.autoCalibration.isChecked():
                         self.calibration()
@@ -527,157 +527,31 @@ class HexSimMeasurement(Measurement):
 # functions for measurement
     def standardCapture(self):
         try:
-            # initialize the raw image array list
-            self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                             np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-
-            if self.ui.dualWavelength.isChecked():
-                # switch to 488 nm laser pattern
-                # self.screen.slm_dev.setPatterns(0.488)
-                # self.screen.openSLM()
-                # project the patterns of 488nm pattern and acquire 7 raw images
-                for i in range(7):
-                    # self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(0.05)
-                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRAW[0][i, :, :] = self.getOneFrame()
-                    self.show_text(f'[488 nm] Capture frame: {i+1}')
-                # switch to 561 nm laser pattern
-                # self.screen.slm_dev.setPatterns(0.561)
-                self.screen.openSLM()
-                # project the patterns of 488nm pattern and acquire 7 raw images
-                for i in range(7):
-                    # self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(0.05)
-                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRAW[1][i, :, :] = self.getOneFrame()
-                    self.show_text(f'[561 nm] Capture frame: {i+1}')
-                # restore SLM setting
-                # self.controlSLM()
-
-            else:
-                # project the patterns and acquire 7 raw images
-                for i in range(7):
-                    # self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(0.05)
-                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRAW[self.current_channel_caputure()][i, :, :] = self.getOneFrame()
-                    self.show_text(f'Capture frame: {i+1}')
-
-            # self.imageAVG = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
-            self.show_text('Standard capture finished.')
-            self.isUpdateImageViewer = True
-
-        except Exception as e:
-            txtDisplay = f'Standard capture encountered an error \n{e}'
-            self.show_text(txtDisplay)
-
-    # def batchCapture(self):
-    #     try:
-    #         n_stack = 7*self.ui.nStack.value()      # Initialize the raw image array
-    #         # initialize the raw image array list
-    #         self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-    #                          np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-    #
-    #         step_size = self.stage.settings.stepsize.val
-    #         stage_offset = n_stack*step_size
-    #         pos = 25-stage_offset/2.0
-    #         self.stage.moveAbsolutePositionHW(pos)
-    #
-    #         if self.ui.dualWavelength.isChecked():
-    #             # extend the raw image storage of stacks
-    #             self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-    #                              np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-    #             #switch to 488 nm laser pattern and acquire images
-    #             self.screen.slm_dev.setPatterns(0.488)
-    #             self.screen.openSLM()
-    #             pos_tmp = pos
-    #             for i in range(n_stack):
-    #                 self.screen.slm_dev.displayFrameN(i % 7)
-    #                 time.sleep(0.050)
-    #                 self.imageRAW[0][i, :, :] = self.getOneFrame()
-    #                 # move the stage to position
-    #                 pos_tmp = pos_tmp + step_size
-    #                 self.stage.moveAbsolutePositionHW(pos_tmp)
-    #                 self.show_text(f'[488 nm] Capture frame : {i+1} / {n_stack}')
-    #
-    #             # switch to 561 nm laser pattern and acquire images
-    #             self.screen.slm_dev.setPatterns(0.561)
-    #             self.screen.openSLM()
-    #             pos_tmp = pos
-    #             for i in range(n_stack):
-    #                 self.screen.slm_dev.displayFrameN(i % 7)
-    #                 time.sleep(0.050)
-    #                 self.imageRAW[1][i, :, :] = self.getOneFrame()
-    #                 # move the stage to position
-    #                 pos_tmp = pos_tmp + step_size
-    #                 self.stage.moveAbsolutePositionHW(pos_tmp)
-    #                 self.show_text(f'[561 nm] Capture frame: {i+1} / {n_stack}')
-    #
-    #         else:
-    #             ch = self.current_channel_caputure()
-    #             self.imageRAW[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-    #             # print(self.imageRAW[ch].shape)
-    #             # project the patterns of CURRENT wavelength pattern and acquire n_stack raw images
-    #             for i in range(n_stack):
-    #                 self.screen.slm_dev.displayFrameN(i % 7)
-    #                 time.sleep(0.050)
-    #                 self.imageRAW[ch][i, :, :] = self.getOneFrame()
-    #                 # move the stage to position
-    #                 pos = pos + step_size
-    #                 self.stage.moveAbsolutePositionHW(pos)
-    #                 self.show_text(f'Capture frame: {i+1} / {n_stack}')
-    #
-    #         self.show_text('Batch capture finished.')
-    #         self.stage.moveAbsolutePositionHW(25)    # Move the stage back to the middle position
-    #         self.isUpdateImageViewer = True
-    #
-    #     except Exception as e:
-    #         self.show_text(f'Batch capture encountered an error \n{e}')
-
-    def batchCapture(self):
-        try:
-            n_stack = 7 * self.ui.nStack.value()      # Initialize the raw image array
-            # initialize the raw image array list
-            self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                             np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-
+            n_stack = 7 * self.ui.nStack.value()
             step_size = self.z_stage.stepsize.val
-            stage_offset = n_stack*step_size
+            stage_offset = n_stack * step_size
             pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
             self.z_stage.movePositionHW(pos)
-
-            # extend the raw image storage of stacks
-            self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                             np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-            frames = self.getFrameStack(n_stack)
-            for i in range(int(n_stack/2)):
-                self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
-                self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
-                # move the stage to position
-                # pos_tmp = pos_tmp + step_size
-                # self.stage.moveAbsolutePositionHW(pos_tmp)
-                # self.show_text(f'Capture frame : {i + 1} / {n_stack}')
-            # else:
-            #
-            #     # project the patterns of CURRENT wavelength pattern and acquire n_stack raw images
-            #     for i in range(n_stack):
-            #         self.screen.slm_dev.displayFrameN(i % 7)
-            #         time.sleep(0.050)
-            #         self.imageRAW[ch][i, :, :] = self.getOneFrame()
-            #         # move the stage to position
-            #         pos = pos + step_size
-            #         self.z_stage.movePositionHW(pos)
-            #         self.show_text(f'Capture frame: {i+1} / {n_stack}')
-            #
-            # self.show_text('Batch capture finished.')
-            # # self.stage.moveAbsolutePositionHW(25)    # Move the stage back to the middle position
-            # self.isUpdateImageViewer = True
-
+            if self.ui.dualWavelength.isChecked():
+                # extend the raw image storage of stacks
+                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                                 np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+                frames = self.getFrameStack(n_stack * 2)
+                for i in range(n_stack):
+                    self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
+                    self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
+            else:
+                self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+                for a in range(self.ui.nStack.value()):
+                    for i in range(7):
+                        n_frame = 7 * a + i
+                        self.imageRAW[0][n_frame, :, :] = self.getOneFrame()
+                        self.show_text(f'Capture frame: {n_frame + 1} / {n_stack}')
+                    self.z_stage.moveUpHW()
         except Exception as e:
-            self.show_text(f'Batch capture encountered an error: {e}')
+            self.show_text(f'Standard capture encountered an error \n{e}')
 
-    def batchCapture_test(self):
+    def batchCapture(self):
         try:
             n_stack = 7 * self.ui.nStack.value()
             step_size = self.z_stage.stepsize.val
