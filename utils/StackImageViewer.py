@@ -11,6 +11,7 @@ import numpy as np
 import pyqtgraph as pg
 from PyQt5 import QtCore, QtWidgets, uic
 
+# this function causes issues in the comparison of images.!!!!!!!
 def list_equal(list_a,list_b):
     try:
         eql = all([np.array_equal(list_a[i], list_b[i]) for i in range(len(list_a))])

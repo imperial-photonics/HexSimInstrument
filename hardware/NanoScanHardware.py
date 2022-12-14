@@ -36,7 +36,7 @@ class NanoScanHW(HardwareComponent):
         #                                               reread_from_hardware_after_write=True)
 
     def connect(self):
-        self.nanoscanz = NanoScan(port=self.settings.com_port.val,debug=self.settings['debug_mode'])
+        self.nanoscanz = NanoScan(port=self.settings.com_port.val, debug=self.settings['debug_mode'])
         self.settings.absolute_position.connect_to_hardware(
             read_func=self.nanoscanz.getPositionAbs,
             write_func=self.moveAbsolutePositionHW

@@ -2,6 +2,7 @@ import os, time, h5py
 import numpy as np
 import pyqtgraph as pg
 import tifffile as tif
+import tkinter as tk
 
 from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
@@ -12,7 +13,10 @@ from qtwidgets import Toggle
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from utils.MessageWindow import CalibrationResults
 from utils.StackImageViewer import StackImageViewer, list_equal
+# from utils.StackImageViewer import StackImageViewer
 from utils.ImageSegmentation import ImageSegmentation
+from tkinter import filedialog
+
 
 from PyQt5.QtCore import QTimer
 def add_timer(function):
@@ -50,10 +54,13 @@ class HexSimMeasurement(Measurement):
         self.ui = load_qt_ui_file(".\\ui\\hexsim_measure.ui")
         # Connect to hardware components
         self.camera = self.app.hardware['HamamatsuHardware']
-        self.screen = self.app.hardware['ScreenHardware']
-        self.stage = self.app.hardware['NanoScanHardware']
+        # self.screen = self.app.hardware['ScreenHardware']
+        self.slm = self.app.hardware['SLM_hardware']
+        # self.stage = self.app.hardware['NanoDriveHardware']
+        self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
+        self.ni_do = self.app.hardware['NI_DO_hw']
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
         self.display_update_period = self.settings.refresh_period.val
@@ -92,6 +99,8 @@ class HexSimMeasurement(Measurement):
                           hardware_set_func = self.setReconstructor)
         self.settings.New('find_carrier', dtype=bool, initial=True,
                           hardware_set_func=self.setReconstructor)
+        self.settings.New('pmask', dtype=float, initial=2.1, spinbox_decimals=3)
+        self.settings.New('hex_orientation', dtype=float, initial=18)
 
         # initialize condition labels
         self.isStreamRun = False
@@ -102,6 +111,9 @@ class HexSimMeasurement(Measurement):
         self.isGpuenable = True  # using GPU for accelerating
         self.isCompact = True  # using compact mode in batch reconstruction to save memory
         self.isFindCarrier = True
+        # self.isSlmRun = False
+        # self.saveRep = True
+        # self.sendRep = True
 
         self.action = None
 
@@ -145,8 +157,8 @@ class HexSimMeasurement(Measurement):
 
         # image viewers
         self.imvRaw     = StackImageViewer(image_sets=self.imageRAW[0], set_levels=[1, 1])
-        self.imvWF      = StackImageViewer(image_sets=self.imageWF,set_levels=[1,1])
-        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI,set_levels=[1,1])
+        self.imvWF      = StackImageViewer(image_sets=self.imageWF, set_levels=[1,1])
+        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI, set_levels=[1,1])
         self.imvSIM     = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8])
         self.imvSIM_ROI = StackImageViewer(image_sets=self.imageSIM_ROI, set_levels=[0, 0.8])
 
@@ -174,13 +186,16 @@ class HexSimMeasurement(Measurement):
         self.ui.cameraToggleLayout.addWidget(self.ui.switchCAM)
         self.ui.switchCAM.stateChanged.connect(self.controlCAM)
         self.ui.snapshot.clicked.connect(self.snapshotPressed)
-        # screen
-        self.ui.slmSlider.valueChanged.connect(self.controlSLM)
-        self.ui.previousPatternButton.clicked.connect(self.previousPattern)
-        self.ui.nextPatternButton.clicked.connect(self.nextPattern)
+        # # screen
+        # self.ui.slmSlider.valueChanged.connect(self.controlSLM)
+        # self.ui.previousPatternButton.clicked.connect(self.previousPattern)
+        # self.ui.nextPatternButton.clicked.connect(self.nextPattern)
         # stage
-        self.ui.stagePositionIncrease.clicked.connect(self.stage.moveUpHW)
-        self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
+        # self.ui.stagePositionIncrease.clicked.connect(self.stage.singleReadZ)
+        # self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
+        # SLM
+        self.ui.holGenButton.clicked.connect(self.genHolPressed)
+        self.ui.selectPushButton.clicked.connect(self.selectPressed)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -204,6 +219,9 @@ class HexSimMeasurement(Measurement):
         self.settings.otf_model.connect_to_widget(self.ui.otfModel)
         self.camera.settings.exposure_time.connect_to_widget(self.ui.exposureTime)
 
+        self.settings.pmask.connect_to_widget(self.ui.pmaskValue)
+        self.settings.hex_orientation.connect_to_widget(self.ui.orientationValue)
+
         # Measure
         self.ui.captureStandardButton.clicked.connect(self.standardCapturePressed)
         self.ui.captureBatchButton.clicked.connect(self.batchCapturePressed)
@@ -224,7 +242,7 @@ class HexSimMeasurement(Measurement):
     def update_display(self):
         # update stage position
         try:
-            self.ui.stagePositionDisplay.display(f'{self.stage.settings.absolute_position.val:.2f}')
+            self.ui.stagePositionDisplay.display(f'{self.z_stage.settings.absolute_position.val:.2f}')
             self.ui.cellNumber.display(self.numSets)
         except Exception as e:
             print(e)
@@ -243,8 +261,8 @@ class HexSimMeasurement(Measurement):
         else:
             pass
 
-        if hasattr(self.screen, 'slm_dev'):
-            self.ui.patternNumber.setText(str(self.screen.slm_dev.counter%7))
+        # if hasattr(self.screen, 'slm_dev'):
+        #     self.ui.patternNumber.setText(str(self.screen.slm_dev.counter%7))
 
         if self.isCalibrated:
             self.ui.calibrationProgress.setValue(100)
@@ -254,11 +272,11 @@ class HexSimMeasurement(Measurement):
             self.ui.calibrationProgress.setFormat('Uncalibrated')
 
     def pre_run(self):
-        if hasattr(self,'screen'):
-            self.controlSLM()
+        pass
+        # if hasattr(self,'screen'):
+        #     self.controlSLM()
 
     def run(self):
-
         while not self.interrupt_measurement_called:
             time.sleep(0.01)
             if self.isCameraRun:
@@ -403,22 +421,60 @@ class HexSimMeasurement(Measurement):
             # self.imvRAW.displaySet(1)
             # self.imvRAW.ui.cellCombo.setCurrentIndex(1)
 
+# functions for SLM
+    def genHex(self):
+        """generate hexagonal holograms"""
+        self.imageHol = np.zeros((14, 1536, 2048), dtype=np.uint16)  # a set of images
+        re1 = self.slm.genHexagons(488, self.settings.pmask.val, self.settings.hex_orientation.val)
+        re2 = self.slm.genHexagons(561, self.settings.pmask.val, self.settings.hex_orientation.val)
+        nameList = [None] * 14
+        for i in range(7):
+            self.imageHol[int(2 * i), :, :] = re1[0][i]
+            self.imageHol[int(2 * i + 1), :, :] = re2[0][i]
+            nameList[2 * i] = re1[1][i]
+            nameList[2 * i + 1] = re2[1][i]
+        return nameList, re1[2], re2[2]
+
+    def genStr(self):
+        """generate 7 striped holograms"""
+        self.imageHol = np.zeros((7, 1536, 2048), dtype=np.uint16)  # initialise the holograms
+        re = self.slm.genStripes()
+        self.imageHol = re[0]
+        return re[1], re[2]
+
+    def select(self):
+        root = tk.Tk()
+        root.withdraw()
+        file_path = filedialog.askopenfilename()
+        file_name = os.path.basename(file_path)
+        txtDisplay = f'Selected {os.path.basename(file_name)}'
+        self.show_text(txtDisplay)
+        print(file_path)
+        return file_path
+
 # functions for operation
     def standardCapturePressed(self):
-        if not self.screen.slm_dev.isVisible():
-            self.show_text('Open SLM!')
-        else:
-            self.isCameraRun = False
-            self.channelChanged()
-            self.action = 'standard_capture'
+        # if not self.screen.slm_dev.isVisible():
+        #     self.show_text('Open SLM!')
+        # else:
+        #     self.isCameraRun = False
+        #     self.channelChanged()
+        #     self.action = 'standard_capture'
+        self.isCameraRun = False
+        self.channelChanged()
+        self.action = 'standard_capture'
 
     def batchCapturePressed(self):
-        if not self.screen.slm_dev.isVisible():
-            self.show_text('Open SLM!')
-        else:
-            self.isCameraRun = False
-            self.channelChanged()
-            self.action = 'batch_capture'
+        # if not self.screen.slm_dev.isVisible():
+        #     self.show_text('Open SLM!')
+        #     pass
+        # else:
+        #     self.isCameraRun = False
+        #     self.channelChanged()
+        #     self.action = 'batch_capture'
+        self.isCameraRun = False
+        self.channelChanged()
+        self.action = 'batch_capture'
 
     def calibrationPressed(self):
         self.isCameraRun = False
@@ -442,116 +498,82 @@ class HexSimMeasurement(Measurement):
         else:
             self.show_text('ROI raw images are not acquired.')
 
+    def genHolPressed(self):
+        if hasattr(self.slm, 'slm'):
+            if self.ui.hex_holRadioButton.isChecked():
+                self.show_text('Start holograms generation')
+                re = self.genHex()
+                if self.ui.repSaveCheckBox.isChecked():
+                    self.slm.writeRep('hexagons_' + re[2], len(re[0]), re[0])
+                    if self.ui.sendCheckBox.isChecked():
+                        self.slm.repSend(f'hexagons_{re[2]}.repz11')
+                        self.show_text('Repertoire updated')
+            elif self.ui.stripe_holRadioButton.isChecked():
+                re = self.genStr()
+                if self.ui.repSaveCheckBox.isChecked():
+                    self.slm.writeRep(f'stripes_{re[1]}', len(re[0]), re[0])
+                    if self.ui.sendCheckBox.isChecked():
+                        self.slm.repSend(f'stripes_{re[1]}.repz11')
+                        self.show_text('Repertoire updated')
+
+
+    def selectPressed(self):
+        # self.isCameraRun = False
+        # self.action = 'select_repertoire'
+        if hasattr(self.slm, 'slm'):
+            selected_rep = self.select()
+            self.slm.repSend(selected_rep)
+
 # functions for measurement
     def standardCapture(self):
         try:
-            # initialize the raw image array list
-            self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                             np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-
-            if self.ui.dualWavelength.isChecked():
-                # switch to 488 nm laser pattern
-                self.screen.slm_dev.setPatterns(0.488)
-                self.screen.openSLM()
-                # project the patterns of 488nm pattern and acquire 7 raw images
-                for i in range(7):
-                    self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(0.05)
-                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRAW[0][i, :, :] = self.getOneFrame()
-                    self.show_text(f'[488 nm] Capture frame: {i+1}')
-                # switch to 561 nm laser pattern
-                self.screen.slm_dev.setPatterns(0.561)
-                self.screen.openSLM()
-                # project the patterns of 488nm pattern and acquire 7 raw images
-                for i in range(7):
-                    self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(0.05)
-                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRAW[1][i, :, :] = self.getOneFrame()
-                    self.show_text(f'[561 nm] Capture frame: {i+1}')
-                # restore SLM setting
-                self.controlSLM()
-
-            else:
-                # project the patterns and acquire 7 raw images
-                for i in range(7):
-                    self.screen.slm_dev.displayFrameN(i)
-                    time.sleep(0.05)
-                    # time.sleep(self.getAcquisitionInterval() / 1000.0)
-                    self.imageRAW[self.current_channel_caputure()][i, :, :] = self.getOneFrame()
-                    self.show_text(f'Capture frame: {i+1}')
-
-            # self.imageAVG = self.raw2WideFieldImage(self.imageRAW[self.current_channel_display()])
-            self.show_text('Standard capture finished.')
-            self.isUpdateImageViewer = True
-
-        except Exception as e:
-            txtDisplay = f'Standard capture encountered an error \n{e}'
-            self.show_text(txtDisplay)
-
-    def batchCapture(self):
-        try:
-            n_stack = 7*self.ui.nStack.value()      # Initialize the raw image array
-            # initialize the raw image array list
-            self.imageRAW = [np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                             np.zeros((7, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-
-            step_size = self.stage.settings.stepsize.val
-            stage_offset = n_stack*step_size
-            pos = 25-stage_offset/2.0
-            self.stage.moveAbsolutePositionHW(pos)
-
+            n_stack = 7 * self.ui.nStack.value()
+            step_size = self.z_stage.stepsize.val
+            stage_offset = n_stack * step_size
+            pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+            self.z_stage.movePositionHW(pos)
             if self.ui.dualWavelength.isChecked():
                 # extend the raw image storage of stacks
                 self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                                  np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-                #switch to 488 nm laser pattern and acquire images
-                self.screen.slm_dev.setPatterns(0.488)
-                self.screen.openSLM()
-                pos_tmp = pos
+                frames = self.getFrameStack(n_stack * 2)
                 for i in range(n_stack):
-                    self.screen.slm_dev.displayFrameN(i % 7)
-                    time.sleep(0.050)
-                    self.imageRAW[0][i, :, :] = self.getOneFrame()
-                    # move the stage to position
-                    pos_tmp = pos_tmp + step_size
-                    self.stage.moveAbsolutePositionHW(pos_tmp)
-                    self.show_text(f'[488 nm] Capture frame : {i+1} / {n_stack}')
-
-                # switch to 561 nm laser pattern and acquire images
-                self.screen.slm_dev.setPatterns(0.561)
-                self.screen.openSLM()
-                pos_tmp = pos
-                for i in range(n_stack):
-                    self.screen.slm_dev.displayFrameN(i % 7)
-                    time.sleep(0.050)
-                    self.imageRAW[1][i, :, :] = self.getOneFrame()
-                    # move the stage to position
-                    pos_tmp = pos_tmp + step_size
-                    self.stage.moveAbsolutePositionHW(pos_tmp)
-                    self.show_text(f'[561 nm] Capture frame: {i+1} / {n_stack}')
-
+                    self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
+                    self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
             else:
-                ch = self.current_channel_caputure()
-                self.imageRAW[ch] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-                # print(self.imageRAW[ch].shape)
-                # project the patterns of CURRENT wavelength pattern and acquire n_stack raw images
-                for i in range(n_stack):
-                    self.screen.slm_dev.displayFrameN(i % 7)
-                    time.sleep(0.050)
-                    self.imageRAW[ch][i, :, :] = self.getOneFrame()
-                    # move the stage to position
-                    pos = pos + step_size
-                    self.stage.moveAbsolutePositionHW(pos)
-                    self.show_text(f'Capture frame: {i+1} / {n_stack}')
-
-            self.show_text('Batch capture finished.')
-            self.stage.moveAbsolutePositionHW(25)    # Move the stage back to the middle position
-            self.isUpdateImageViewer = True
-
+                self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+                for a in range(self.ui.nStack.value()):
+                    for i in range(7):
+                        n_frame = 7 * a + i
+                        self.imageRAW[0][n_frame, :, :] = self.getOneFrame()
+                        self.show_text(f'Capture frame: {n_frame + 1} / {n_stack}')
+                    self.z_stage.moveUpHW()
         except Exception as e:
-            self.show_text(f'Batch capture encountered an error \n{e}')
+            self.show_text(f'Standard capture encountered an error \n{e}')
+
+    def batchCapture(self):
+        try:
+            n_stack = 7 * self.ui.nStack.value()
+            step_size = self.z_stage.stepsize.val
+            stage_offset = n_stack * step_size
+            pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+            self.z_stage.movePositionHW(pos)
+            if self.ui.dualWavelength.isChecked():
+                # extend the raw image storage of stacks
+                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                                 np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+                frames = self.getFrameStack(n_stack * 2)
+                for i in range(n_stack):
+                    self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
+                    self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
+            else:
+                self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
+                for i in range(n_stack):
+                    self.imageRAW[0][i, :, :] = self.getOneFrame()
+                    self.show_text(f'Capture frame: {i + 1} / {n_stack}')
+                    self.z_stage.moveUpHW()
+        except Exception as e:
+            self.show_text(f'Batch capture encountered an error: {e}')
 
 # functions for processing
     @add_timer
@@ -717,6 +739,27 @@ class HexSimMeasurement(Measurement):
 
         return self.last_image[np.newaxis, :, :]
 
+    def getFrameStack(self, n_frames):
+        self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n_frames)
+        self.camera.hamamatsu.startAcquisition()
+        if self.ni_do.value.val == 1:
+            self.ni_do.value.val = 0
+            self.ni_do.write_value()
+        self.ni_do.value.val = 1
+        self.ni_do.write_value()
+        def moveZfunc():
+            self.z_stage.moveUpHW()
+        [frames, dims] = self.camera.hamamatsu.getFrames_2wl(moveZfunc)
+        self.camera.hamamatsu.stopAcquisition()
+        self.image_stack = np.zeros((n_frames, dims[1], dims[0]))
+        if len(frames) == n_frames:
+            for i in range(n_frames):
+                self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), (dims[1], dims[0]))
+        else:
+            self.image_stack = None
+            print("Frame number is incorrect")
+        return self.image_stack
+
     def cameraRun(self):
 
         try:
@@ -770,49 +813,47 @@ class HexSimMeasurement(Measurement):
 
 # functions for IO
     def saveMeasurements(self):
-        if list_equal(self.imageRaw_store, self.imageRAW):
-            self.show_text("Raw images are not saved: the same measurement.")
+        timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+        sample = self.app.settings['sample']
+        if sample == '':
+            sample_name = '_'.join([timestamp, self.name])
         else:
-            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
-            sample = self.app.settings['sample']
-            if sample == '':
-                sample_name = '_'.join([timestamp, self.name])
-            else:
-                sample_name = '_'.join([timestamp, self.name, sample])
-            # create file path for both h5 and other types of files
-            pathname = os.path.join(self.app.settings['save_dir'], sample_name)
-            Path(pathname).mkdir(parents=True, exist_ok=True)
-            self.pathname = pathname
-            self.sample_name = sample_name
+            sample_name = '_'.join([timestamp, self.name, sample])
+        # create file path for both h5 and other types of files
+        pathname = os.path.join(self.app.settings['save_dir'], sample_name)
+        Path(pathname).mkdir(parents=True, exist_ok=True)
+        self.pathname = pathname
+        self.sample_name = sample_name
 
-            # create h5 base file if the h5 file is not exist
-            if self.ui.saveH5.isChecked():
-                # create h5 file for raw
-                fname_raw = os.path.join(pathname, sample_name + '_Raw.h5')
-                self.h5file_raw = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_raw)
-                # save measure component settings
-                h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_raw)
-                for ch_idx in range(2):
-                    gname = f'data/c{ch_idx}/raw'
-                    if np.sum(self.imageRAW[ch_idx]) == 0:  # remove the empty channel
-                        self.h5file_raw.create_dataset(gname, data = h5py.Empty("f"))
-                        self.show_text("[H5] Raw images are empty.")
-                    else:
-                        self.h5file_raw.create_dataset(gname, data = self.imageRAW[ch_idx])
-                        self.show_text("[H5] Raw images are saved.")
+        # create h5 base file if the h5 file is not exist
+        if self.ui.saveH5.isChecked():
+            # create h5 file for raw
+            fname_raw = os.path.join(pathname, sample_name + '_Raw.h5')
+            self.h5file_raw = h5_io.h5_base_file(app=self.app, measurement=self, fname=fname_raw)
+            # save measure component settings
+            h5_io.h5_create_measurement_group(measurement=self, h5group=self.h5file_raw)
+            for ch_idx in range(2):
+                gname = f'data/c{ch_idx}/raw'
+                if np.sum(self.imageRAW[ch_idx]) == 0:  # remove the empty channel
+                    self.h5file_raw.create_dataset(gname, data = h5py.Empty("f"))
+                    self.show_text("[H5] Raw images are empty.")
+                else:
+                    self.h5file_raw.create_dataset(gname, data = self.imageRAW[ch_idx])
+                    self.show_text("[H5] Raw images are saved.")
 
-                self.h5file_raw.close()
+            self.h5file_raw.close()
 
-            if self.ui.saveTif.isChecked():
-                for ch_idx in range(2):
-                    fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
-                    if np.sum(self.imageRAW[ch_idx]) != 0:  # remove the empty channel
-                        tif.imwrite(fname_raw, np.single(self.imageRAW[ch_idx]))
-                        self.show_text("[Tif] Raw images are saved.")
-                    else:
-                        self.show_text("[Tif] Raw images are empty.")
+        if self.ui.saveTif.isChecked():
+            for ch_idx in range(2):
+                fname_raw = os.path.join(pathname, sample_name + f'_Raw_Ch{ch_idx}.tif')
+                if np.sum(self.imageRAW[ch_idx]) != 0:  # remove the empty channel
+                    tif.imwrite(fname_raw, np.single(self.imageRAW[ch_idx]))
+                    self.show_text("[Tif] Raw images are saved.")
+                else:
+                    self.show_text("[Tif] Raw images are empty.")
 
-            self.imageRaw_store = self.imageRAW # store the imageRAW for comparision
+        self.imageRaw_store = self.imageRAW # store the imageRAW for comparision
+        # print(self.imageRaw_store[0][0:20:1000])
 
         if self.isCalibrated:
             if self.ui.saveH5.isChecked():

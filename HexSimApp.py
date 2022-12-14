@@ -10,6 +10,7 @@ Address:Imperial College London
 """
 import os
 
+
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
 from ScopeFoundry import BaseMicroscopeApp
@@ -35,26 +36,31 @@ class HexSimApp(BaseMicroscopeApp):
     def setup(self):
 
         print("Adding Hardware Components")
+
         from hardware.CameraHardware import HamamatsuHardware
         from hardware.LaserHardware import Laser488HW, Laser561HW
-        from hardware.ScreenHardware import ScreenHW
+        # from hardware.ScreenHardware import ScreenHW
         from hardware.NanoScanHardware import NanoScanHW
+        from hardware.SLM_hardware import SLMHW
+        from hardware.ni_co_hardware import NI_CO_hw
+        from hardware.ni_do_hardware import NI_DO_hw
+        from hardware.MCL_Nanodrive_hardware import NanoDriveHW
 
-        self.add_hardware(ScreenHW(self))
+        # self.add_hardware(ScreenHW(self))
+        self.add_hardware(SLMHW(self))
         self.add_hardware(HamamatsuHardware(self))
         self.add_hardware(Laser488HW(self))
         self.add_hardware(Laser561HW(self))
         self.add_hardware(NanoScanHW(self))
+        self.add_hardware(NI_CO_hw(self))
+        self.add_hardware(NI_DO_hw(self))
+        self.add_hardware(NanoDriveHW(self))
 
         print("Adding measurement components")
         # from CameraMeasurement import HamamatsuMeasurement
-        # from modules.HexSimMeasurement2 import HexSimMeasurement
-        # from modules.HexSimAnalysis2 import HexSimAnalysis
         from modules.HexSimAnalysis import HexSimAnalysis
         from modules.HexSimMeasurement import HexSimMeasurement
         # self.add_measurement(HamamatsuMeasurement(self))
-        # self.add_measurement(HexSimAnalysis(self))
-        # self.add_measurement(HexSimMeasurement(self))
         self.add_measurement(HexSimAnalysis(self))
         self.add_measurement(HexSimMeasurement(self))
 

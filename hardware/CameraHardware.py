@@ -32,7 +32,7 @@ class HamamatsuHardware(HardwareComponent):
         self.temperature = self.add_logged_quantity('temperature ' + chr(176) + 'C', dtype=str, si=False, ro=1)
 
         self.exposure_time = self.add_logged_quantity('exposure_time', dtype=float, si=False, ro=0,
-                                                      spinbox_step=0.1, spinbox_decimals=3, initial=0.1, unit='s',
+                                                      spinbox_step=0.001, spinbox_decimals=3, initial=0.001, unit='s',
                                                       reread_from_hardware_after_write=True,
                                                       vmin=0)
 
@@ -48,11 +48,11 @@ class HamamatsuHardware(HardwareComponent):
 
         # For subarray we have imposed float, since otherwise I cannot modify the step (I should modify the logged quantities script, but I prefer left it untouched)
         self.subarrayh = self.add_logged_quantity("subarray_hsize", dtype=float, si=False, ro=0,
-                                                  spinbox_step=4, spinbox_decimals=0, initial=512, vmin=4, vmax=2304,
+                                                  spinbox_step=4, spinbox_decimals=0, initial=2304, vmin=4, vmax=2304,
                                                   reread_from_hardware_after_write=True)
 
         self.subarrayv = self.add_logged_quantity("subarray_vsize", dtype=float, si=False, ro=0,
-                                                  spinbox_step=4, spinbox_decimals=0, initial=512, vmin=4, vmax=2304,
+                                                  spinbox_step=4, spinbox_decimals=0, initial=2304, vmin=4, vmax=2304,
                                                   reread_from_hardware_after_write=True)
 
         self.submode = self.add_logged_quantity("subarray_mode", dtype=str, si=False, ro=1,
@@ -75,7 +75,7 @@ class HamamatsuHardware(HardwareComponent):
                                                 choices=[1, 2, 4], initial=1, reread_from_hardware_after_write=True)
 
         self.trsource = self.add_logged_quantity('trigger_source', dtype=str, si=False, ro=0,
-                                                 choices=["internal", "external"], initial='internal',
+                                                 choices=["internal", "external"], initial='external',
                                                  reread_from_hardware_after_write=True)
 
         self.trmode = self.add_logged_quantity('trigger_mode', dtype=str, si=False, ro=0,
@@ -87,8 +87,30 @@ class HamamatsuHardware(HardwareComponent):
                                                    reread_from_hardware_after_write=True)
 
         self.tractive = self.add_logged_quantity('trigger_active', dtype=str, si=False, ro=0,
-                                                 choices=["edge", "syncreadout"], initial='edge',
+                                                 choices=["edge", "level", "syncreadout"], initial='level',
                                                  reread_from_hardware_after_write=True)
+
+        self.ouchannel1 = self.add_logged_quantity('output_channel1', dtype=str, si=False, ro=0,
+                                                   choices=["low", "exposure", "programmable", "trigger ready", "high"],
+                                                   initial='exposure', reread_from_hardware_after_write=True)
+
+        self.ouchannel2 = self.add_logged_quantity('output_channel2', dtype=str, si=False, ro=0,
+                                                   choices=["low", "exposure", "programmable", "trigger ready", "high"],
+                                                   initial='trigger ready', reread_from_hardware_after_write=True)
+
+        self.ouchannel3 = self.add_logged_quantity('output_channel3', dtype=str, si=False, ro=0,
+                                                   choices=["low", "exposure", "programmable", "trigger ready", "high"],
+                                                   initial="trigger ready", reread_from_hardware_after_write=True)
+        self.outrsource1 = self.add_logged_quantity('output_trigger_source1', dtype=str, si=False, ro=0,
+                                                    choices=["readout_start", "readout_end", "input_trigger_signal"],
+                                                    initial='input_trigger_signal',
+                                                    reread_from_hardware_after_write=True)
+        self.outrsource2 = self.add_logged_quantity('output_trigger_source2', dtype=str, si=False, ro=0,
+                                                    choices=["readout_start", "readout_end", "input_trigger_signal"],
+                                                    initial='readout_start', reread_from_hardware_after_write=True)
+        self.outrsource3 = self.add_logged_quantity('output_trigger_source3', dtype=str, si=False, ro=0,
+                                                    choices=["readout_start", "readout_end", "input_trigger_signal"],
+                                                    initial='readout_end', reread_from_hardware_after_write=True)
 
     #         self.preset_sizes = self.add_logged_quantity('preset_sizes', dtype=str, si=False, ro = 0,
     #                                                      choices = ["2048x2048",
@@ -128,10 +150,15 @@ class HamamatsuHardware(HardwareComponent):
                                          acquisition_mode=self.acquisition_mode.val,
                                          number_frames=self.number_frames.val, exposure=self.exposure_time.val,
                                          trsource=self.trsource.val, trmode=self.trmode.val,
-                                         trpolarity=self.trpolarity.val,
-                                         tractive=self.tractive.val,
-                                         subarrayh_pos=self.subarrayh_pos.val, subarrayv_pos=self.subarrayv_pos.val,
-                                         binning=self.binning.val,
+                                         trpolarity=self.trpolarity.val, tractive=self.tractive.val,
+                                         ouchannel1=self.ouchannel1.val, ouchannel2=self.ouchannel2.val,
+                                         ouchannel3=self.ouchannel3.val,
+                                         # outrpolarity1=self.outrpolarity1.val,
+                                         # outrpolarity2=self.outrpolarity2.val, outrpolarity3=self.outrpolarity3.val,
+                                         outrsource1=self.outrsource1.val,
+                                         outrsource2=self.outrsource2.val, outrsource3=self.outrsource3.val,
+                                         subarrayh_pos=self.subarrayh_pos.val,
+                                         subarrayv_pos=self.subarrayv_pos.val, binning=self.binning.val,
                                          hardware=self)  # maybe with more cameras we have to change
 
         self.readOnlyWhenOpt()
@@ -143,6 +170,17 @@ class HamamatsuHardware(HardwareComponent):
         self.trmode.hardware_read_func = self.hamamatsu.getTriggerMode
         self.trpolarity.hardware_read_func = self.hamamatsu.getTriggerPolarity
         self.tractive.hardware_read_func = self.hamamatsu.getTriggerActive
+
+        self.ouchannel1.hardware_read_func = self.hamamatsu.getOutputTrigger1
+        self.ouchannel2.hardware_read_func = self.hamamatsu.getOutputTrigger2
+        self.ouchannel3.hardware_read_func = self.hamamatsu.getOutputTrigger3
+        # self.outrpolarity1.hardware_read_func = self.hamamatsu.getOutputTrigger1Polarity
+        # self.outrpolarity2.hardware_read_func = self.hamamatsu.getOutputTrigger2Polarity
+        # self.outrpolarity3.hardware_read_func = self.hamamatsu.getOutputTrigger3Polarity
+        self.outrsource1.hardware_read_func = self.hamamatsu.getOutputTrigger1Source
+        self.outrsource2.hardware_read_func = self.hamamatsu.getOutputTrigger2Source
+        self.outrsource3.hardware_read_func = self.hamamatsu.getOutputTrigger3Source
+
         self.subarrayh.hardware_read_func = self.hamamatsu.getSubarrayH
         self.subarrayv.hardware_read_func = self.hamamatsu.getSubarrayV
         self.subarrayh_pos.hardware_read_func = self.hamamatsu.getSubarrayHpos
@@ -161,8 +199,18 @@ class HamamatsuHardware(HardwareComponent):
         self.trmode.hardware_set_func = self.hamamatsu.setTriggerMode
         self.trpolarity.hardware_set_func = self.hamamatsu.setTriggerPolarity
         self.tractive.hardware_set_func = self.hamamatsu.setTriggerActive
-        self.binning.hardware_set_func = self.hamamatsu.setBinning
 
+        self.ouchannel1.hardware_set_func = self.hamamatsu.setOutputTrigger1
+        self.ouchannel2.hardware_set_func = self.hamamatsu.setOutputTrigger2
+        self.ouchannel3.hardware_set_func = self.hamamatsu.setOutputTrigger3
+        # self.outrpolarity1.hardware_set_func = self.hamamatsu.setOutputTrigger1Polarity
+        # self.outrpolarity2.hardware_set_func = self.hamamatsu.setOutputTrigger2Polarity
+        # self.outrpolarity3.hardware_set_func = self.hamamatsu.setOutputTrigger3Polarity
+        self.outrsource1.hardware_set_func = self.hamamatsu.setOutputTrigger1Source
+        self.outrsource2.hardware_set_func = self.hamamatsu.setOutputTrigger2Source
+        self.outrsource3.hardware_set_func = self.hamamatsu.setOutputTrigger3Source
+
+        self.binning.hardware_set_func = self.hamamatsu.setBinning
         self.optimal_offset.hardware_set_func = self.readOnlyWhenOpt
 
         self.read_from_hardware()  # read from hardware at connection
@@ -213,6 +261,13 @@ class HamamatsuHardware(HardwareComponent):
         self.hamamatsu.trmode = self.trmode.val
         self.hamamatsu.trpolarity = self.trpolarity.val
         self.hamamatsu.tractive = self.tractive.val
+        self.hamamatsu.ouchannel1 = self.ouchannel1.val
+        self.hamamatsu.ouchannel2 = self.ouchannel2.val
+        self.hamamatsu.ouchannel3 = self.ouchannel3.val
+        # self.hamamatsu.outrpolarity = self.outrpolarity.val
+        self.hamamatsu.outrsource1 = self.outrsource1.val
+        self.hamamatsu.outrsource2 = self.outrsource2.val
+        self.hamamatsu.outrsource3 = self.outrsource3.val
         self.hamamatsu.subarrayh_pos = self.subarrayh_pos.val
         self.hamamatsu.subarrayv_pos = self.subarrayv_pos.val
         self.hamamatsu.binning = self.binning.val
