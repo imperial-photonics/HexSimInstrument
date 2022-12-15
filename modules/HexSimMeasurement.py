@@ -60,7 +60,7 @@ class HexSimMeasurement(Measurement):
         self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
-        self.ni_do = self.app.hardware['NI_DO_hw']
+        # self.ni_do = self.app.hardware['NI_DO_hw']
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
         self.display_update_period = self.settings.refresh_period.val
@@ -138,6 +138,10 @@ class HexSimMeasurement(Measurement):
         self.wiener_Full = np.zeros((v, h), dtype=np.uint16)
         self.wiener_ROI = np.zeros((v, h), dtype=np.uint16)              # it can be an image or a set of images
 
+        # hologram parameters
+        self.xpix = 2048
+        self.ypix = 2048
+
         if not hasattr(self, 'h'):
             self.h = HexSimProcessor()  # create reconstruction object
             self.h.opencv =False
@@ -196,6 +200,7 @@ class HexSimMeasurement(Measurement):
         # SLM
         self.ui.holGenButton.clicked.connect(self.genHolPressed)
         self.ui.selectPushButton.clicked.connect(self.selectPressed)
+        self.ui.genCorr.clicked.connect(self.genSlmCorrPressed)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -206,17 +211,17 @@ class HexSimMeasurement(Measurement):
         self.settings.compact.connect_to_widget(self.ui.compactCheck)
         self.settings.gpu.connect_to_widget(self.ui.gpuCheck)
 
-        self.settings.magnification.connect_to_widget(self.ui.magnificationValue)
-        self.settings.NA.connect_to_widget(self.ui.naValue)
-        self.settings.n.connect_to_widget(self.ui.nValue)
-        self.settings.wavelength.connect_to_widget(self.ui.wavelengthValue)
-        self.settings.pixelsize.connect_to_widget(self.ui.pixelsizeValue)
+        # self.settings.magnification.connect_to_widget(self.ui.astSpinbox1)
+        # self.settings.NA.connect_to_widget(self.ui.naValue)
+        # self.settings.n.connect_to_widget(self.ui.nValue)
+        # self.settings.wavelength.connect_to_widget(self.ui.wavelengthValue)
+        # self.settings.pixelsize.connect_to_widget(self.ui.pixelsizeValue)
 
-        self.settings.alpha.connect_to_widget(self.ui.alphaValue)
-        self.settings.beta.connect_to_widget(self.ui.betaValue)
-        self.settings.w.connect_to_widget(self.ui.wValue)
-        self.settings.eta.connect_to_widget(self.ui.etaValue)
-        self.settings.otf_model.connect_to_widget(self.ui.otfModel)
+        # self.settings.alpha.connect_to_widget(self.ui.alphaValue)
+        # self.settings.beta.connect_to_widget(self.ui.betaValue)
+        # self.settings.w.connect_to_widget(self.ui.wValue)
+        # self.settings.eta.connect_to_widget(self.ui.etaValue)
+        # self.settings.otf_model.connect_to_widget(self.ui.otfModel)
         self.camera.settings.exposure_time.connect_to_widget(self.ui.exposureTime)
 
         self.settings.pmask.connect_to_widget(self.ui.pmaskValue)
@@ -317,6 +322,10 @@ class HexSimMeasurement(Measurement):
                 elif self.action == 'batch_process':
                     self.batchReconstruction()
                     self.ui.simTab.setCurrentIndex(0)
+
+                elif self.action == 'batch_process_roi':
+                    self.batchReconstructionROI()
+                    self.ui.simTab.setCurrentIndex(1)
 
                 elif self.action == 'batch_process_roi':
                     self.batchReconstructionROI()
@@ -424,7 +433,7 @@ class HexSimMeasurement(Measurement):
 # functions for SLM
     def genHex(self):
         """generate hexagonal holograms"""
-        self.imageHol = np.zeros((14, 1536, 2048), dtype=np.uint16)  # a set of images
+        self.imageHol = np.zeros((14, self.ypix, self.xpix), dtype=np.uint16)  # a set of images
         re1 = self.slm.genHexagons(488, self.settings.pmask.val, self.settings.hex_orientation.val)
         re2 = self.slm.genHexagons(561, self.settings.pmask.val, self.settings.hex_orientation.val)
         nameList = [None] * 14
@@ -437,7 +446,7 @@ class HexSimMeasurement(Measurement):
 
     def genStr(self):
         """generate 7 striped holograms"""
-        self.imageHol = np.zeros((7, 1536, 2048), dtype=np.uint16)  # initialise the holograms
+        self.imageHol = np.zeros((7, self.ypix, self.xpix), dtype=np.uint16)  # initialise the holograms
         re = self.slm.genStripes()
         self.imageHol = re[0]
         return re[1], re[2]
@@ -516,6 +525,16 @@ class HexSimMeasurement(Measurement):
                         self.slm.repSend(f'stripes_{re[1]}.repz11')
                         self.show_text('Repertoire updated')
 
+    def genSlmCorrPressed(self):
+        if hasattr(self.slm, 'slm'):
+            self.show_text('Start SLM correction holograms generation')
+            self.slm.genCorrection(self.xpix, self.ypix, self.ui.astValue1.value(), self.ui.astValue2.value(),
+                                   self.ui.comaValue1.value(), self.ui.comaValue2.value(),
+                                   self.ui.trefValue1.value(), self.ui.trefValue2.value())
+            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+            self.slm.writeCorrRep(f'SLM_correction_{timestamp}', f'hol.png')
+            self.slm.repSend(f'SLM_correction_{timestamp}.repz11')
+            self.show_text('Repertoire updated')
 
     def selectPressed(self):
         # self.isCameraRun = False

@@ -285,6 +285,55 @@ class SLMHW(HardwareComponent):
             imgNameList.append(imgN)
         return img, imgNameList, timestamp
 
+    def genCorrection(self, xpix, ypix, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
+        os.chdir('./gen_repertoires')
+        beams = 3
+        x, y = np.meshgrid(np.arange(xpix), np.arange(ypix))
+        N_iterations = 3  # number of iterations
+        # place the pixels in negative and positive axes
+        x = (x - xpix / 2) / (xpix)
+        y = (y - ypix / 2) / (ypix)
+        rSqaure = x**2 + y**2
+        Phi = np.random.random((ypix, xpix)) * 2 * np.pi
+        Tau = np.zeros((ypix, xpix, beams), dtype=np.double)  # phase tilt
+        Psi = np.zeros(beams, dtype=np.double)
+        F = np.zeros(beams, dtype=np.complex_)
+        G = np.zeros((ypix, xpix, beams), dtype=np.complex_)
+        ast1 = ast1_f * sqrt(6) * (x ** 2 - y ** 2)
+        ast2 = ast2_f * 2 * sqrt(6) * x * y
+        coma1 = coma1_f * 2 * sqrt(2) * (3 * rSqaure - 2) * x
+        coma2 = coma2_f * 2 * sqrt(2) * (3 * rSqaure - 2) * y
+        tref1 = tref1_f * 2 * sqrt(2) * (4 * x ** 2 - 3 * rSqaure) * x
+        tref2 = tref2_f * 2 * sqrt(2) * (3 * rSqaure - 4 * y ** 2) * y
+        abb = ast1 + ast2 + coma1 + coma2 + tref1 + tref2
+        # initialise Tau, 6 ramps of increasing angle, with a yramp to shift away from central axis
+        nm = 10 ** -9
+        mm = 0.001
+        wavelength = 520 * nm
+        f = 250 * mm
+        p_mask = 2.1 * mm  # pitch of the pinhole mask
+        u_mask = p_mask * np.sqrt(3) / 2  # coordinate in x direction in FT plane
+        p = 1 / (u_mask / wavelength / f) / (0.0082 * mm)
+        for i in range(0, beams):
+            xp = xpix / p * 2 * np.pi * np.cos(2 * i * np.pi / 3 + np.pi / 18)
+            yp = ypix / p * 2 * np.pi * np.sin(2 * i * np.pi / 3 + np.pi / 18)
+            Tau[:, :, i] = x * xp + y * yp + abb
+        Psi = np.zeros(3)
+        for k in range(0, N_iterations):
+            F = np.sum(np.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
+                       (0, 1))  # DFT to find DC term at Fourier plane
+            # extract just the phase (set amplitude to 1)
+            Psi[0] = np.angle(F[0])
+            Psi[1] = np.angle(F[0]) + 2 * np.pi / 7
+            Psi[2] = np.angle(F[0]) + 6 * np.pi / 7
+            A = np.abs(F)  # Amplitude
+            G = np.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
+            Phi = np.pi * (np.real(
+                np.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
+        img = Phi * 1
+        cv2.imwrite(f'hol.png', img, [cv2.IMWRITE_PNG_BILEVEL, 1])
+        os.chdir('..')
+
     def writeRep(self, fns, n_frames, imgns):
         """write a text file of the repertoire and save it as .rep format, and then build it to a .repz11 file"""
         os.chdir('./gen_repertoires')
@@ -338,6 +387,59 @@ class SLMHW(HardwareComponent):
             print(output.stderr)
         os.chdir('..')
 
+    def writeCorrRep(self, fns, imgns):
+        """write a text file of the SLM correction repertoire and save it as '.rep' format,
+        and then build it to a '.repz11' file"""
+        os.chdir('./gen_repertoires')
+        with open(f'{fns}.txt', 'w') as f:
+            data = ("ID\n"
+                    '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
+                    "ID_END\n\n"
+                    "PLATFORM\n"
+                    '"R11"\n'
+                    "PLATFORM_END\n\n"
+                    "DISPLAY\n"
+                    '"2Kx2K"\n'
+                    "DISPLAY_END\n\n"
+                    "FORMATVERSION\n"
+                    '"FV4"\n'
+                    "FORMATVERSION_END\n\n"
+                    "SEQUENCES\n")
+            f.write(data)
+
+            data2 = ('A "48160 1ms 1-bit Balanced.seq11"\n'
+                     'SEQUENCES_END\n\n'
+                     'IMAGES\n')
+            f.write(data2)
+
+            data3 =(f' 1 "{imgns}"\n')
+            f.write(data3)
+
+            data4 = ('IMAGES_END\n'
+                     'DEFAULT "RO1"\n'
+                     '[HWA \n')
+            f.write(data4)
+
+            data5 = ('{f (A,0)}\n')
+            f.write(data5)
+
+            data6 = (']')
+            f.write(data6)
+
+        os.rename(f'{fns}.txt', f'{fns}.rep')
+        print('New rep file created')
+
+        # build the rep to a repz11 file
+        output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
+                                stdout=subprocess.PIPE)
+        if output.returncode == 0:
+            print(output.stdout.decode())
+            print('repz11 file created')
+        else:
+            print(output.stderr)
+        os.chdir('..')
+        return fns
+
     def updateHardware(self):
         if hasattr(self, 'slm'):
             self.settings.activation_state.read_from_hardware()
@@ -345,8 +447,3 @@ class SLMHW(HardwareComponent):
             self.settings.activation_type.read_from_hardware()
             self.settings.roIndex.read_from_hardware()
             self.settings.roName.read_from_hardware()
-
-
-
-
-

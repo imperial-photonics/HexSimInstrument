@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1000</width>
-    <height>800</height>
+    <height>886</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -350,9 +350,9 @@
          <property name="currentIndex">
           <number>0</number>
          </property>
-         <widget class="QWidget" name="Paramters">
+         <widget class="QWidget" name="Parameters">
           <attribute name="title">
-           <string>Parameters</string>
+           <string>SLMcorrection</string>
           </attribute>
           <layout class="QHBoxLayout" name="horizontalLayout_15">
            <property name="spacing">
@@ -392,35 +392,17 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string> λ(um)</string>
+                  <string>astigmatism_1</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="wavelengthValue">
-                 <property name="minimumSize">
-                  <size>
-                   <width>60</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="readOnly">
-                  <bool>false</bool>
-                 </property>
+                <widget class="QDoubleSpinBox" name="astValue1">
                  <property name="decimals">
-                  <number>3</number>
+                  <number>1</number>
                  </property>
-                 <property name="maximum">
-                  <double>2.000000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>0.523000000000000</double>
+                 <property name="minimum">
+                  <double>-100.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -443,32 +425,17 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string>Magnification</string>
+                  <string>astigmatism_2</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="magnificationValue">
-                 <property name="minimumSize">
-                  <size>
-                   <width>60</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
+                <widget class="QDoubleSpinBox" name="astValue2">
                  <property name="decimals">
-                  <number>0</number>
+                  <number>1</number>
                  </property>
-                 <property name="maximum">
-                  <double>120.000000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>60.000000000000000</double>
+                 <property name="minimum">
+                  <double>-100.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -491,29 +458,17 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string>NA</string>
+                  <string>coma_1</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="naValue">
-                 <property name="minimumSize">
-                  <size>
-                   <width>60</width>
-                   <height>0</height>
-                  </size>
+                <widget class="QDoubleSpinBox" name="comaValue1">
+                 <property name="decimals">
+                  <number>1</number>
                  </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="maximum">
-                  <double>1.500000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>1.100000000000000</double>
+                 <property name="minimum">
+                  <double>-100.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -536,12 +491,12 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string>n</string>
+                  <string>coma_2</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="nValue">
+                <widget class="QDoubleSpinBox" name="comaValue2">
                  <property name="minimumSize">
                   <size>
                    <width>60</width>
@@ -554,11 +509,17 @@
                    <height>16777215</height>
                   </size>
                  </property>
+                 <property name="decimals">
+                  <number>1</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-100.000000000000000</double>
+                 </property>
                  <property name="maximum">
-                  <double>2.000000000000000</double>
+                  <double>100.000000000000000</double>
                  </property>
                  <property name="value">
-                  <double>1.330000000000000</double>
+                  <double>0.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -567,40 +528,9 @@
              <item>
               <layout class="QHBoxLayout" name="horizontalLayout_7">
                <item>
-                <widget class="QLabel" name="label_6">
-                 <property name="minimumSize">
-                  <size>
-                   <width>65</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>70</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
+                <widget class="QPushButton" name="genCorr">
                  <property name="text">
-                  <string>PixelSize (um)</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QDoubleSpinBox" name="pixelsizeValue">
-                 <property name="minimumSize">
-                  <size>
-                   <width>60</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="value">
-                  <double>6.500000000000000</double>
+                  <string>Generate and Send</string>
                  </property>
                 </widget>
                </item>
@@ -630,26 +560,29 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string>α</string>
+                  <string>tref_1</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="alphaValue">
+                <widget class="QDoubleSpinBox" name="trefValue1">
                  <property name="maximumSize">
                   <size>
                    <width>60</width>
                    <height>16777215</height>
                   </size>
                  </property>
+                 <property name="minimum">
+                  <double>-100.000000000000000</double>
+                 </property>
                  <property name="maximum">
-                  <double>1.500000000000000</double>
+                  <double>100.000000000000000</double>
                  </property>
                  <property name="singleStep">
-                  <double>0.100000000000000</double>
+                  <double>1.000000000000000</double>
                  </property>
                  <property name="value">
-                  <double>0.500000000000000</double>
+                  <double>0.000000000000000</double>
                  </property>
                 </widget>
                </item>
@@ -672,12 +605,12 @@
                   </size>
                  </property>
                  <property name="text">
-                  <string>β</string>
+                  <string>tref_2</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="betaValue">
+                <widget class="QDoubleSpinBox" name="trefValue2">
                  <property name="maximumSize">
                   <size>
                    <width>60</width>
@@ -687,14 +620,17 @@
                  <property name="decimals">
                   <number>3</number>
                  </property>
+                 <property name="minimum">
+                  <double>-100.000000000000000</double>
+                 </property>
                  <property name="maximum">
-                  <double>1.500000000000000</double>
+                  <double>100.000000000000000</double>
                  </property>
                  <property name="singleStep">
-                  <double>0.010000000000000</double>
+                  <double>1.000000000000000</double>
                  </property>
                  <property name="value">
-                  <double>0.950000000000000</double>
+                  <double>0.000000000000000</double>
                  </property>
                 </widget>
                </item>
