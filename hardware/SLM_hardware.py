@@ -256,7 +256,6 @@ class SLMHW(HardwareComponent):
         # maximum diffraction.
 
         orientation = deg_num * pi / 180
-
         # distort = (1 - (66 / 2 / 132) ** 2) ** 0.5
         distort = 1
         # The distorted pattern corresponds to the angle between the laser source and the imaging system
