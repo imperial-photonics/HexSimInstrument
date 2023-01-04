@@ -3,6 +3,7 @@ from devices.SLM_device import SLMDev
 import numpy as np
 from numpy import meshgrid, sin, cos, pi, sqrt, floor
 import subprocess, os, tifffile, cv2, time
+import cupy as cp
 
 class SLMHW(HardwareComponent):
     name = 'SLM_hardware'
@@ -287,6 +288,7 @@ class SLMHW(HardwareComponent):
     def genCorrection(self, xpix, ypix, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
         os.chdir('./gen_repertoires')
         beams = 3
+        x1, y1 = cp.meshgrid(cp.arange(xpix), cp.arange(ypix))
         x, y = np.meshgrid(np.arange(xpix), np.arange(ypix))
         N_iterations = 3  # number of iterations
         # place the pixels in negative and positive axes
