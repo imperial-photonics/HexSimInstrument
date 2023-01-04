@@ -52,8 +52,8 @@ class HexSimApp(BaseMicroscopeApp):
         self.add_hardware(Laser488HW(self))
         self.add_hardware(Laser561HW(self))
         self.add_hardware(NanoScanHW(self))
-        self.add_hardware(NI_CO_hw(self))
-        self.add_hardware(NI_DO_hw(self))
+        # self.add_hardware(NI_CO_hw(self))
+        # self.add_hardware(NI_DO_hw(self))
         self.add_hardware(NanoDriveHW(self))
 
         print("Adding measurement components")
