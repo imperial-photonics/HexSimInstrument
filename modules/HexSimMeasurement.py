@@ -139,9 +139,6 @@ class HexSimMeasurement(Measurement):
         self.wiener_Full = np.zeros((v, h), dtype=np.uint16)
         self.wiener_ROI = np.zeros((v, h), dtype=np.uint16)              # it can be an image or a set of images
 
-        # hologram parameters
-        self.xpix = 2048
-        self.ypix = 2048
 
         if not hasattr(self, 'h'):
             self.h = HexSimProcessor()  # create reconstruction object
@@ -201,7 +198,8 @@ class HexSimMeasurement(Measurement):
         # SLM
         self.ui.holGenButton.clicked.connect(self.genHolPressed)
         self.ui.selectPushButton.clicked.connect(self.selectPressed)
-        self.ui.genCorr.clicked.connect(self.genSlmCorrPressed)
+        # self.ui.genCorr.clicked.connect(self.genSlmCorrPressed)
+        self.ui.genCorr.clicked.connect(self.flashSlmCorrPressed)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -434,7 +432,7 @@ class HexSimMeasurement(Measurement):
 # functions for SLM
     def genHex(self):
         """generate hexagonal holograms"""
-        self.imageHol = np.zeros((14, self.ypix, self.xpix), dtype=np.uint16)  # a set of images
+        self.imageHol = np.zeros((14, self.slm.ypix, self.slm.xpix), dtype=np.uint16)  # a set of images
         re1 = self.slm.genHexagons(488, self.settings.pmask.val, self.settings.hex_orientation.val)
         re2 = self.slm.genHexagons(561, self.settings.pmask.val, self.settings.hex_orientation.val)
         nameList = [None] * 14
@@ -447,7 +445,7 @@ class HexSimMeasurement(Measurement):
 
     def genStr(self):
         """generate 7 striped holograms"""
-        self.imageHol = np.zeros((7, self.ypix, self.xpix), dtype=np.uint16)  # initialise the holograms
+        self.imageHol = np.zeros((7, self.slm.ypix, self.slm.xpix), dtype=np.uint16)  # initialise the holograms
         re = self.slm.genStripes()
         self.imageHol = re[0]
         return re[1], re[2]
@@ -526,16 +524,40 @@ class HexSimMeasurement(Measurement):
                         self.slm.repSend(f'stripes_{re[1]}.repz11')
                         self.show_text('Repertoire updated')
 
-    def genSlmCorrPressed(self):
+    # def genSlmCorrPressed(self):
+    #     if hasattr(self.slm, 'slm'):
+    #         try:
+    #             t0 = time.time()
+    #             self.show_text('Start SLM correction holograms generation')
+    #             self.slm.genCorrection(self.slm.xpix, self.slm.ypix, self.ui.astValue1.value(), self.ui.astValue2.value(),
+    #                                    self.ui.comaValue1.value(), self.ui.comaValue2.value(),
+    #                                    self.ui.trefValue1.value(), self.ui.trefValue2.value())
+    #             t = time.time()-t0
+    #             print(f'Elapsed time: {t}')
+    #             timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+    #             self.slm.writeCorrRep(f'SLM_correction_{timestamp}', f'hol.png')
+    #             t = time.time()-t0
+    #             print(f'Elapsed time: {t}')
+    #             self.slm.repSend(f'SLM_correction_{timestamp}.repz11')
+    #             self.show_text('Repertoire updated')
+    #             t = time.time()-t0
+    #             print(f'Elapsed time: {t}')
+    #         except Exception as e:
+    #             self.show_text(e)
+
+    def flashSlmCorrPressed(self):
         if hasattr(self.slm, 'slm'):
-            self.show_text('Start SLM correction holograms generation')
-            self.slm.genCorrection(self.xpix, self.ypix, self.ui.astValue1.value(), self.ui.astValue2.value(),
-                                   self.ui.comaValue1.value(), self.ui.comaValue2.value(),
-                                   self.ui.trefValue1.value(), self.ui.trefValue2.value())
-            timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
-            self.slm.writeCorrRep(f'SLM_correction_{timestamp}', f'hol.png')
-            self.slm.repSend(f'SLM_correction_{timestamp}.repz11')
-            self.show_text('Repertoire updated')
+            try:
+                t0 = time.time()
+                self.show_text('Start write SLM correction holograms in the flash')
+                self.slm.flashCorrection(self.ui.astValue1.value(), self.ui.astValue2.value(),
+                                       self.ui.comaValue1.value(), self.ui.comaValue2.value(),
+                                       self.ui.trefValue1.value(), self.ui.trefValue2.value())
+                t = time.time()-t0
+                print(f'Repertoire reloaded. Elapsed time: {t}')
+                self.slm.updateHardware()
+            except Exception as e:
+                self.show_text(e)
 
     def selectPressed(self):
         # self.isCameraRun = False

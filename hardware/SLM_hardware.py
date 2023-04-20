@@ -15,6 +15,7 @@ class SLMHW(HardwareComponent):
         self.settings.activation_state = self.add_logged_quantity(name='State', dtype=str, ro=True)
         self.settings.rep_name = self.add_logged_quantity(name="Repertoire name", dtype=str, ro=True)
         self.settings.activation_type = self.add_logged_quantity(name='Activation type', dtype=str, ro=True)
+        # self.settings.BPn = self.add_logged_quantity(name='Bitplane count', spinbox_step=1, dtype=int, ro=True)
         self.settings.roIndex = self.add_logged_quantity(name='Running Order index', spinbox_step=1, dtype=int, ro=False)
         self.settings.roName = self.add_logged_quantity(name='Running Order name', dtype=str, ro=True)
         # self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
@@ -40,6 +41,10 @@ class SLMHW(HardwareComponent):
         self.settings.roIndex.connect_to_hardware(write_func=self.changeRO, read_func=self.getRoIndex)
         self.settings.roName.connect_to_hardware(read_func=self.getRoName)
         self.read_from_hardware()
+
+        # hologram parameters
+        self.xpix = self.slm.xpix
+        self.ypix = self.slm.ypix
 
     def disconnect(self):
         if hasattr(self, 'slm'):
@@ -119,62 +124,6 @@ class SLMHW(HardwareComponent):
                 return 'No Repertoire available'
             else:
                 raise Exception('Unrecognised activation state')
-
-    def sendBitmaps(self,sendBitplane):
-        self.slm.deactivate()
-        x = np.zeros(2048)
-        y = np.arange(1536)
-
-        nr = np.arange(8)
-        for i in range(64):
-            x[(i * 32):(i * 32 + 8)] = nr + i * 8
-            x[(i * 32 + 8):(i * 32 + 16)] = nr + i * 8 + 512
-            x[(i * 32 + 16):(i * 32 + 24)] = nr + i * 8 + 1024
-            x[(i * 32 + 24):(i * 32 + 32)] = nr + i * 8 + 1536
-
-        # x is now an array of interleaved x values in the correct places for sending to the SLM
-
-        xv, yv = np.meshgrid(x, y)
-
-        if sendBitplane == 'Stripe':
-            p = 20  # pitch of the grating
-
-            k = 2 * np.pi / p
-
-            for i in range(8):
-                t = i / 8
-                kx = k * np.cos(t * np.pi)
-                ky = k * np.sin(t * np.pi)
-
-                grating = np.cos(kx * xv + ky * yv) > 0
-
-                grating_bits = np.packbits(grating, bitorder='little')
-                self.slm.sendBitplane(grating_bits, i)
-                # use numpy packbits function to turn our array of boolean values into
-                # an array of bytes with the bits set according to the boolean values.
-                # grating_bits is something that you can now send to the SLM
-        elif sendBitplane == 'Hexagon':
-            p = 4 * pi / sqrt(3) / 0.2
-            r0 = 0.4 * p
-            img = np.ones([1536, 2048, 7])
-            orientation = pi / 18
-
-            for i in range(7):
-                phase = i * 2 * pi / 7
-                xr = -xv * sin(orientation) + yv * cos(orientation) - 1.0 * p * phase / (2 * pi)
-                yr = -xv * cos(orientation) - yv * sin(orientation) + 2.0 / sqrt(3) * p * phase / (2 * pi)
-                yi = floor(yr / (p * sqrt(3) / 2) + 0.5)
-                xi = floor((xr / p) - (yi % 2.0) / 2.0 + 0.5) + (yi % 2.0) / 2.0
-                y0 = yi * p * sqrt(3) / 2
-                x0 = xi * p
-                r = sqrt((xr - x0) ** 2 + (yr - y0) ** 2)
-                # img[:, :, i] = r < r0
-                img[:, :, i] = 255 * (r < r0)
-                # img[:, :, i] = 255 * r
-                hex_bits = np.packbits(img[:, :, i].astype('int'), bitorder='little')
-                self.slm.sendBitplane(hex_bits, i+8)
-            tifffile.imsave(f'hexagon.tiff', np.single(img))
-        self.slm.repreload()
 
     def repBuild(self):
         fns = input('rep file name:')
@@ -286,25 +235,115 @@ class SLMHW(HardwareComponent):
             imgNameList.append(imgN)
         return img, imgNameList, timestamp
 
-    def genCorrection(self, xpix, ypix, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
-        os.chdir('./gen_repertoires')
+    # def genCorrection(self, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
+    #     os.chdir('./gen_repertoires')
+    #     xpix = self.xpix
+    #     ypix = self.ypix
+    #     beams = 3
+    #     N_iterations = 3  # number of iterations
+    #     if use_cupy:
+    #         x, y = cp.meshgrid(cp.arange(xpix), cp.arange(ypix))
+    #         # place the pixels in negative and positive axes
+    #         x = (x - xpix / 2) / (xpix)
+    #         y = (y - ypix / 2) / (ypix)
+    #         Phi = cp.random.random((ypix, xpix)) * 2 * np.pi
+    #         Tau = cp.zeros((ypix, xpix, beams), dtype=cp.double)  # phase tilt
+    #         Psi = cp.zeros(beams, dtype=cp.double)
+    #         F = cp.zeros(beams, dtype=cp.complex_)
+    #         G = cp.zeros((ypix, xpix, beams), dtype=cp.complex_)
+    #     else:
+    #         x, y = np.meshgrid(np.arange(xpix), np.arange(ypix))
+    #         # place the pixels in negative and positive axes
+    #         x = (x - xpix / 2) / (xpix)
+    #         y = (y - ypix / 2) / (ypix)
+    #
+    #         Phi = np.random.random((ypix, xpix)) * 2 * np.pi
+    #         Tau = np.zeros((ypix, xpix, beams), dtype=np.double)  # phase tilt
+    #         Psi = np.zeros(beams, dtype=np.double)
+    #         F = np.zeros(beams, dtype=np.complex_)
+    #         G = np.zeros((ypix, xpix, beams), dtype=np.complex_)
+    #
+    #     rSqaure = x ** 2 + y ** 2
+    #     ast1 = ast1_f * sqrt(6) * (x ** 2 - y ** 2)
+    #     ast2 = ast2_f * 2 * sqrt(6) * x * y
+    #     coma1 = coma1_f * 2 * sqrt(2) * (3 * rSqaure - 2) * x
+    #     coma2 = coma2_f * 2 * sqrt(2) * (3 * rSqaure - 2) * y
+    #     tref1 = tref1_f * 2 * sqrt(2) * (4 * x ** 2 - 3 * rSqaure) * x
+    #     tref2 = tref2_f * 2 * sqrt(2) * (3 * rSqaure - 4 * y ** 2) * y
+    #     abb = ast1 + ast2 + coma1 + coma2 + tref1 + tref2
+    #
+    #     nm = 10 ** -9
+    #     mm = 0.001
+    #     wavelength = 520 * nm
+    #     f = 250 * mm
+    #     p_mask = 2.1 * mm  # pitch of the pinhole mask
+    #     u_mask = p_mask * np.sqrt(3) / 2  # coordinate in x direction in FT plane
+    #     p = 1 / (u_mask / wavelength / f) / (0.0082 * mm)
+    #
+    #     # initialise Tau, 6 ramps of increasing angle, with a yramp to shift away from central axis
+    #     if use_cupy:
+    #         for i in range(0, beams):
+    #             xp = xpix / p * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 18)
+    #             yp = ypix / p * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 18)
+    #             Tau[:, :, i] = x * xp + y * yp + abb
+    #         Psi = cp.zeros(3)
+    #         for k in range(0, N_iterations):
+    #             F = cp.sum(cp.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
+    #                        (0, 1))  # DFT to find DC term at Fourier plane
+    #             # extract just the phase (set amplitude to 1)
+    #             Psi[0] = cp.angle(F[0])
+    #             Psi[1] = cp.angle(F[0]) + 2 * np.pi / 7
+    #             Psi[2] = cp.angle(F[0]) + 6 * np.pi / 7
+    #             A = cp.abs(F)  # Amplitude
+    #             # G and Phi do the inverse FT
+    #             G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
+    #             Phi = np.pi * (cp.real(
+    #                 cp.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
+    #             img = Phi.get() * 1
+    #     else:
+    #         for i in range(0, beams):
+    #             xp = xpix / p * 2 * np.pi * np.cos(2 * i * np.pi / 3 + np.pi / 18)
+    #             yp = ypix / p * 2 * np.pi * np.sin(2 * i * np.pi / 3 + np.pi / 18)
+    #             Tau[:, :, i] = x * xp + y * yp + abb
+    #         Psi = np.zeros(3)
+    #         for k in range(0, N_iterations):
+    #             F = np.sum(np.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
+    #                        (0, 1))  # DFT to find DC term at Fourier plane
+    #             # extract just the phase (set amplitude to 1)
+    #             Psi[0] = np.angle(F[0])
+    #             Psi[1] = np.angle(F[0]) + 2 * np.pi / 7
+    #             Psi[2] = np.angle(F[0]) + 6 * np.pi / 7
+    #             A = np.abs(F)  # Amplitude
+    #             G = np.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
+    #             Phi = np.pi * (np.real(
+    #                 np.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
+    #             img = Phi * 1
+    #
+    #     cv2.imwrite(f'hol.png', img, [cv2.IMWRITE_PNG_BILEVEL, 1])
+    #     os.chdir('..')
+
+    def flashCorrection(self, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
+        t0 = time.time()
+        if not hasattr(self, 'xv'):
+            self.xv, self.yv = self.slm.interleaving()
         beams = 3
-        N_iterations = 3  # number of iterations
+        N_iterations = 20  # number of iterations
+        xpix = self.xpix
+        ypix = self.ypix
         if use_cupy:
-            x, y = cp.meshgrid(cp.arange(xpix), cp.arange(ypix))
+            pass
             # place the pixels in negative and positive axes
-            x = (x - xpix / 2) / (xpix)
-            y = (y - ypix / 2) / (ypix)
+            x = (cp.array(self.xv) - xpix / 2) / (xpix)
+            y = (cp.array(self.yv) - ypix / 2) / (ypix)
             Phi = cp.random.random((ypix, xpix)) * 2 * np.pi
             Tau = cp.zeros((ypix, xpix, beams), dtype=cp.double)  # phase tilt
             Psi = cp.zeros(beams, dtype=cp.double)
             F = cp.zeros(beams, dtype=cp.complex_)
             G = cp.zeros((ypix, xpix, beams), dtype=cp.complex_)
         else:
-            x, y = np.meshgrid(np.arange(xpix), np.arange(ypix))
             # place the pixels in negative and positive axes
-            x = (x - xpix / 2) / (xpix)
-            y = (y - ypix / 2) / (ypix)
+            x = (self.xv - xpix / 2) / (xpix)
+            y = (self.yv - ypix / 2) / (ypix)
 
             Phi = np.random.random((ypix, xpix)) * 2 * np.pi
             Tau = np.zeros((ypix, xpix, beams), dtype=np.double)  # phase tilt
@@ -344,6 +383,7 @@ class SLMHW(HardwareComponent):
                 Psi[1] = cp.angle(F[0]) + 2 * np.pi / 7
                 Psi[2] = cp.angle(F[0]) + 6 * np.pi / 7
                 A = cp.abs(F)  # Amplitude
+                # G and Phi do the inverse FT
                 G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
                 Phi = np.pi * (cp.real(
                     cp.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
@@ -366,9 +406,11 @@ class SLMHW(HardwareComponent):
                 Phi = np.pi * (np.real(
                     np.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
                 img = Phi * 1
+        hex_bits = np.packbits(img[:, :].astype('int'), bitorder='little')
+        self.slm.sendBitplane(hex_bits, 0)
 
-        cv2.imwrite(f'hol.png', img, [cv2.IMWRITE_PNG_BILEVEL, 1])
-        os.chdir('..')
+        self.slm.repReload()
+
 
     def writeRep(self, fns, n_frames, imgns):
         """write a text file of the repertoire and save it as .rep format, and then build it to a .repz11 file"""

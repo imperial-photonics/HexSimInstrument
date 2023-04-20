@@ -1,8 +1,12 @@
 __author__ = "Meizhu Liang @Imperial College London"
+
+import time
+
 """
-Python code to control the QXGA SLM with R11 system (Forth Dimension Displays).
+Python code to control the FDD 2K SLM with R11 system (Forth Dimension Displays).
+Some parameters can be modified to work with a QXGA SLM.
 Inspired by:
-Written by Ruizhe Lin and Peter Kner, University of Georgia, 2019 for controlling the QXGA SLM
+Written by Ruizhe Lin and Peter Kner, University of Georgia, 2019 for controlling the FDD QXGA SLM
 """
 
 import ctypes as ct
@@ -26,7 +30,8 @@ class SLMDev(object):
         self.NULL = ct.POINTER(ct.c_int)()
         self.RS485_DEV_TIMEOUT = ct.c_uint16(1000)
         self.r11 = ct.windll.LoadLibrary('C:/Program Files/MetroCon-4.1/R11CommLib-1.8-x64.dll')
-
+        self.xpix = 2048
+        self.ypix = 2048
     def initiate(self):
         ver = ct.create_string_buffer(8)
         maxlen = ct.c_uint8(10)
@@ -57,17 +62,14 @@ class SLMDev(object):
             raise Exception(' Fail to open the port ')
 
     def activate(self,):
-        if self.r11.R11_RpcRoActivate(ct.c_void_p()) == 0:
-            print('Activate QXGA successfully')
-        else:
-            raise Exception('Fail to activate QXGA')
+        res = self.r11.R11_RpcRoActivate(ct.c_void_p())
+        if res != 0:
+            raise Exception(f'Fail to deactivate. Error code: {res}')
 
     def deactivate(self):
         res = self.r11.R11_RpcRoDeactivate(ct.c_void_p())
-        if res == 0:
-            print('Deactivate QXGA successfully')
-        else:
-            raise Exception('Fail to deactivate')
+        if res != 0:
+            raise Exception(f'Fail to deactivate. Error code: {res}')
 
     def getordernum(self):
         rocount = ct.c_uint16(0)
@@ -128,46 +130,73 @@ class SLMDev(object):
         if res == 0:
             print('Port closed successfully')
         else:
-            raise Exception('Fail to close QXGA')
+            raise Exception('Fail to closE R11 SLM')
 
-    def sendBitplane(self,data, frameno):
+    def interleaving(self):
+        x0 = np.zeros(self.xpix)
+        y0 = np.arange(self.ypix)
+
+        nr = np.arange(8)
+        for i in range(64):
+            x0[(i * 32):(i * 32 + 8)] = nr + i * 8
+            x0[(i * 32 + 8):(i * 32 + 16)] = nr + i * 8 + 512
+            x0[(i * 32 + 16):(i * 32 + 24)] = nr + i * 8 + 1024
+            x0[(i * 32 + 24):(i * 32 + 32)] = nr + i * 8 + 1536
+        # x0 is now an array of interleaved x values in the correct places for sending to the SLM
+
+        x, y = np.meshgrid(x0, y0)
+        return x, y
+
+    def sendBitplane(self, data, frameno):
         print(f'sending frame number {frameno}')
-        for block in range(3):
-            block_address = 0x01000000 + block * 64 + frameno * 192
-            # Flash blocks per bitplane: 3
-            # Flash pages per bitplane: 192
-
+        for block in range(4):
+            block_address = 0x01000000 + block * 64 + frameno * 256
+            # Flash blocks per bitplane: 4
+            # Flash pages per bitplane: 256
             res = self.r11.R11_RpcFlashEraseBlock(ct.c_uint32(block_address))
             if res != 0:
                 raise Exception(f'Fail to erase block {block}')
             for page in range(64):
                 buf = np.uint8(data[(block * 64 + page) * 2048:(block * 64 + page) * 2048 + 2048])
-                res = self.r11.R11_FlashWrite(buf.ctypes.data_as(ct.POINTER(ct.c_uint8)), ct.c_uint16(0), ct.c_uint16(2048))
-                # buf.ctypes.data_as(ct.POINTER(ct.c_uint8)): ctypes accepts an array of c_uint8????
+                res = self.r11.R11_FlashWrite(buf.ctypes.data_as(ct.POINTER(ct.c_uint8)), ct.c_uint16(0),
+                                              ct.c_uint16(2048))
                 if res != 0:
                     raise Exception(f'Fail write block {block}: page {page}')
                 page_address = ct.c_uint32(block_address + page)
                 res = self.r11.R11_FlashBurn(page_address)
-                if (res != 0):
+                if res != 0:
                     raise Exception(f'Fail burn block {block}: page {page}')
 
-    def eraseBitplane(self,frameno):
-        for block in range(3):
-            block_address = 0x01000000 + block * 64 + frameno * 192
+    def eraseBitplane(self, frameno):
+        for block in range(4):
+            block_address = 0x01000000 + block * 64 + frameno * 256
 
             res = self.r11.R11_RpcFlashEraseBlock(ct.c_uint32(block_address))
-
         if res == 0:
             print(f'Frame number {frameno} erased')
         else:
             raise Exception(f'Fail to erase block {block}')
 
-    def repreload(self):
+    def repReload(self):
         res = self.r11.R11_RpcSysReloadRepertoire()
-        if res == 0:
-            print('Repertoire reloaded')
-        else:
+        t0 = time.time()
+        while self.getProgress() != 100:
+            self.getProgress()
+        t = time.time() - t0
+        print(f'Elapsed time of reloading: {t}')
+        if res != 0:
             raise Exception('Fail reload repertoire')
+
+    def getProgress(self):
+        """Get the progress of the current board operation."""
+        p = ct.c_uint8(0)
+        res = self.r11.R11_DevGetProgress(ct.byref(p))
+        if res != 0:
+            raise Exception(f'Fail to get progress. Error code: {res}')
+        return p.value
+
+
+
 
 # if __name__ == '__main__':
 #
