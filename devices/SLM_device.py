@@ -149,6 +149,7 @@ class SLMDev(object):
 
     def sendBitplane(self, data, frameno):
         print(f'sending frame number {frameno}')
+        t0 = time.time()
         for block in range(4):
             block_address = 0x01000000 + block * 64 + frameno * 256
             # Flash blocks per bitplane: 4
@@ -166,6 +167,7 @@ class SLMDev(object):
                 res = self.r11.R11_FlashBurn(page_address)
                 if res != 0:
                     raise Exception(f'Fail burn block {block}: page {page}')
+        print(f'bitplane sent in {time.time() - t0}')
 
     def eraseBitplane(self, frameno):
         for block in range(4):

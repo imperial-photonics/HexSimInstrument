@@ -375,19 +375,23 @@ class SLMHW(HardwareComponent):
                 yp = ypix / p * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 18)
                 Tau[:, :, i] = x * xp + y * yp + abb
             Psi = cp.zeros(3)
-            for k in range(0, N_iterations):
-                F = cp.sum(cp.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
-                           (0, 1))  # DFT to find DC term at Fourier plane
+            # for k in range(0, N_iterations):
+            #     F = cp.sum(cp.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
+            #                (0, 1))  # DFT to find DC term at Fourier plane
                 # extract just the phase (set amplitude to 1)
-                Psi[0] = cp.angle(F[0])
-                Psi[1] = cp.angle(F[0]) + 2 * np.pi / 7
-                Psi[2] = cp.angle(F[0]) + 6 * np.pi / 7
-                A = cp.abs(F)  # Amplitude
+                # Psi[0] = cp.angle(F[0])
+                # Psi[1] = cp.angle(F[0]) + 2 * np.pi / 7
+                # Psi[2] = cp.angle(F[0]) + 6 * np.pi / 7
+            Psi0 = 0
+            Psi[0] = Psi0
+            Psi[1] = Psi0 + 2 * np.pi / 7
+            Psi[2] = Psi0 + 6 * np.pi / 7
+                # A = cp.abs(F)  # Amplitude
                 # G and Phi do the inverse FT
-                G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
-                Phi = np.pi * (cp.real(
-                    cp.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
-                img = Phi.get() * 1
+            G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
+            Phi = np.pi * (cp.real(
+                cp.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
+            img = Phi.get() * 1
         else:
             for i in range(0, beams):
                 xp = xpix / p * 2 * np.pi * np.cos(2 * i * np.pi / 3 + np.pi / 18)
@@ -408,7 +412,6 @@ class SLMHW(HardwareComponent):
                 img = Phi * 1
         hex_bits = np.packbits(img[:, :].astype('int'), bitorder='little')
         self.slm.sendBitplane(hex_bits, 0)
-
         self.slm.repReload()
 
 
