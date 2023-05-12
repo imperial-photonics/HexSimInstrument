@@ -331,7 +331,6 @@ class SLMHW(HardwareComponent):
         xpix = self.xpix
         ypix = self.ypix
         if use_cupy:
-            pass
             # place the pixels in negative and positive axes
             x = (cp.array(self.xv) - xpix / 2) / (xpix)
             y = (cp.array(self.yv) - ypix / 2) / (ypix)
@@ -359,6 +358,92 @@ class SLMHW(HardwareComponent):
         tref1 = tref1_f * 2 * sqrt(2) * (4 * x ** 2 - 3 * rSqaure) * x
         tref2 = tref2_f * 2 * sqrt(2) * (3 * rSqaure - 4 * y ** 2) * y
         abb = ast1 + ast2 + coma1 + coma2 + tref1 + tref2
+
+        nm = 10 ** -9
+        mm = 0.001
+        wavelength = 520 * nm
+        f = 250 * mm
+        p_mask = 2.1 * mm  # pitch of the pinhole mask
+        u_mask = p_mask * np.sqrt(3) / 2  # coordinate in x direction in FT plane
+        p = 1 / (u_mask / wavelength / f) / (0.0082 * mm)
+
+        # initialise Tau, 6 ramps of increasing angle, with a yramp to shift away from central axis
+        if use_cupy:
+            for i in range(0, beams):
+                xp = xpix / p * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 18)
+                yp = ypix / p * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 18)
+                Tau[:, :, i] = x * xp + y * yp + abb
+            Psi = cp.zeros(3)
+            # for k in range(0, N_iterations):
+            #     F = cp.sum(cp.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
+            #                (0, 1))  # DFT to find DC term at Fourier plane
+                # extract just the phase (set amplitude to 1)
+                # Psi[0] = cp.angle(F[0])
+                # Psi[1] = cp.angle(F[0]) + 2 * np.pi / 7
+                # Psi[2] = cp.angle(F[0]) + 6 * np.pi / 7
+            Psi0 = 0
+            Psi[0] = Psi0
+            Psi[1] = Psi0 + 2 * np.pi / 7
+            Psi[2] = Psi0 + 6 * np.pi / 7
+                # A = cp.abs(F)  # Amplitude
+                # G and Phi do the inverse FT
+            G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
+            Phi = np.pi * (cp.real(
+                cp.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
+            img = Phi.get() * 1
+        else:
+            for i in range(0, beams):
+                xp = xpix / p * 2 * np.pi * np.cos(2 * i * np.pi / 3 + np.pi / 18)
+                yp = ypix / p * 2 * np.pi * np.sin(2 * i * np.pi / 3 + np.pi / 18)
+                Tau[:, :, i] = x * xp + y * yp + abb
+            Psi = np.zeros(3)
+            for k in range(0, N_iterations):
+                F = np.sum(np.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
+                           (0, 1))  # DFT to find DC term at Fourier plane
+                # extract just the phase (set amplitude to 1)
+                Psi[0] = np.angle(F[0])
+                Psi[1] = np.angle(F[0]) + 2 * np.pi / 7
+                Psi[2] = np.angle(F[0]) + 6 * np.pi / 7
+                A = np.abs(F)  # Amplitude
+                G = np.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
+                Phi = np.pi * (np.real(
+                    np.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
+                img = Phi * 1
+        hex_bits = np.packbits(img[:, :].astype('int'), bitorder='little')
+        self.slm.sendBitplane(hex_bits, 0)
+        self.slm.repReload()
+
+    def threeROs(self, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
+        t0 = time.time()
+        if not hasattr(self, 'xv'):
+            self.xv, self.yv = self.slm.interleaving()
+        beams = 3
+        N_iterations = 20  # number of iterations
+        xpix = self.xpix
+        ypix = self.ypix
+        if use_cupy:
+            # place the pixels in negative and positive axes
+            x = (cp.array(self.xv) - xpix / 2) / (xpix)
+            y = (cp.array(self.yv) - ypix / 2) / (ypix)
+            Phi = cp.random.random((ypix, xpix)) * 2 * np.pi
+            Tau = cp.zeros((ypix, xpix, beams), dtype=cp.double)  # phase tilt
+            Psi = cp.zeros(beams, dtype=cp.double)
+            F = cp.zeros(beams, dtype=cp.complex_)
+            G = cp.zeros((ypix, xpix, beams), dtype=cp.complex_)
+        else:
+            # place the pixels in negative and positive axes
+            x = (self.xv - xpix / 2) / (xpix)
+            y = (self.yv - ypix / 2) / (ypix)
+
+            Phi = np.random.random((ypix, xpix)) * 2 * np.pi
+            Tau = np.zeros((ypix, xpix, beams), dtype=np.double)  # phase tilt
+            Psi = np.zeros(beams, dtype=np.double)
+            F = np.zeros(beams, dtype=np.complex_)
+            G = np.zeros((ypix, xpix, beams), dtype=np.complex_)
+
+        rSqaure = x ** 2 + y ** 2
+        defocus = 10 * sqrt(3) * (2 * rSqaure - 1)
+
 
         nm = 10 ** -9
         mm = 0.001
