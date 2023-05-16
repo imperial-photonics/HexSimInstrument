@@ -4,6 +4,7 @@ import numpy as np
 from numpy import meshgrid, sin, cos, pi, sqrt, floor
 import subprocess, os, tifffile, cv2, time
 import cupy as cp
+from random import randrange
 
 use_cupy = True
 class SLMHW(HardwareComponent):
@@ -143,6 +144,19 @@ class SLMHW(HardwareComponent):
         os.chdir('./gen_repertoires')
         output = subprocess.run(['RepSender', '-z', fn, '-d', '0175000881'], shell=True,
                                 stdout=subprocess.PIPE)
+        if output.returncode == 0:
+            print(output.stdout.decode())
+        else:
+            print(output.stderr)
+        os.getcwd()
+        os.chdir('..')
+        self.connect()
+
+    def repSendBP(self, fn):
+        """Send the repz.11 file to the board. fn: file name."""
+        self.slm.close()
+        os.chdir('./gen_repertoires')
+        output = subprocess.run(['RepSender', '-z', fn, '-d', '0175000881', '-i'], shell=True, stdout=subprocess.PIPE)
         if output.returncode == 0:
             print(output.stdout.decode())
         else:
@@ -326,7 +340,7 @@ class SLMHW(HardwareComponent):
         t0 = time.time()
         if not hasattr(self, 'xv'):
             self.xv, self.yv = self.slm.interleaving()
-        beams = 3
+        beams = 2
         N_iterations = 20  # number of iterations
         xpix = self.xpix
         ypix = self.ypix
@@ -373,7 +387,7 @@ class SLMHW(HardwareComponent):
                 xp = xpix / p * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 18)
                 yp = ypix / p * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 18)
                 Tau[:, :, i] = x * xp + y * yp + abb
-            Psi = cp.zeros(3)
+            Psi = cp.zeros(beams)
             # for k in range(0, N_iterations):
             #     F = cp.sum(cp.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
             #                (0, 1))  # DFT to find DC term at Fourier plane
@@ -384,7 +398,7 @@ class SLMHW(HardwareComponent):
             Psi0 = 0
             Psi[0] = Psi0
             Psi[1] = Psi0 + 2 * np.pi / 7
-            Psi[2] = Psi0 + 6 * np.pi / 7
+            # Psi[2] = Psi0 + 6 * np.pi / 7
                 # A = cp.abs(F)  # Amplitude
                 # G and Phi do the inverse FT
             G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
@@ -410,8 +424,18 @@ class SLMHW(HardwareComponent):
                     np.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
                 img = Phi * 1
         hex_bits = np.packbits(img[:, :].astype('int'), bitorder='little')
-        self.slm.sendBitplane(hex_bits, 0)
-        self.slm.repReload()
+        randImg = randrange(1, 769)
+        self.threeImgs = [randImg, randImg + 1, randImg + 2]
+
+        for k in range(3):
+            self.slm.sendBitplane(hex_bits, self.threeImgs[k])
+        # self.slm.repReload()
+
+    def updateBp(self):
+        self.flashCorrection(0, 0, 20, 0, 0, 0)
+        fn = 'test4'
+        self.writeCorrRep(fn)
+        self.repSendBP(fn +'.repz11')
 
     def threeROs(self, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
         t0 = time.time()
@@ -553,7 +577,7 @@ class SLMHW(HardwareComponent):
             print(output.stderr)
         os.chdir('..')
 
-    def writeCorrRep(self, fns, imgns):
+    def writeCorrRep(self, fns, imgns='hol.png'):
         """write a text file of the SLM correction repertoire and save it as '.rep' format,
         and then build it to a '.repz11' file"""
         os.chdir('./gen_repertoires')
@@ -578,16 +602,19 @@ class SLMHW(HardwareComponent):
                      'IMAGES\n')
             f.write(data2)
 
-            data3 =(f' 1 "{imgns}"\n')
-            f.write(data3)
+            for i in range(3):
+                data3 =(f' 500 "{imgns}"\n')
+                f.write(data3)
 
             data4 = ('IMAGES_END\n'
                      'DEFAULT "RO1"\n'
                      '[HWA \n')
             f.write(data4)
 
-            data5 = ('{f (A,0)}\n')
-            f.write(data5)
+            datan = []
+            for k in range(3):
+                datan.append('{' + f'f (A, {self.threeImgs[k]})' + '}\n')
+                f.write(datan[k])
 
             data6 = (']')
             f.write(data6)
@@ -605,6 +632,61 @@ class SLMHW(HardwareComponent):
             print(output.stderr)
         os.chdir('..')
         return fns
+
+    # def writeBlankCorrRep(self, fns='blank_base', imgns='blank.png'):
+    #     """write a text file of the SLM correction repertoire and save it as '.rep' format,
+    #     and then build it to a '.repz11' file"""
+    #     os.chdir('./gen_repertoires')
+    #     with open(f'{fns}.txt', 'w') as f:
+    #         data = ("ID\n"
+    #                 '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
+    #                 "ID_END\n\n"
+    #                 "PLATFORM\n"
+    #                 '"R11"\n'
+    #                 "PLATFORM_END\n\n"
+    #                 "DISPLAY\n"
+    #                 '"2Kx2K"\n'
+    #                 "DISPLAY_END\n\n"
+    #                 "FORMATVERSION\n"
+    #                 '"FV4"\n'
+    #                 "FORMATVERSION_END\n\n"
+    #                 "SEQUENCES\n")
+    #         f.write(data)
+    #
+    #         data2 = ('A "48160 1ms 1-bit Balanced.seq11"\n'
+    #                  'SEQUENCES_END\n\n'
+    #                  'IMAGES\n')
+    #         f.write(data2)
+    #
+    #         datan = []
+    #         for k in range(768):
+    #             datan.append(f' {k + 1} "{imgns}"\n')
+    #             f.write(datan[k])
+    #
+    #         data4 = ('IMAGES_END\n'
+    #                  'DEFAULT "RO1"\n'
+    #                  '[HWA \n')
+    #         f.write(data4)
+    #
+    #         data5 = ('{f (A,10)}\n')
+    #         f.write(data5)
+    #
+    #         data6 = (']')
+    #         f.write(data6)
+    #
+    #     os.rename(f'{fns}.txt', f'{fns}.rep')
+    #     print('New rep file created')
+    #
+    #     # build the rep to a repz11 file
+    #     output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
+    #                             stdout=subprocess.PIPE)
+    #     if output.returncode == 0:
+    #         print(output.stdout.decode())
+    #         print('repz11 file created')
+    #     else:
+    #         print(output.stderr)
+    #     os.chdir('..')
+    #     return fns
 
     def updateHardware(self):
         if hasattr(self, 'slm'):

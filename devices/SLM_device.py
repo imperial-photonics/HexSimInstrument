@@ -64,7 +64,7 @@ class SLMDev(object):
     def activate(self,):
         res = self.r11.R11_RpcRoActivate(ct.c_void_p())
         if res != 0:
-            raise Exception(f'Fail to deactivate. Error code: {res}')
+            raise Exception(f'Fail to activate SLM. Error code: {res}')
 
     def deactivate(self):
         res = self.r11.R11_RpcRoDeactivate(ct.c_void_p())

@@ -199,7 +199,7 @@ class HexSimMeasurement(Measurement):
         self.ui.holGenButton.clicked.connect(self.genHolPressed)
         self.ui.selectPushButton.clicked.connect(self.selectPressed)
         # self.ui.genCorr.clicked.connect(self.genSlmCorrPressed)
-        self.ui.genCorr.clicked.connect(self.flashSlmCorrPressed)
+        self.ui.genCorr.clicked.connect(self.updateBpPressed)
 
         # reconstructor settings
         self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -553,6 +553,18 @@ class HexSimMeasurement(Measurement):
                 self.slm.flashCorrection(self.ui.astValue1.value(), self.ui.astValue2.value(),
                                        self.ui.comaValue1.value(), self.ui.comaValue2.value(),
                                        self.ui.trefValue1.value(), self.ui.trefValue2.value())
+                t = time.time()-t0
+                print(f'Repertoire reloaded. Elapsed time: {t}')
+                self.slm.updateHardware()
+            except Exception as e:
+                self.show_text(e)
+
+    def updateBpPressed(self):
+        if hasattr(self.slm, 'slm'):
+            try:
+                t0 = time.time()
+                self.show_text('Start update bit-planes and resend the repertoire without images')
+                self.slm.updateBp()
                 t = time.time()-t0
                 print(f'Repertoire reloaded. Elapsed time: {t}')
                 self.slm.updateHardware()
