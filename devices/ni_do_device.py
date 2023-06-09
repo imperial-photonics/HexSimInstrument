@@ -35,6 +35,5 @@ class NI_DO_device(object):
         
             
     def close(self):
-        
         self.task.close() #close the task
         

@@ -58,10 +58,10 @@ class HexSimMeasurement(Measurement):
         # self.screen = self.app.hardware['ScreenHardware']
         self.slm = self.app.hardware['SLM_hardware']
         # self.stage = self.app.hardware['NanoDriveHardware']
-        self.z_stage = self.app.hardware['MCLNanoDriveHardware']
+        # self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
-        # self.ni_do = self.app.hardware['NI_DO_hw']
+        self.ni_do = self.app.hardware['NI_DO_hw']
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
         self.display_update_period = self.settings.refresh_period.val

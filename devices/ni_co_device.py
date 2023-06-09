@@ -1,9 +1,9 @@
 import nidaqmx
-import warnings
-import math
-import numpy as np
-
-from nidaqmx import stream_writers
+# import warnings
+# import math
+# import numpy as np
+#
+# from nidaqmx import stream_writers
 
 
 class NI_CO_device(object):
@@ -81,7 +81,6 @@ class NI_CO_device(object):
 
     def stop_task(self):
         print('Task stop')
-
         # suppress warning that might occur when task i stopped during acquisition
         # warnings.filterwarnings('ignore', category=nidaqmx.DaqWarning)
         self.task_ni.stop()  # stop the task(different from the closing of the task, I suppose)
