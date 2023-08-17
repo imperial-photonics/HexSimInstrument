@@ -61,7 +61,7 @@ class HexSimMeasurement(Measurement):
         # self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
-        self.ni_do = self.app.hardware['NI_DO_hw']
+        # self.ni_do = self.app.hardware['NI_DO_hw']
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
         self.display_update_period = self.settings.refresh_period.val
@@ -550,7 +550,7 @@ class HexSimMeasurement(Measurement):
             try:
                 t0 = time.time()
                 self.show_text('Start write SLM correction holograms in the flash')
-                self.slm.flashCorrection(self.ui.astValue1.value(), self.ui.astValue2.value(),
+                self.slm.manualCorrection(self.ui.astValue1.value(), self.ui.astValue2.value(),
                                        self.ui.comaValue1.value(), self.ui.comaValue2.value(),
                                        self.ui.trefValue1.value(), self.ui.trefValue2.value())
                 t = time.time()-t0

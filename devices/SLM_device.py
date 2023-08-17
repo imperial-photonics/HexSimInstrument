@@ -26,12 +26,12 @@ class SLMDev(object):
     """
 
     def __init__(self):
-
         self.NULL = ct.POINTER(ct.c_int)()
         self.RS485_DEV_TIMEOUT = ct.c_uint16(1000)
-        self.r11 = ct.windll.LoadLibrary('C:/Program Files/MetroCon-4.1/R11CommLib-1.8-x64.dll')
+        self.r11 = ct.windll.LoadLibrary('C:/Program Files/R11 SLM/2020-03/Software/R11CommLib/R11CommLib-1.9-x64.dll')
         self.xpix = 2048
         self.ypix = 2048
+        self.n_bias = 3
     def initiate(self):
         ver = ct.create_string_buffer(8)
         maxlen = ct.c_uint8(10)
@@ -55,12 +55,24 @@ class SLMDev(object):
         re = self.r11.FDD_DevOpenWinUSB(port, self.RS485_DEV_TIMEOUT)
         if re == 0:
             print('Open Dev port successfully')
-            dispTemp = ct.c_uint16(0)
-            self.r11.R11_RpcSysGetDisplayTemp(ct.byref(dispTemp))
-            print('Display temperature: %s' % dispTemp.value)
+            self.print_tem()
         else:
             raise Exception(' Fail to open the port ')
-
+    def print_tem(self):
+        '''retrieve SLM's tem'''
+        dispTemp = ct.c_uint16(0)
+        re = self.r11.R11_RpcSysGetDisplayTemp(ct.byref(dispTemp))
+        if re == 0:
+            dispTemp = dispTemp.value >> 4
+            if dispTemp < 2048:
+                # Positive temperature
+                dispTemp = float(dispTemp) / 16.0
+            else:
+                # Negative temperature
+                dispTemp = -np.float64(4096 - dispTemp) / 16.0
+            print(f'SLM tempreture: {dispTemp}')
+        else:
+            raise Exception
     def activate(self,):
         res = self.r11.R11_RpcRoActivate(ct.c_void_p())
         if res != 0:
@@ -179,10 +191,13 @@ class SLMDev(object):
         else:
             raise Exception(f'Fail to erase block {block}')
 
-    def repReload(self):
-        res = self.r11.R11_RpcSysReloadRepertoire()
+    def repReload(self, n_bp):
+        s = ct.c_uint16(n_bp * 4)  # startBlock
+        e = ct.c_uint16(n_bp * 4 + 4 * self.n_bias - 1)  # endBlock
+        res = self.r11.R11_RpcSysReloadRepertoireImageSubset(s, e)
         t0 = time.time()
         while self.getProgress() != 100:
+            time.sleep(0.050)
             self.getProgress()
         t = time.time() - t0
         print(f'Elapsed time of reloading: {t}')
@@ -197,7 +212,10 @@ class SLMDev(object):
             raise Exception(f'Fail to get progress. Error code: {res}')
         return p.value
 
-
+    def reloadSkipImgs(self):
+        res = self.r11.R11_RpcSysReloadRepertoireSkipImages()
+        if res != 0:
+            raise Exception(f'Fail to reload repertoire without images. Error code: {res}')
 
 
 # if __name__ == '__main__':
