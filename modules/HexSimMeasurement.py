@@ -1,6 +1,7 @@
 
 import os, time, h5py
 import numpy as np
+import cupy as cp
 import pyqtgraph as pg
 import tifffile as tif
 import tkinter as tk
@@ -12,6 +13,7 @@ from ScopeFoundry.helper_funcs import load_qt_ui_file
 from qtwidgets import Toggle
 
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
+from modules.PhaseRecovery import Phase_correction
 from utils.MessageWindow import CalibrationResults
 from utils.StackImageViewer import StackImageViewer, list_equal
 # from utils.StackImageViewer import StackImageViewer
@@ -20,6 +22,8 @@ from tkinter import filedialog
 
 
 from PyQt5.QtCore import QTimer
+
+xp = cp
 def add_timer(function):
     """Function decorator to mesaure the execution time of a method.
     To avoid conflicts with QtObjects, it assumes that the method takes no arguments except self
@@ -276,6 +280,7 @@ class HexSimMeasurement(Measurement):
             self.ui.calibrationProgress.setFormat('Uncalibrated')
 
     def pre_run(self):
+        self.preCorrection()
         pass
         # if hasattr(self,'screen'):
         #     self.controlSLM()
@@ -460,7 +465,15 @@ class HexSimMeasurement(Measurement):
         print(file_path)
         return file_path
 
-# functions for operation
+    # functions for phase correction
+    def preCorrection(self):
+        self.phC = Phase_correction()
+
+    def sendOneBeam(self):
+        """send one-beam repz file in preparation for the flash correction"""
+        self.slm.initiateRep(self.phC.hex_bits0, f'test_{time.strftime("%d%m%y_%H%M%S", time.localtime())}', 'h')
+
+    # functions for operation
     def standardCapturePressed(self):
         # if not self.screen.slm_dev.isVisible():
         #     self.show_text('Open SLM!')

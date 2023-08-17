@@ -144,20 +144,20 @@ class SLMDev(object):
         else:
             raise Exception('Fail to closE R11 SLM')
 
-    def interleaving(self):
-        x0 = np.zeros(self.xpix)
-        y0 = np.arange(self.ypix)
-
-        nr = np.arange(8)
-        for i in range(64):
-            x0[(i * 32):(i * 32 + 8)] = nr + i * 8
-            x0[(i * 32 + 8):(i * 32 + 16)] = nr + i * 8 + 512
-            x0[(i * 32 + 16):(i * 32 + 24)] = nr + i * 8 + 1024
-            x0[(i * 32 + 24):(i * 32 + 32)] = nr + i * 8 + 1536
-        # x0 is now an array of interleaved x values in the correct places for sending to the SLM
-
-        x, y = np.meshgrid(x0, y0)
-        return x, y
+    # def interleaving(self, x_dis):
+    #     x0 = np.zeros(self.xpix)
+    #     y0 = np.arange(self.ypix)
+    #
+    #     nr = np.arange(8)
+    #     for i in range(64):
+    #         x0[(i * 32):(i * 32 + 8)] = nr + i * 8
+    #         x0[(i * 32 + 8):(i * 32 + 16)] = nr + i * 8 + 512
+    #         x0[(i * 32 + 16):(i * 32 + 24)] = nr + i * 8 + 1024
+    #         x0[(i * 32 + 24):(i * 32 + 32)] = nr + i * 8 + 1536
+    #     # x0 is now an array of interleaved x values in the correct places for sending to the SLM
+    #
+    #     x, y = np.meshgrid(x0 * x_dis, y0)
+    #     return x, y
 
     def sendBitplane(self, data, frameno):
         print(f'sending frame number {frameno}')

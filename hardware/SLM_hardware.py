@@ -250,100 +250,6 @@ class SLMHW(HardwareComponent):
         return img, imgNameList, timestamp
 
 
-    def manualCorrection(self, ast1_f, ast2_f, coma1_f, coma2_f, tref1_f, tref2_f):
-        t0 = time.time()
-        if not hasattr(self, 'xv'):
-            self.xv, self.yv = self.slm.interleaving()
-        beams = 2
-        N_iterations = 20  # number of iterations
-        xpix = self.xpix
-        ypix = self.ypix
-        if use_cupy:
-            # place the pixels in negative and positive axes
-            x = (cp.array(self.xv) - xpix / 2) / (xpix)
-            y = (cp.array(self.yv) - ypix / 2) / (ypix)
-            Phi = cp.random.random((ypix, xpix)) * 2 * np.pi
-            Tau = cp.zeros((ypix, xpix, beams), dtype=cp.double)  # phase tilt
-            Psi = cp.zeros(beams, dtype=cp.double)
-            F = cp.zeros(beams, dtype=cp.complex_)
-            G = cp.zeros((ypix, xpix, beams), dtype=cp.complex_)
-        else:
-            # place the pixels in negative and positive axes
-            x = (self.xv - xpix / 2) / (xpix)
-            y = (self.yv - ypix / 2) / (ypix)
-
-            Phi = np.random.random((ypix, xpix)) * 2 * np.pi
-            Tau = np.zeros((ypix, xpix, beams), dtype=np.double)  # phase tilt
-            Psi = np.zeros(beams, dtype=np.double)
-            F = np.zeros(beams, dtype=np.complex_)
-            G = np.zeros((ypix, xpix, beams), dtype=np.complex_)
-
-        rSqaure = x ** 2 + y ** 2
-        ast1 = ast1_f * sqrt(6) * (x ** 2 - y ** 2)
-        ast2 = ast2_f * 2 * sqrt(6) * x * y
-        coma1 = coma1_f * 2 * sqrt(2) * (3 * rSqaure - 2) * x
-        coma2 = coma2_f * 2 * sqrt(2) * (3 * rSqaure - 2) * y
-        tref1 = tref1_f * 2 * sqrt(2) * (4 * x ** 2 - 3 * rSqaure) * x
-        tref2 = tref2_f * 2 * sqrt(2) * (3 * rSqaure - 4 * y ** 2) * y
-        abb = ast1 + ast2 + coma1 + coma2 + tref1 + tref2
-
-        nm = 10 ** -9
-        mm = 0.001
-        wavelength = 520 * nm
-        f = 250 * mm
-        p_mask = 2.1 * mm  # pitch of the pinhole mask
-        u_mask = p_mask * np.sqrt(3) / 2  # coordinate in x direction in FT plane
-        p = 1 / (u_mask / wavelength / f) / (0.0082 * mm)
-
-        # initialise Tau, 6 ramps of increasing angle, with a yramp to shift away from central axis
-        if use_cupy:
-            for i in range(0, beams):
-                xp = xpix / p * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 18)
-                yp = ypix / p * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 18)
-                Tau[:, :, i] = x * xp + y * yp + abb
-            Psi = cp.zeros(beams)
-            # for k in range(0, N_iterations):
-            #     F = cp.sum(cp.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
-            #                (0, 1))  # DFT to find DC term at Fourier plane
-                # extract just the phase (set amplitude to 1)
-                # Psi[0] = cp.angle(F[0])
-                # Psi[1] = cp.angle(F[0]) + 2 * np.pi / 7
-                # Psi[2] = cp.angle(F[0]) + 6 * np.pi / 7
-            Psi0 = 0
-            Psi[0] = Psi0
-            Psi[1] = Psi0 + 2 * np.pi / 7
-            # Psi[2] = Psi0 + 6 * np.pi / 7
-                # A = cp.abs(F)  # Amplitude
-                # G and Phi do the inverse FT
-            G = cp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
-            Phi = np.pi * (cp.real(
-                cp.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
-            img = Phi.get() * 1
-        else:
-            for i in range(0, beams):
-                xp = xpix / p * 2 * np.pi * np.cos(2 * i * np.pi / 3 + np.pi / 18)
-                yp = ypix / p * 2 * np.pi * np.sin(2 * i * np.pi / 3 + np.pi / 18)
-                Tau[:, :, i] = x * xp + y * yp + abb
-            Psi = np.zeros(3)
-            for k in range(0, N_iterations):
-                F = np.sum(np.exp(1j * (-Tau + Phi.reshape((xpix, ypix, 1)))),
-                           (0, 1))  # DFT to find DC term at Fourier plane
-                # extract just the phase (set amplitude to 1)
-                Psi[0] = np.angle(F[0])
-                Psi[1] = np.angle(F[0]) + 2 * np.pi / 7
-                Psi[2] = np.angle(F[0]) + 6 * np.pi / 7
-                A = np.abs(F)  # Amplitude
-                G = np.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
-                Phi = np.pi * (np.real(
-                    np.sum(G, axis=2)) < 0)  # sum the terms and take the argument, which is used as next phi
-                img = Phi * 1
-        hex_bits = np.packbits(img[:, :].astype('int'), bitorder='little')
-        randImg = randrange(1, 769)
-        self.threeImgs = [randImg, randImg + 1, randImg + 2]
-
-        for k in range(3):
-            self.slm.sendBitplane(hex_bits, self.threeImgs[k])
-        # self.slm.repReload()
 
     def updateBp(self):
         self.flashCorrection(0, 0, 20, 0, 0, 0)
@@ -404,10 +310,17 @@ class SLMHW(HardwareComponent):
             print(output.stderr)
         os.chdir('..')
 
-    def writeCorrRep(self, fns, imgns='hol.png'):
-        """write a text file of the SLM correction repertoire and save it as '.rep' format,
-        and then build it to a '.repz11' file"""
-        os.chdir('./gen_repertoires')
+    def initiateRep(self, imgs, fn, mode):
+        self.n_bp = len(imgs)
+        self.bpIndex = randrange(11, 768 - self.n_bias)
+        self.flashCorrection(imgs)
+        self.writeCorrRep(fn, mode)
+        self.repSendBP(fn + '.repz11')
+        self.slm.reloadSkipImgs()
+
+    def writeCorrRep(self, fns, mode, imgns='hol.png'):
+        """write a text file of the SLM correction repertoire and save it as '.rep' format,and then build it to a '.repz11' file."""
+        os.chdir('C:/Users/ML2618/Desktop/SLMtests')
         with open(f'{fns}.txt', 'w') as f:
             data = ("ID\n"
                     '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
@@ -424,96 +337,60 @@ class SLMHW(HardwareComponent):
                     "SEQUENCES\n")
             f.write(data)
 
-            data2 = ('A "48160 1ms 1-bit Balanced.seq11"\n'
+            data2 = ('A "48163 10ms 1-bit Balanced.seq11"\n'
                      'SEQUENCES_END\n\n'
                      'IMAGES\n')
             f.write(data2)
 
             for i in range(3):
-                data3 =(f' 500 "{imgns}"\n')
+                data3 = (f' 1 "{imgns}"\n')
                 f.write(data3)
 
             data4 = ('IMAGES_END\n'
-                     'DEFAULT "RO1"\n'
+                     f'DEFAULT "R01"\n'
                      '[HWA \n')
             f.write(data4)
 
-            datan = []
-            for k in range(3):
-                datan.append('{' + f'f (A, {self.threeImgs[k]})' + '}\n')
-                f.write(datan[k])
-
-            data6 = (']')
-            f.write(data6)
+            if mode == 'nh':  # no hardware triggering
+                data5 = (f'<')
+                f.write(data5)
+                for i in range(self.n_bp):
+                    data51 = (f'(A,{self.bpIndex + i})')
+                    f.write(data51)
+                data52 = ('>]\n')
+                f.write(data52)
+            else:
+                data5 = (f'< t')
+                f.write(data5)
+                for i in range(self.n_bp):
+                    data51 = (f'(A,{self.bpIndex + i})')
+                    f.write(data51)
+                data52 = ('>]\n')
+                f.write(data52)
 
         os.rename(f'{fns}.txt', f'{fns}.rep')
         print('New rep file created')
 
         # build the rep to a repz11 file
+        print(os.getcwd())
         output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
                                 stdout=subprocess.PIPE)
         if output.returncode == 0:
             print(output.stdout.decode())
             print('repz11 file created')
         else:
-            print(output.stderr)
-        os.chdir('..')
-        return fns
+            print(f'rep to repz11 failed, error: {output.stderr}')
 
-    # def writeBlankCorrRep(self, fns='blank_base', imgns='blank.png'):
-    #     """write a text file of the SLM correction repertoire and save it as '.rep' format,
-    #     and then build it to a '.repz11' file"""
-    #     os.chdir('./gen_repertoires')
-    #     with open(f'{fns}.txt', 'w') as f:
-    #         data = ("ID\n"
-    #                 '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
-    #                 "ID_END\n\n"
-    #                 "PLATFORM\n"
-    #                 '"R11"\n'
-    #                 "PLATFORM_END\n\n"
-    #                 "DISPLAY\n"
-    #                 '"2Kx2K"\n'
-    #                 "DISPLAY_END\n\n"
-    #                 "FORMATVERSION\n"
-    #                 '"FV4"\n'
-    #                 "FORMATVERSION_END\n\n"
-    #                 "SEQUENCES\n")
-    #         f.write(data)
-    #
-    #         data2 = ('A "48160 1ms 1-bit Balanced.seq11"\n'
-    #                  'SEQUENCES_END\n\n'
-    #                  'IMAGES\n')
-    #         f.write(data2)
-    #
-    #         datan = []
-    #         for k in range(768):
-    #             datan.append(f' {k + 1} "{imgns}"\n')
-    #             f.write(datan[k])
-    #
-    #         data4 = ('IMAGES_END\n'
-    #                  'DEFAULT "RO1"\n'
-    #                  '[HWA \n')
-    #         f.write(data4)
-    #
-    #         data5 = ('{f (A,10)}\n')
-    #         f.write(data5)
-    #
-    #         data6 = (']')
-    #         f.write(data6)
-    #
-    #     os.rename(f'{fns}.txt', f'{fns}.rep')
-    #     print('New rep file created')
-    #
-    #     # build the rep to a repz11 file
-    #     output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
-    #                             stdout=subprocess.PIPE)
-    #     if output.returncode == 0:
-    #         print(output.stdout.decode())
-    #         print('repz11 file created')
-    #     else:
-    #         print(output.stderr)
-    #     os.chdir('..')
-    #     return fns
+    def flashCorrection(self, bp_img):
+        for k in range(self.n_bp):
+            self.slm.sendBitplane(bp_img[k], self.bpIndex + k)
+
+    def updateBp(self, imgs):
+        t0 = time.time()
+        self.flashCorrection(imgs)
+        self.slm.repReload(self.bpIndex)
+        self.slm.reloadSkipImgs()
+        print(f'Repertoire updated in {time.time() - t0}s')
 
     def updateHardware(self):
         if hasattr(self, 'slm'):
