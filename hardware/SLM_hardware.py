@@ -249,14 +249,6 @@ class SLMHW(HardwareComponent):
             imgNameList.append(imgN)
         return img, imgNameList, timestamp
 
-
-
-    def updateBp(self):
-        self.flashCorrection(0, 0, 20, 0, 0, 0)
-        fn = 'test4'
-        self.writeCorrRep(fn)
-        self.repSendBP(fn +'.repz11')
-
     def writeRep(self, fns, n_frames, imgns):
         """write a text file of the repertoire and save it as .rep format, and then build it to a .repz11 file"""
         os.chdir('./gen_repertoires')
@@ -310,86 +302,87 @@ class SLMHW(HardwareComponent):
             print(output.stderr)
         os.chdir('..')
 
-    def initiateRep(self, imgs, fn, mode):
-        self.n_bp = len(imgs)
-        self.bpIndex = randrange(11, 768 - self.n_bias)
-        self.flashCorrection(imgs)
-        self.writeCorrRep(fn, mode)
-        self.repSendBP(fn + '.repz11')
-        self.slm.reloadSkipImgs()
+        def sendBaseRep(self, fns=f'base_{time.strftime("%d%m%y_%H%M%S", time.localtime())}', imgns='hol.png'):
+            """write a text file repertoire as a base and save it as '.rep' format,and then build it to a '.repz11' file.
+            This repertoire only needs to be sent once."""
+            os.chdir('C:/Users/ML2618/Desktop/SLMtests')
+            with open(f'{fns}.txt', 'w') as f:
+                data = []
+                data.append("ID\n"
+                            '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
+                            "ID_END\n\n"
+                            "PLATFORM\n"
+                            '"R11"\n'
+                            "PLATFORM_END\n\n"
+                            "DISPLAY\n"
+                            '"2Kx2K"\n'
+                            "DISPLAY_END\n\n"
+                            "FORMATVERSION\n"
+                            '"FV4"\n'
+                            "FORMATVERSION_END\n\n"
+                            "SEQUENCES\n")
+                data.append('A "48163 10ms 1-bit Balanced.seq11"\n'
+                            'SEQUENCES_END\n\n'
+                            'IMAGES\n')
+                for i in range(3):
+                    data.append(f' 1 "{imgns}"\n')
 
-    def writeCorrRep(self, fns, mode, imgns='hol.png'):
-        """write a text file of the SLM correction repertoire and save it as '.rep' format,and then build it to a '.repz11' file."""
-        os.chdir('C:/Users/ML2618/Desktop/SLMtests')
-        with open(f'{fns}.txt', 'w') as f:
-            data = ("ID\n"
-                    '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
-                    "ID_END\n\n"
-                    "PLATFORM\n"
-                    '"R11"\n'
-                    "PLATFORM_END\n\n"
-                    "DISPLAY\n"
-                    '"2Kx2K"\n'
-                    "DISPLAY_END\n\n"
-                    "FORMATVERSION\n"
-                    '"FV4"\n'
-                    "FORMATVERSION_END\n\n"
-                    "SEQUENCES\n")
-            f.write(data)
+                data.append('IMAGES_END\n'
+                            f'DEFAULT "RO0"\n'
+                            '[HWA h \n')  # hardware trigger
+                data.append(f'<t(A,12) (A,13) (A,14)>]\n')
+                for i in range(1, 210):
+                    # 10/12 * 252 ROs
+                    data.append(f'"RO{i}"\n'
+                                '[HWA \n')
+                    data.append('<t')
+                    for k in range(3):
+                        data.append(f'(A,{12 + 3 * i + k}) ')
+                    data.append('>]\n')
 
-            data2 = ('A "48163 10ms 1-bit Balanced.seq11"\n'
-                     'SEQUENCES_END\n\n'
-                     'IMAGES\n')
-            f.write(data2)
+                #                 # no triggering siganl needed
+                data.append('"RO210"\n'
+                            '[HWA \n'
+                            f'< (A,642) (A,643) (A,644)>]\n')
+                for i in range(211, 252):
+                    # 2/12 * 252 ROs
+                    data.append(f'"RO{i}"\n'
+                                '[HWA \n')
+                    data.append('<')
+                    for k in range(3):
+                        data.append(f'(A,{12 + 3 * i + k}) ')
+                    data.append('>]\n')
+                f.write(''.join(data))
 
-            for i in range(3):
-                data3 = (f' 1 "{imgns}"\n')
-                f.write(data3)
+            os.rename(f'{fns}.txt', f'{fns}.rep')
+            print('New rep file created')
 
-            data4 = ('IMAGES_END\n'
-                     f'DEFAULT "R01"\n'
-                     '[HWA \n')
-            f.write(data4)
-
-            if mode == 'nh':  # no hardware triggering
-                data5 = (f'<')
-                f.write(data5)
-                for i in range(self.n_bp):
-                    data51 = (f'(A,{self.bpIndex + i})')
-                    f.write(data51)
-                data52 = ('>]\n')
-                f.write(data52)
+            # build the rep to a repz11 file
+            print(os.getcwd())
+            output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
+                                    stdout=subprocess.PIPE)
+            if output.returncode == 0:
+                print(output.stdout.decode())
+                print('repz11 file created')
             else:
-                data5 = (f'< t')
-                f.write(data5)
-                for i in range(self.n_bp):
-                    data51 = (f'(A,{self.bpIndex + i})')
-                    f.write(data51)
-                data52 = ('>]\n')
-                f.write(data52)
-
-        os.rename(f'{fns}.txt', f'{fns}.rep')
-        print('New rep file created')
-
-        # build the rep to a repz11 file
-        print(os.getcwd())
-        output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
-                                stdout=subprocess.PIPE)
-        if output.returncode == 0:
-            print(output.stdout.decode())
-            print('repz11 file created')
-        else:
-            print(f'rep to repz11 failed, error: {output.stderr}')
+                print(f'rep to repz11 failed, error: {output.stderr}')
+            self.repSendBP(fns + '.repz11')
+            self.slm.reloadSkipImgs()
 
     def flashCorrection(self, bp_img):
         for k in range(self.n_bp):
             self.slm.sendBitplane(bp_img[k], self.bpIndex + k)
 
-    def updateBp(self, imgs):
+    def updateBp(self, imgs, mode):
         t0 = time.time()
-        self.flashCorrection(imgs)
-        self.slm.repReload(self.bpIndex)
-        self.slm.reloadSkipImgs()
+        if mode == 's':
+            roIndex = randrange(210)
+        else:
+            roIndex = randrange(210, 252)
+        bp = 12 + roIndex * 3
+        self.flashCorrection(imgs, bp)
+        self.slm.repReload(bp)
+        self.slm.setRO(roIndex)
         print(f'Repertoire updated in {time.time() - t0}s')
 
     def updateHardware(self):

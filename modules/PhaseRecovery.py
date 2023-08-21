@@ -24,7 +24,6 @@ class Phase_correction:
 
     # Sampling in pupil plane
     s_p = fl * l / (N * d_c)
-    print(f's_p = {s_p:.3f}')
 
     # pupil plane diameter in pixels
     d_p = n_s * d_s / s_p
@@ -106,14 +105,15 @@ class Phase_correction:
 
         x, y = np.meshgrid(x0 * x_dis, y0)
         return x, y
-    def __int__(self):
+    def __init__(self):
+        print('test')
         chs = self.set_C(self.x, self.y, self.n_c, self.N, self.circ)
 
         c_a_p = self.xp.reshape(chs, (self.n_c ** 2, self.N, self.N))  # Chebyshev aberration for phase
         n_c_i = 4
         c_a_i = self.xp.reshape(chs[:n_c_i, :n_c_i, :, :], (n_c_i ** 2, self.N, self.N))  # Chebyshev aberration for intensity
-        normval_p = 1 / oe.contract('ijk, ijk, jk -> i', c_a_p, c_a_p, self.wt)
-        normval_i = 1 / oe.contract('ijk, ijk, jk -> i', c_a_i, c_a_i, self.wt)
+        self.normval_p = 1 / oe.contract('ijk, ijk, jk -> i', c_a_p, c_a_p, self.wt)
+        self.normval_i = 1 / oe.contract('ijk, ijk, jk -> i', c_a_i, c_a_i, self.wt)
 
         # Orthononality matrix diagonal gives normalisation
         plt.matshow(np.abs(oe.contract('ijk, mjk, jk -> im', c_a_p, c_a_p, self.wt).get()) ** 0.5)
@@ -169,9 +169,9 @@ class Phase_correction:
 
         Phi = self.xp.random.random((3, self.ypix, self.xpix)) * 2 * np.pi
         Tau = self.xp.zeros((1, self.ypix, self.xpix), dtype=self.xp.double)  # phase tilt
-        Psi = self.xp.zeros((3, self.ypix, self.xpix), dtype=self.xp.double)
+        self.Psi = self.xp.zeros((3, self.ypix, self.xpix), dtype=self.xp.double)
         G = self.xp.zeros((self.ypix, self.xpix, 1), dtype=self.xp.complex_)
-        img = [None] * 3
+        self.img = [None] * 3
 
         # Calculte Chebyshev polynomials for 2048 * 2048 pixels
         ND = 2048
@@ -179,52 +179,49 @@ class Phase_correction:
         xD = xd[self.xp.array(yv, dtype=int)]
         yD = -xd[self.xp.array(xv, dtype=int)]
         mD = np.abs(xd) < 1
-        circD = self.xp.outer(mD, mD)
-        chsD = self.set_C(xD, yD, self.n_c, ND, circD)
-        c_a_pD = self.xp.reshape(chsD, (self.n_c ** 2, ND, ND))  # Chebyshev aberration for phase
+        self.circD = self.xp.outer(mD, mD)
+        chsD = self.set_C(xD, yD, self.n_c, ND, self.circD)
+        self.c_a_pD = self.xp.reshape(chsD, (self.n_c ** 2, ND, ND))  # Chebyshev aberration for phase
 
-        bias = [4 * (chs[0, 2] + chs[2, 0]), 8 * chs[2, 2], -4 * (chs[0, 2] + chs[2, 0])]
-        biasD = [4 * (chsD[0, 2] + chsD[2, 0]), 8 * chsD[2, 2], -4 * (chsD[0, 2] + chsD[2, 0])]
+        self.bias = [4 * (chs[0, 2] + chs[2, 0]), 8 * chs[2, 2], -4 * (chs[0, 2] + chs[2, 0])]
+        self.biasD = [4 * (chsD[0, 2] + chsD[2, 0]), 8 * chsD[2, 2], -4 * (chsD[0, 2] + chsD[2, 0])]
 
         D = 2e-3  # radious of 3 pinholes
         p = 1 / (D / (self.l * 1e-6) / (self.fl * 1e-6)) / (self.d_s * 1e-6)
-        hex_bits = [None] * 3
+        self.hex_bits = [None] * 3
 
 
-        xpSLM = self.slm.xpix / p * 2 * np.pi * cp.cos(np.pi / 2)
-        ypSLM = self.slm.ypix / p * 2 * np.pi * cp.sin(np.pi / 2)
+        xpSLM = self.xpix / p * 2 * np.pi * cp.cos(np.pi / 2)
+        ypSLM = self.ypix / p * 2 * np.pi * cp.sin(np.pi / 2)
         Tau[0, :, :] = xSLM * xpSLM + ySLM * ypSLM
 
         Psi0 = 0
         for b in range(3):
-            Psi[b] = Psi0 + biasD[b]
+            self.Psi[b] = Psi0 + self.biasD[b]
 
-        G = self.xp.exp(1j * (Tau + Psi))  # calculate the terms needed for summation
-        Phi = np.pi * (self.xp.real(G) < 0) * circD
+        G = self.xp.exp(1j * (Tau + self.Psi))  # calculate the terms needed for summation
+        Phi = np.pi * (self.xp.real(G) < 0) * self.circD
 
         for k in range(3):
             if self.xp == cp:
-                img[k] = Phi[k].get()
+                self.img[k] = Phi[k].get()
             else:
-                img[k] = Phi[k]
-            self.hex_bits0[k] = np.packbits(img[k].astype('int'), bitorder='little')
+                self.img[k] = Phi[k]
+            self.hex_bits0[k] = np.packbits(self.img[k].astype('int'), bitorder='little')
 
+        self.ri2 = (-18 * chs[1, 1] + 5 * chs[2, 2]
+               - 7 * chs[3, 1] + 11 * chs[3, 3]) * self.circ / 4  # starting random input phase
+        self.chs = chs
+        self.c_a_p = c_a_p
+        self.c_a_i = c_a_i
+        self.c_a_ps = c_a_ps
+        self.normval_ps = normval_ps
+        self.Tau = Tau
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-plt.show()
-
+if __name__ == '__main__':
+    phc = Phase_correction()
+    print(phc.circ)
+    print(phc.N)
 
 
 
