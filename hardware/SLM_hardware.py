@@ -329,7 +329,7 @@ class SLMHW(HardwareComponent):
 
                 data.append('IMAGES_END\n'
                             f'DEFAULT "RO0"\n'
-                            '[HWA h \n')  # hardware trigger
+                            '[HWA \n')  # hardware trigger
                 data.append(f'<t(A,12) (A,13) (A,14)>]\n')
                 for i in range(1, 210):
                     # 10/12 * 252 ROs
@@ -369,12 +369,12 @@ class SLMHW(HardwareComponent):
             self.repSendBP(fns + '.repz11')
             self.slm.reloadSkipImgs()
 
-    def flashCorrection(self, bp_img):
-        for k in range(self.n_bp):
-            self.slm.sendBitplane(bp_img[k], self.bpIndex + k)
+    def flashCorrection(self, bp_img, bp):
+        for k in range(len(bp_img)):
+            self.slm.sendBitplane(bp_img[k], bp + k)
 
     def updateBp(self, imgs, mode):
-        t0 = time.time()
+        # t0 = time.time()
         if mode == 's':
             roIndex = randrange(210)
         else:
@@ -383,7 +383,7 @@ class SLMHW(HardwareComponent):
         self.flashCorrection(imgs, bp)
         self.slm.repReload(bp)
         self.slm.setRO(roIndex)
-        print(f'Repertoire updated in {time.time() - t0}s')
+        # print(f'Repertoire updated in {time.time() - t0}s')
 
     def updateHardware(self):
         if hasattr(self, 'slm'):

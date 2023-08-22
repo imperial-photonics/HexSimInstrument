@@ -4,8 +4,8 @@
 import numpy as np
 import cupy as cp
 import opt_einsum as oe
-import matplotlib.pyplot as plt
-from scipy import ndimage, interpolate
+from scipy import interpolate
+import time
 
 __author__ = "Meizhu Liang"
 
@@ -106,7 +106,6 @@ class Phase_correction:
         x, y = np.meshgrid(x0 * x_dis, y0)
         return x, y
     def __init__(self):
-        print('test')
         chs = self.set_C(self.x, self.y, self.n_c, self.N, self.circ)
 
         c_a_p = self.xp.reshape(chs, (self.n_c ** 2, self.N, self.N))  # Chebyshev aberration for phase
@@ -116,7 +115,7 @@ class Phase_correction:
         self.normval_i = 1 / oe.contract('ijk, ijk, jk -> i', c_a_i, c_a_i, self.wt)
 
         # Orthononality matrix diagonal gives normalisation
-        plt.matshow(np.abs(oe.contract('ijk, mjk, jk -> im', c_a_p, c_a_p, self.wt).get()) ** 0.5)
+        # plt.matshow(np.abs(oe.contract('ijk, mjk, jk -> im', c_a_p, c_a_p, self.wt).get()) ** 0.5)
 
         # Chebyshev expansion by orthogonality at nodal points
         p_s = np.polynomial.chebyshev.chebpts1(self.n_c + 1)
@@ -135,7 +134,7 @@ class Phase_correction:
         nm = int(self.xp.sum(self.m).item())
 
         # Orthononality matrix diagonal gives normalisation
-        plt.matshow((self.xp.sqrt(self.xp.abs(oe.contract('ijk, mjk, i -> im', c_a_ps, c_a_ps, normval_ps)))).get())
+        # plt.matshow((self.xp.sqrt(self.xp.abs(oe.contract('ijk, mjk, i -> im', c_a_ps, c_a_ps, normval_ps)))).get())
         # with np.printoptions(precision=3, suppress=True):
         #     print(oe.contract('ijk, mjk, i -> im', c_a_ps, c_a_ps, normval_ps))
 
@@ -170,7 +169,6 @@ class Phase_correction:
         Phi = self.xp.random.random((3, self.ypix, self.xpix)) * 2 * np.pi
         Tau = self.xp.zeros((1, self.ypix, self.xpix), dtype=self.xp.double)  # phase tilt
         self.Psi = self.xp.zeros((3, self.ypix, self.xpix), dtype=self.xp.double)
-        G = self.xp.zeros((self.ypix, self.xpix, 1), dtype=self.xp.complex_)
         self.img = [None] * 3
 
         # Calculte Chebyshev polynomials for 2048 * 2048 pixels
@@ -219,9 +217,15 @@ class Phase_correction:
         self.Tau = Tau
 
 if __name__ == '__main__':
+    t = time.time()
     phc = Phase_correction()
-    print(phc.circ)
-    print(phc.N)
+    t1 = time.time() - t
+    print(t1)
+    t2 = time.time()
+    print(phc.Tau)
+    print(f'{(time.time() - t2)}s')
+
+
 
 
 

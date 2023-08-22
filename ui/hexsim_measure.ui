@@ -216,17 +216,17 @@
        <item>
         <widget class="QTabWidget" name="repTabs">
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <widget class="QWidget" name="Holograms">
           <attribute name="title">
            <string>Repertoires</string>
           </attribute>
           <layout class="QGridLayout" name="gridLayout_4">
-           <item row="3" column="0">
-            <widget class="QRadioButton" name="stripe_holRadioButton">
+           <item row="6" column="0">
+            <widget class="QPushButton" name="holGenButton">
              <property name="text">
-              <string>Stripes</string>
+              <string>Generate</string>
              </property>
             </widget>
            </item>
@@ -240,13 +240,6 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QRadioButton" name="hex_holRadioButton">
-             <property name="text">
-              <string>Hexagons</string>
-             </property>
-            </widget>
-           </item>
            <item row="4" column="0">
             <widget class="QCheckBox" name="repSaveCheckBox">
              <property name="text">
@@ -254,10 +247,17 @@
              </property>
             </widget>
            </item>
-           <item row="6" column="0">
-            <widget class="QPushButton" name="holGenButton">
+           <item row="1" column="0">
+            <widget class="QRadioButton" name="hex_holRadioButton">
              <property name="text">
-              <string>Generate</string>
+              <string>Hexagons</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QRadioButton" name="stripe_holRadioButton">
+             <property name="text">
+              <string>Stripes</string>
              </property>
             </widget>
            </item>
@@ -376,92 +376,7 @@
               <number>0</number>
              </property>
              <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_6">
-               <item>
-                <widget class="QLabel" name="label_9">
-                 <property name="minimumSize">
-                  <size>
-                   <width>65</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>70</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>astigmatism_1</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QDoubleSpinBox" name="astValue1">
-                 <property name="decimals">
-                  <number>1</number>
-                 </property>
-                 <property name="minimum">
-                  <double>-100.000000000000000</double>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_3">
-               <item>
-                <widget class="QLabel" name="label_7">
-                 <property name="minimumSize">
-                  <size>
-                   <width>65</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>70</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>astigmatism_2</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QDoubleSpinBox" name="astValue2">
-                 <property name="decimals">
-                  <number>1</number>
-                 </property>
-                 <property name="minimum">
-                  <double>-100.000000000000000</double>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item>
               <layout class="QHBoxLayout" name="horizontalLayout_4">
-               <item>
-                <widget class="QLabel" name="label_8">
-                 <property name="minimumSize">
-                  <size>
-                   <width>65</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>70</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>coma_1</string>
-                 </property>
-                </widget>
-               </item>
                <item>
                 <widget class="QDoubleSpinBox" name="comaValue1">
                  <property name="decimals">
@@ -528,226 +443,37 @@
              <item>
               <layout class="QHBoxLayout" name="horizontalLayout_7">
                <item>
-                <widget class="QPushButton" name="genCorr">
+                <widget class="QCheckBox" name="hwt_checkBox">
                  <property name="text">
-                  <string>Generate and Send</string>
+                  <string>HW trigger</string>
                  </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="verticalLayout_5">
-             <property name="spacing">
-              <number>0</number>
-             </property>
-             <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_8">
-               <item>
-                <widget class="QLabel" name="label_11">
-                 <property name="minimumSize">
-                  <size>
-                   <width>20</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>40</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>tref_1</string>
+                 <property name="checked">
+                  <bool>true</bool>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="trefValue1">
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="minimum">
-                  <double>-100.000000000000000</double>
-                 </property>
-                 <property name="maximum">
-                  <double>100.000000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>1.000000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>0.000000000000000</double>
+                <widget class="QPushButton" name="bp_pushButton">
+                 <property name="text">
+                  <string>update Bitplanes</string>
                  </property>
                 </widget>
                </item>
               </layout>
              </item>
              <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_9">
+              <layout class="QHBoxLayout" name="horizontalLayout_3">
                <item>
-                <widget class="QLabel" name="label_12">
-                 <property name="minimumSize">
-                  <size>
-                   <width>20</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>40</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
+                <widget class="QPushButton" name="PSF_pushButton">
                  <property name="text">
-                  <string>tref_2</string>
+                  <string>check PSFs</string>
                  </property>
                 </widget>
                </item>
                <item>
-                <widget class="QDoubleSpinBox" name="trefValue2">
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="decimals">
-                  <number>3</number>
-                 </property>
-                 <property name="minimum">
-                  <double>-100.000000000000000</double>
-                 </property>
-                 <property name="maximum">
-                  <double>100.000000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>1.000000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>0.000000000000000</double>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_10">
-               <item>
-                <widget class="QLabel" name="label_13">
-                 <property name="minimumSize">
-                  <size>
-                   <width>20</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>40</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
+                <widget class="QPushButton" name="startCo_pushButton">
                  <property name="text">
-                  <string>w </string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QDoubleSpinBox" name="wValue">
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="maximum">
-                  <double>10.000000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>0.100000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>0.500000000000000</double>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_11">
-               <item>
-                <widget class="QLabel" name="label_14">
-                 <property name="minimumSize">
-                  <size>
-                   <width>20</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>40</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>eta</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QDoubleSpinBox" name="etaValue">
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="maximum">
-                  <double>1.500000000000000</double>
-                 </property>
-                 <property name="singleStep">
-                  <double>0.010000000000000</double>
-                 </property>
-                 <property name="value">
-                  <double>0.700000000000000</double>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="horizontalLayout_14">
-               <item>
-                <widget class="QLabel" name="label_5">
-                 <property name="minimumSize">
-                  <size>
-                   <width>40</width>
-                   <height>0</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>40</width>
-                   <height>16777215</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>OTF</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="otfModel">
-                 <property name="maximumSize">
-                  <size>
-                   <width>60</width>
-                   <height>16777215</height>
-                  </size>
+                  <string>start correction</string>
                  </property>
                 </widget>
                </item>
