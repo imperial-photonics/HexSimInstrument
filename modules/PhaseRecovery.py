@@ -131,28 +131,28 @@ class Phase_correction:
                             (self.n_p ** 2, self.n_c + 1, self.n_c + 1))  # Chebyshev aberration for intensity
         normval_ps = 1 / oe.contract('ijk, ijk -> i', c_a_ps, c_a_ps)
         normval_is = 1 / oe.contract('ijk, ijk -> i', c_a_is, c_a_is)
-        nm = int(self.xp.sum(self.m).item())
+        self.nm = int(self.xp.sum(self.m).item())
 
         # Orthononality matrix diagonal gives normalisation
         # plt.matshow((self.xp.sqrt(self.xp.abs(oe.contract('ijk, mjk, i -> im', c_a_ps, c_a_ps, normval_ps)))).get())
         # with np.printoptions(precision=3, suppress=True):
         #     print(oe.contract('ijk, mjk, i -> im', c_a_ps, c_a_ps, normval_ps))
 
-        xi = self.xp.zeros((self.n_c + 1, self.n_c + 1, 2))
-        xi[:, :, 0] = ch_ys
-        xi[:, :, 1] = ch_xs
+        self.xi = self.xp.zeros((self.n_c + 1, self.n_c + 1, 2))
+        self.xi[:, :, 0] = ch_ys
+        self.xi[:, :, 1] = ch_xs
         c_interp = np.zeros_like(c_a_ps.get())
         if self.xp == cp:
             for i in range(self.n_c * self.n_c):
                 c_interp[i, :, :] = interpolate.interpn((self.xx[self.m].get(), self.xx[self.m].get()),
-                                                        c_a_p.get()[i, self.circ.get()].reshape((nm, nm)),
-                                                        xi.get(), method='splinef2d')
+                                                        c_a_p.get()[i, self.circ.get()].reshape((self.nm, self.nm)),
+                                                        self.xi.get(), method='splinef2d')
             c_interp = cp.array(c_interp)
         else:
             for i in range(self.n_c * self.n_c):
                 c_interp[i, :, :] = interpolate.interpn((self.xx[self.m], self.xx[self.m]),
-                                                        c_a_p[i, self.circ].reshape((nm, nm)),
-                                                        xi, method='splinef2d')
+                                                        c_a_p[i, self.circ].reshape((self.nm, self.nm)),
+                                                        self.xi, method='splinef2d')
 
         # Initial input
         distortion = np.sqrt(1 - (1.5 / 7) ** 2)  # distortion in x

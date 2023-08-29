@@ -155,7 +155,6 @@ class SLMHW(HardwareComponent):
     def repSendBP(self, fn):
         """Send the repz.11 file to the board. fn: file name."""
         self.slm.close()
-        os.chdir('./gen_repertoires')
         output = subprocess.run(['RepSender', '-z', fn, '-d', '0175000881', '-i'], shell=True, stdout=subprocess.PIPE)
         if output.returncode == 0:
             print(output.stdout.decode())
@@ -302,86 +301,104 @@ class SLMHW(HardwareComponent):
             print(output.stderr)
         os.chdir('..')
 
-        def sendBaseRep(self, fns=f'base_{time.strftime("%d%m%y_%H%M%S", time.localtime())}', imgns='hol.png'):
-            """write a text file repertoire as a base and save it as '.rep' format,and then build it to a '.repz11' file.
-            This repertoire only needs to be sent once."""
-            os.chdir('C:/Users/ML2618/Desktop/SLMtests')
-            with open(f'{fns}.txt', 'w') as f:
-                data = []
-                data.append("ID\n"
-                            '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
-                            "ID_END\n\n"
-                            "PLATFORM\n"
-                            '"R11"\n'
-                            "PLATFORM_END\n\n"
-                            "DISPLAY\n"
-                            '"2Kx2K"\n'
-                            "DISPLAY_END\n\n"
-                            "FORMATVERSION\n"
-                            '"FV4"\n'
-                            "FORMATVERSION_END\n\n"
-                            "SEQUENCES\n")
-                data.append('A "48163 10ms 1-bit Balanced.seq11"\n'
-                            'SEQUENCES_END\n\n'
-                            'IMAGES\n')
-                for i in range(3):
-                    data.append(f' 1 "{imgns}"\n')
+    def sendBaseRep(self, fns=f'base_{time.strftime("%d%m%y_%H%M%S", time.localtime())}', imgns='hol.png'):
+        """write a text file repertoire as a base and save it as '.rep' format,and then build it to a '.repz11' file.
+        This repertoire only needs to be sent once."""
+        os.chdir('C:/Users/ML2618/Desktop/SLMtests')
+        with open(f'{fns}.txt', 'w') as f:
+            data = []
+            data.append("ID\n"
+                        '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
+                        "ID_END\n\n"
+                        "PLATFORM\n"
+                        '"R11"\n'
+                        "PLATFORM_END\n\n"
+                        "DISPLAY\n"
+                        '"2Kx2K"\n'
+                        "DISPLAY_END\n\n"
+                        "FORMATVERSION\n"
+                        '"FV4"\n'
+                        "FORMATVERSION_END\n\n"
+                        "SEQUENCES\n")
+            data.append('A "48163 10ms 1-bit Balanced.seq11"\n'
+                        'SEQUENCES_END\n\n'
+                        'IMAGES\n')
+            for i in range(3):
+                data.append(f' 1 "{imgns}"\n')
 
-                data.append('IMAGES_END\n'
-                            f'DEFAULT "RO0"\n'
-                            '[HWA \n')  # hardware trigger
-                data.append(f'<t(A,12) (A,13) (A,14)>]\n')
-                for i in range(1, 210):
-                    # 10/12 * 252 ROs
-                    data.append(f'"RO{i}"\n'
-                                '[HWA \n')
-                    data.append('<t')
-                    for k in range(3):
-                        data.append(f'(A,{12 + 3 * i + k}) ')
-                    data.append('>]\n')
-
-                #                 # no triggering siganl needed
-                data.append('"RO210"\n'
+            data.append('IMAGES_END\n'
+                        'DEFAULT "2-beam_0"\n'
+                        '[HWA \n'
+                        '<(A,9) >]')
+            for i in range(10, 18):
+                data.append(f'"2-beam_{i}"\n'
                             '[HWA \n'
-                            f'< (A,642) (A,643) (A,644)>]\n')
-                for i in range(211, 252):
-                    # 2/12 * 252 ROs
-                    data.append(f'"RO{i}"\n'
-                                '[HWA \n')
-                    data.append('<')
-                    for k in range(3):
-                        data.append(f'(A,{12 + 3 * i + k}) ')
-                    data.append('>]\n')
-                f.write(''.join(data))
+                            f'<(A,{i}) >]\n')
 
-            os.rename(f'{fns}.txt', f'{fns}.rep')
-            print('New rep file created')
+            for k in range(18, 27):
+                data.append(f'"3-beam_{k}"\n'
+                            '[HWA \n'
+                            f'<(A,{k}) >]\n')
 
-            # build the rep to a repz11 file
-            print(os.getcwd())
-            output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
-                                    stdout=subprocess.PIPE)
-            if output.returncode == 0:
-                print(output.stdout.decode())
-                print('repz11 file created')
-            else:
-                print(f'rep to repz11 failed, error: {output.stderr}')
-            self.repSendBP(fns + '.repz11')
-            self.slm.reloadSkipImgs()
+            for i in range(3):
+                data.append(f'"3-beam_{i + 27}"\n'
+                            '[HWA h\n')
+                for p in range(7):
+                    data.append('{f')
+                    for k in range(10):
+                        data.append(f'(A, {27 + i * 70 + p * 10 + k})')
+                    data.append('}\n')
+                data.append(']')
+
+            for i in range(177):
+                data.append(f'"correction_{237 + i}"\n'
+                            '[HWA \n'
+                            '<t')
+                for q in range(3):
+                    data.append(f'(A,{237 + i * 3 + q})')
+                data.append('>]\n')
+            f.write(''.join(data))
+
+        os.rename(f'{fns}.txt', f'{fns}.rep')
+        print('New rep file created')
+
+        # build the rep to a repz11 file
+        print(os.getcwd())
+        output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
+                                stdout=subprocess.PIPE)
+        if output.returncode == 0:
+            print(output.stdout.decode())
+            print('repz11 file created')
+        else:
+            print(f'rep to repz11 failed, error: {output.stderr}')
+        self.repSendBP(fns + '.repz11')
+        self.slm.reloadSkipImgs()
 
     def flashCorrection(self, bp_img, bp):
         for k in range(len(bp_img)):
             self.slm.sendBitplane(bp_img[k], bp + k)
 
     def updateBp(self, imgs, mode):
-        # t0 = time.time()
-        if mode == 's':
-            roIndex = randrange(210)
-        else:
-            roIndex = randrange(210, 252)
-        bp = 12 + roIndex * 3
+        # mode
+        # 2b: 2-beam checking; 3b: corrected 3-beam checking; d: holograms display; c: correction loop
+        if mode == '2b':
+            roIndex = randrange(9)
+            bp = 9 + roIndex
+            n_bp = 1
+        elif mode == '3b':
+            roIndex = randrange(9, 18)
+            bp = 18 + (roIndex - 9)
+            n_bp = 1
+        elif mode == 'd':
+            roIndex = randrange(18, 21)
+            bp = 27 + (roIndex - 18) * 70
+            n_bp = 70
+        elif mode == 'c':
+            roIndex = randrange(21, 198)
+            bp = 237 + (roIndex - 21) * 3
+            n_bp = 3
         self.flashCorrection(imgs, bp)
-        self.slm.repReload(bp)
+        self.slm.repReload(bp, n_bp)
         self.slm.setRO(roIndex)
         # print(f'Repertoire updated in {time.time() - t0}s')
 

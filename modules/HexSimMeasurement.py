@@ -186,8 +186,8 @@ class HexSimMeasurement(Measurement):
         # combo lists setting: size of roi
         self.roiRect = []  # list of roi rectangular
         self.roiSizeList = [128,200,256,512,1024]
-        self.ui.roiSizeCombo.addItems(map(str,self.roiSizeList))
-        self.ui.roiSizeCombo.setCurrentIndex(1)
+        # self.ui.roiSizeCombo.addItems(map(str,self.roiSizeList))
+        # self.ui.roiSizeCombo.setCurrentIndex(1)
 
         # connect ui widgets to measurement/hardware settings or functions
         self.ui.imgStreamLayout.addWidget(self.imv)
@@ -203,7 +203,7 @@ class HexSimMeasurement(Measurement):
         self.ui.cameraToggleLayout.addWidget(self.ui.switchCAM)
         self.ui.switchCAM.stateChanged.connect(self.controlCAM)
         self.ui.snapshot.clicked.connect(self.snapshotPressed)
-        # # screen
+        # screen
         # self.ui.slmSlider.valueChanged.connect(self.controlSLM)
         # self.ui.previousPatternButton.clicked.connect(self.previousPattern)
         # self.ui.nextPatternButton.clicked.connect(self.nextPattern)
@@ -211,19 +211,21 @@ class HexSimMeasurement(Measurement):
         # self.ui.stagePositionIncrease.clicked.connect(self.stage.singleReadZ)
         # self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
         # SLM
-        self.ui.holGenButton.clicked.connect(self.genHolPressed)
-        self.ui.selectPushButton.clicked.connect(self.selectPressed)
+        # self.ui.holGenButton.clicked.connect(self.genHolPressed)
+        # self.ui.selectPushButton.clicked.connect(self.selectPressed)
         # self.ui.genCorr.clicked.connect(self.genSlmCorrPressed)
-        self.ui.bp_pushButton.clicked.connect(self.initiateBpPressed)
+        self.ui.bp_pushButton.clicked.connect(self.updateBpPressed)
+        # thorlab camera
+        self.ui.cr_pushButton.clicked.connect(self.checkResultPressed)
 
         # reconstructor settings
-        self.settings.debug.connect_to_widget(self.ui.debugCheck)
-        self.settings.find_carrier.connect_to_widget(self.ui.usePrecalibration)
-        self.settings.cleanup.connect_to_widget(self.ui.cleanupCheck)
-        self.settings.axial.connect_to_widget(self.ui.axialCheck)
-        self.settings.usemodulation.connect_to_widget(self.ui.usemodulationCheck)
-        self.settings.compact.connect_to_widget(self.ui.compactCheck)
-        self.settings.gpu.connect_to_widget(self.ui.gpuCheck)
+        # self.settings.debug.connect_to_widget(self.ui.debugCheck)
+        # self.settings.find_carrier.connect_to_widget(self.ui.usePrecalibration)
+        # self.settings.cleanup.connect_to_widget(self.ui.cleanupCheck)
+        # self.settings.axial.connect_to_widget(self.ui.axialCheck)
+        # self.settings.usemodulation.connect_to_widget(self.ui.usemodulationCheck)
+        # self.settings.compact.connect_to_widget(self.ui.compactCheck)
+        # self.settings.gpu.connect_to_widget(self.ui.gpuCheck)
 
         # self.settings.magnification.connect_to_widget(self.ui.astSpinbox1)
         # self.settings.NA.connect_to_widget(self.ui.naValue)
@@ -238,8 +240,8 @@ class HexSimMeasurement(Measurement):
         # self.settings.otf_model.connect_to_widget(self.ui.otfModel)
         self.camera.settings.exposure_time.connect_to_widget(self.ui.exposureTime)
 
-        self.settings.pmask.connect_to_widget(self.ui.pmaskValue)
-        self.settings.hex_orientation.connect_to_widget(self.ui.orientationValue)
+        # self.settings.pmask.connect_to_widget(self.ui.pmaskValue)
+        # self.settings.hex_orientation.connect_to_widget(self.ui.orientationValue)
 
         # Measure
         self.ui.captureStandardButton.clicked.connect(self.standardCapturePressed)
@@ -257,6 +259,7 @@ class HexSimMeasurement(Measurement):
         self.ui.saveButton.clicked.connect(self.saveMeasurements)
         self.ui.PSF_pushButton.clicked.connect(self.checkPSFPressed)
         self.ui.startCo_pushButton.clicked.connect(self.ph_cr_loop)
+        self.ui.base_pushButton.clicked.connect(self.sendBasePressed)
 
         self.imvRaw.ui.cellCombo.currentIndexChanged.connect(self.channelChanged)
 
@@ -478,7 +481,7 @@ class HexSimMeasurement(Measurement):
         return file_path
 
     # functions for phase correction
-    def show_animation(self, k, img, title=None):
+    def show_animation(self, k, img, title=None, fs=8):
         # self.axes[k].clear()
         plt.subplot(4, 3, k+1)
         if xp == cp:
@@ -487,7 +490,7 @@ class HexSimMeasurement(Measurement):
             self.axes[k].imshow(img)
         self.axes[k].set_axis_off()
         if not title is None:
-            self.axes[k].set_title(title, fontsize=8)
+            self.axes[k].set_title(title, fontsize=fs)
             # if k == (11):
             #     display.clear_output(wait=True)
             #     display.display(self.axes[k].get_figure())
@@ -506,7 +509,7 @@ class HexSimMeasurement(Measurement):
         let = 0  # last elapsed time
         rms_plot = []
         # method = 'weighted'  # two methods for chebyshev orthogonality, "weighted' or 'sampled'
-        method = 'weighted'
+        method = 'sampled'
 
         nits = 1
         n = 75
@@ -634,7 +637,7 @@ class HexSimMeasurement(Measurement):
                         self.phC.img[k] = Phi[k]
                     self.phC.hex_bits[k] = np.packbits(self.phC.img[k].astype('int'), bitorder='little')
 
-                self.slm.updateBp(self.phC.hex_bits, 's')
+                self.slm.updateBp(self.phC.hex_bits, 'c')
 
 
                 # grab new psf images
@@ -665,10 +668,42 @@ class HexSimMeasurement(Measurement):
                 else:
                     last_rms = rms_dz
                 let = time.time() - t0
-                plt.pause(0.1)
+                plt.pause(0.01)
 
             nits = nits + 1
+
         plt.show()
+
+    def checkResultPressed(self):
+        if hasattr(self.slm, 'slm'):
+            try:
+                beams = 3
+                Tau1 = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
+                pp = 1 / (D / (l * 1e-6) / (fl * 1e-6)) / (d_s * 1e-6)
+                theta = np.pi / 30
+                for i in range(beams):
+                    xpSLM = slm.xpix / pp * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 2 + theta)
+                    ypSLM = slm.ypix / pp * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 2 + theta)
+                    Tau1[i, :, :] = xSLM * xpSLM + ySLM * ypSLM
+
+                # Gb = xp.sum(xp.exp(1j * (Tau1)), axis=0)  # calculate the terms needed for summation
+                Gb = xp.sum(xp.exp(1j * (Tau1 - abbD)), axis=0)  # calculate the terms needed for summation
+                Phib = np.pi * (xp.real(Gb) < 0) * circD
+
+                if xp == cp:
+                    imgb = Phib.get()
+                else:
+                    imgb = Phib
+                hex_bitsb = np.packbits(imgb.astype('int'), bitorder='little')
+                timestamp = time.strftime("%d%m%y_%H%M%S", time.localtime())
+                har.updateBp([hex_bitsb, hex_bitsb, hex_bitsb], 'ns')
+                self.slm.updateBp(self.phC.hex_bits0, '3b')
+                plt.figure(figsize=(20, 20))
+                plt.grid(visible=True)
+                plt.imshow(self.thorcam.fullScreenCheck())
+                plt.show()
+            except Exception as e:
+                self.show_text({e})
 
 
 
@@ -685,13 +720,6 @@ class HexSimMeasurement(Measurement):
         self.action = 'standard_capture'
 
     def batchCapturePressed(self):
-        # if not self.screen.slm_dev.isVisible():
-        #     self.show_text('Open SLM!')
-        #     pass
-        # else:
-        #     self.isCameraRun = False
-        #     self.channelChanged()
-        #     self.action = 'batch_capture'
         self.isCameraRun = False
         self.channelChanged()
         self.action = 'batch_capture'
@@ -736,27 +764,6 @@ class HexSimMeasurement(Measurement):
                         self.slm.repSend(f'stripes_{re[1]}.repz11')
                         self.show_text('Repertoire updated')
 
-    # def genSlmCorrPressed(self):
-    #     if hasattr(self.slm, 'slm'):
-    #         try:
-    #             t0 = time.time()
-    #             self.show_text('Start SLM correction holograms generation')
-    #             self.slm.genCorrection(self.slm.xpix, self.slm.ypix, self.ui.astValue1.value(), self.ui.astValue2.value(),
-    #                                    self.ui.comaValue1.value(), self.ui.comaValue2.value(),
-    #                                    self.ui.trefValue1.value(), self.ui.trefValue2.value())
-    #             t = time.time()-t0
-    #             print(f'Elapsed time: {t}')
-    #             timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
-    #             self.slm.writeCorrRep(f'SLM_correction_{timestamp}', f'hol.png')
-    #             t = time.time()-t0
-    #             print(f'Elapsed time: {t}')
-    #             self.slm.repSend(f'SLM_correction_{timestamp}.repz11')
-    #             self.show_text('Repertoire updated')
-    #             t = time.time()-t0
-    #             print(f'Elapsed time: {t}')
-    #         except Exception as e:
-    #             self.show_text(e)
-
     def checkPSFPressed(self):
         if hasattr(self.thorcam, 'thorCam'):
             try:
@@ -781,7 +788,7 @@ class HexSimMeasurement(Measurement):
                                   f'y centre:{ycen}')
                     plt.show()
             except Exception as e:
-                self.show_text(e)
+                self.show_text({e})
 
     def capturePSF(self):
         if hasattr(self.thorcam, 'thorCam'):
@@ -822,8 +829,14 @@ class HexSimMeasurement(Measurement):
                 self.thorcam.thorCam.stop_acquisition()
                 self.ni_do.value.val = 0
                 self.ni_do.write_value()
-                self.show_text(e)
+                self.show_text({e})
 
+    def sendBasePressed(self):
+        if hasattr(self.slm, 'slm'):
+            try:
+                self.slm.sendBaseRep()
+            except Exception as e:
+                self.show_text(str(e))
 
     def flashSlmCorrPressed(self):
         if hasattr(self.slm, 'slm'):
@@ -837,32 +850,20 @@ class HexSimMeasurement(Measurement):
                 print(f'Repertoire reloaded. Elapsed time: {t}')
                 self.slm.updateHardware()
             except Exception as e:
-                self.show_text(e)
+                self.show_text({e})
 
     def updateBpPressed(self):
         if hasattr(self.slm, 'slm'):
             try:
                 t0 = time.time()
-                if self.ui.bp_pushButton.isChecked():
-                    self.slm.updateBp()
-                t = time.time()-t0
-                self.show_text(f'Repertoire reloaded. Elapsed time: {t}')
-                self.slm.updateHardware()
-            except Exception as e:
-                self.show_text(e)
-
-    def initiateBpPressed(self):
-        if hasattr(self.slm, 'slm'):
-            try:
-                t0 = time.time()
                 if self.ui.hwt_checkBox.isChecked():
-                    self.slm.updateBp(self.phC.hex_bits0, 's')
+                    self.slm.updateBp(self.phC.hex_bits0, 'c')
                 else:
-                    self.slm.updateBp(self.phC.hex_bits0, 'ns')
+                    self.slm.updateBp(self.phC.hex_bits0, '2b')
                 t = time.time() - t0
                 self.show_text(f'Repertoire reloaded. Elapsed time: {t}')
             except Exception as e:
-                self.show_text(e)
+                self.show_text({e})
     def selectPressed(self):
         # self.isCameraRun = False
         # self.action = 'select_repertoire'
@@ -1093,9 +1094,7 @@ class HexSimMeasurement(Measurement):
             self.ni_do.write_value()
         self.ni_do.value.val = 1
         self.ni_do.write_value()
-        def moveZfunc():
-            self.z_stage.moveUpHW()
-        [frames, dims] = self.camera.hamamatsu.getFrames_2wl(moveZfunc)
+        [frames, dims] = self.camera.hamamatsu.getFrames_2wl(self.z_stage.moveUpHW())
         self.camera.hamamatsu.stopAcquisition()
         self.image_stack = np.zeros((n_frames, dims[1], dims[0]))
         if len(frames) == n_frames:

@@ -191,9 +191,9 @@ class SLMDev(object):
         else:
             raise Exception(f'Fail to erase block {block}')
 
-    def repReload(self, n_bp):
-        s = ct.c_uint16(n_bp * 4)  # startBlock
-        e = ct.c_uint16(n_bp * 4 + 4 * self.n_bias - 1)  # endBlock
+    def repReload(self, bp, n):
+        s = ct.c_uint16(bp * 4)  # startBlock
+        e = ct.c_uint16(bp * 4 + 4 * n - 1)  # endBlock
         res = self.r11.R11_RpcSysReloadRepertoireImageSubset(s, e)
         t0 = time.time()
         while self.getProgress() != 100:
