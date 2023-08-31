@@ -108,7 +108,6 @@ class HexSimMeasurement(Measurement):
                           hardware_set_func = self.setReconstructor)
         self.settings.New('find_carrier', dtype=bool, initial=True,
                           hardware_set_func=self.setReconstructor)
-        self.settings.New('pmask', dtype=float, initial=2.1, spinbox_decimals=3)
         self.settings.New('hex_orientation', dtype=float, initial=18)
 
         # initialize condition labels
@@ -164,6 +163,7 @@ class HexSimMeasurement(Measurement):
 
         # prepare parameters for the phase correction
         self.phC = Phase_correction()
+        self.abbD = xp.zeros((self.phC.xpix, self.phC.ypix))
 
     def setup_figure(self):
         self.ui.imgTab.setCurrentIndex(0)
@@ -210,13 +210,7 @@ class HexSimMeasurement(Measurement):
         # stage
         # self.ui.stagePositionIncrease.clicked.connect(self.stage.singleReadZ)
         # self.ui.stagePositionDecrease.clicked.connect(self.stage.moveDownHW)
-        # SLM
-        # self.ui.holGenButton.clicked.connect(self.genHolPressed)
-        # self.ui.selectPushButton.clicked.connect(self.selectPressed)
-        # self.ui.genCorr.clicked.connect(self.genSlmCorrPressed)
-        self.ui.bp_pushButton.clicked.connect(self.updateBpPressed)
-        # thorlab camera
-        self.ui.cr_pushButton.clicked.connect(self.checkResultPressed)
+
 
         # reconstructor settings
         # self.settings.debug.connect_to_widget(self.ui.debugCheck)
@@ -240,9 +234,6 @@ class HexSimMeasurement(Measurement):
         # self.settings.otf_model.connect_to_widget(self.ui.otfModel)
         self.camera.settings.exposure_time.connect_to_widget(self.ui.exposureTime)
 
-        # self.settings.pmask.connect_to_widget(self.ui.pmaskValue)
-        # self.settings.hex_orientation.connect_to_widget(self.ui.orientationValue)
-
         # Measure
         self.ui.captureStandardButton.clicked.connect(self.standardCapturePressed)
         self.ui.captureBatchButton.clicked.connect(self.batchCapturePressed)
@@ -258,8 +249,10 @@ class HexSimMeasurement(Measurement):
         self.ui.roiProcessButton.clicked.connect(self.roiprocessPressed)
         self.ui.saveButton.clicked.connect(self.saveMeasurements)
         self.ui.PSF_pushButton.clicked.connect(self.checkPSFPressed)
-        self.ui.startCo_pushButton.clicked.connect(self.ph_cr_loop)
-        self.ui.base_pushButton.clicked.connect(self.sendBasePressed)
+        self.ui.startCo_pushButton.clicked.connect(self.startCoPressed)
+        self.ui.bp_pushButton.clicked.connect(self.updateBpPressed)
+        self.ui.cr_pushButton.clicked.connect(self.checkResultPressed)
+        self.ui.sh_pushButton.clicked.connect()
 
         self.imvRaw.ui.cellCombo.currentIndexChanged.connect(self.channelChanged)
 
@@ -449,36 +442,30 @@ class HexSimMeasurement(Measurement):
             # self.imvRAW.displaySet(1)
             # self.imvRAW.ui.cellCombo.setCurrentIndex(1)
 
-# functions for SLM
-    def genHex(self):
-        """generate hexagonal holograms"""
-        self.imageHol = np.zeros((14, self.slm.ypix, self.slm.xpix), dtype=np.uint16)  # a set of images
-        re1 = self.slm.genHexagons(488, self.settings.pmask.val, self.settings.hex_orientation.val)
-        re2 = self.slm.genHexagons(561, self.settings.pmask.val, self.settings.hex_orientation.val)
-        nameList = [None] * 14
-        for i in range(7):
-            self.imageHol[int(2 * i), :, :] = re1[0][i]
-            self.imageHol[int(2 * i + 1), :, :] = re2[0][i]
-            nameList[2 * i] = re1[1][i]
-            nameList[2 * i + 1] = re2[1][i]
-        return nameList, re1[2], re2[2]
+    # functions for SLM
+    def gen_hol(self, beams, wl, abb, ph):
+        # beam numbers, wavelength, estimated aberration, phase
+        try:
+            hex_bits = [None] * beams
+            Tau1 = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
+            pp = 1 / (self.ui.dmask.value() * 1e-3 / (wl * 1e-6) / (self.phC.fl * 1e-6)) / (self.phC.d_s * 1e-6)
+            theta = self.ui.orien_doubleSpinBox.value() / 360 * 2 * np.pi
+            for i in range(beams):
+                xpSLM = self.slm.xpix / pp * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 2 + theta)
+                ypSLM = self.slm.ypix / pp * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 2 + theta)
+                Tau1[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM
 
-    def genStr(self):
-        """generate 7 striped holograms"""
-        self.imageHol = np.zeros((7, self.slm.ypix, self.slm.xpix), dtype=np.uint16)  # initialise the holograms
-        re = self.slm.genStripes()
-        self.imageHol = re[0]
-        return re[1], re[2]
+            Gb = xp.sum(xp.exp(1j * (Tau1 - abb + ph)), axis=0)  # calculate the terms needed for summation
+            Phib = np.pi * (xp.real(Gb) < 0) * self.phC.circD
 
-    def select(self):
-        root = tk.Tk()
-        root.withdraw()
-        file_path = filedialog.askopenfilename()
-        file_name = os.path.basename(file_path)
-        txtDisplay = f'Selected {os.path.basename(file_name)}'
-        self.show_text(txtDisplay)
-        print(file_path)
-        return file_path
+            if xp == cp:
+                imgb = Phib.get()
+            else:
+                imgb = Phib
+            hex_bits = np.packbits(imgb.astype('int'), bitorder='little')
+            return hex_bits
+        except Exception as e:
+            self.show_text(f'{e}')
 
     # functions for phase correction
     def show_animation(self, k, img, title=None, fs=8):
@@ -494,7 +481,34 @@ class HexSimMeasurement(Measurement):
             # if k == (11):
             #     display.clear_output(wait=True)
             #     display.display(self.axes[k].get_figure())
-    def ph_cr_loop(self):
+
+    # functions for operation
+    def checkPSFPressed(self):
+        if hasattr(self.thorcam, 'thorCam'):
+            try:
+                self.thorcam.set_tm('ext')
+                self.thorcam.set_exp(0.002)
+                self.thorcam.updateHardware()
+                self.capturePSF()
+                plt.figure(figsize=(15, 5))
+                xg = xp.arange(self.phC.N)
+                yg = xg[:, xp.newaxis]
+                for i in range(3):
+                    plt.subplot(1, 3, i + 1)
+                    xcen = xp.sum(self.psfm[i] * xg) / xp.sum(self.psfm[i])
+                    ycen = xp.sum(self.psfm[i] * yg) / xp.sum(self.psfm[i])
+                    if xp == cp:
+                        plt.imshow((self.psfm[i]).get())
+                        plt.title(f'x centre:{xcen}\n'
+                                  f'y centre:{ycen}')
+                    else:
+                        plt.imshow(self.psfm[i])
+                        plt.title(f'x centre:{xcen}\n'
+                                  f'y centre:{ycen}')
+                    plt.show()
+            except Exception as e:
+                self.show_text({e})
+    def startCoPressed(self):
         # phase correction loop
         f = plt.figure(figsize=(18, 18))
         self.axes = []
@@ -504,7 +518,6 @@ class HexSimMeasurement(Measurement):
         QQ = [None] * 3
         cuml_phase = xp.zeros((self.phC.N))
         Q = self.phC.circ * xp.exp(1j * self.phC.ri2)
-        abbD = xp.zeros((self.slm.xpix, self.slm.ypix))
         cuml_c = xp.zeros(len(self.phC.c_a_p))  # accumulated Chebyshev polynonials indices
         let = 0  # last elapsed time
         rms_plot = []
@@ -618,13 +631,13 @@ class HexSimMeasurement(Measurement):
                 cuml_phase = oe.contract('ijk,i->jk', self.phC.c_a_p, cuml_c)
                 self.show_animation(10, xp.angle(xp.exp(1j * cuml_phase)), 'accumulated estimated phase in pupil')
 
-                oe.contract('ijk,i->jk', self.phC.c_a_pD, cuml_c, out=abbD)
+                oe.contract('ijk,i->jk', self.phC.c_a_pD, cuml_c, out=self.abbD)
 
                 #         with np.printoptions(precision=3, suppress=True):
                 #             print(cuml_z)
 
                 # Recalculate the holograms
-                G = xp.exp(1j * (self.phC.Tau - abbD + self.phC.Psi))  # calculate the terms needed for summation
+                G = xp.exp(1j * (self.phC.Tau - self.abbD + self.phC.Psi))  # calculate the terms needed for summation
                 Phi = np.pi * (xp.real(G) < 0) * self.phC.circD
 
                 self.show_animation(11, Phi[1], 'one SLM hologram')
@@ -677,37 +690,30 @@ class HexSimMeasurement(Measurement):
     def checkResultPressed(self):
         if hasattr(self.slm, 'slm'):
             try:
-                beams = 3
-                Tau1 = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
-                pp = 1 / (D / (l * 1e-6) / (fl * 1e-6)) / (d_s * 1e-6)
-                theta = np.pi / 30
-                for i in range(beams):
-                    xpSLM = slm.xpix / pp * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 2 + theta)
-                    ypSLM = slm.ypix / pp * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 2 + theta)
-                    Tau1[i, :, :] = xSLM * xpSLM + ySLM * ypSLM
-
-                # Gb = xp.sum(xp.exp(1j * (Tau1)), axis=0)  # calculate the terms needed for summation
-                Gb = xp.sum(xp.exp(1j * (Tau1 - abbD)), axis=0)  # calculate the terms needed for summation
-                Phib = np.pi * (xp.real(Gb) < 0) * circD
-
-                if xp == cp:
-                    imgb = Phib.get()
-                else:
-                    imgb = Phib
-                hex_bitsb = np.packbits(imgb.astype('int'), bitorder='little')
-                timestamp = time.strftime("%d%m%y_%H%M%S", time.localtime())
-                har.updateBp([hex_bitsb, hex_bitsb, hex_bitsb], 'ns')
-                self.slm.updateBp(self.phC.hex_bits0, '3b')
+                self.slm.updateBp(self.gen_hol(3, 0.488, self.abbD, 6), '3b')
+                del self.abbD
                 plt.figure(figsize=(20, 20))
                 plt.grid(visible=True)
                 plt.imshow(self.thorcam.fullScreenCheck())
+                self.thorcam.updateHardware()
                 plt.show()
             except Exception as e:
-                self.show_text({e})
+                self.show_text(f'{e}')
 
+    def sendHolPressed(self):
+        if hasattr(self.slm, 'slm'):
+            try:
+                steps = 10
+                hols = np.zeros((2, 7, steps))  # for two wavemengths
+                for f in range(7):
+                    ph_f = f * 2 * np.pi / 7  # phase between frames
+                    for s in range(steps):
+                        hols[0, f, s] = self.gen_hol(3, 0.488, self.abbD, s * ph_f / steps)
+                        hols[0, f, s] = self.gen_hol(3, 0.561, self.abbD, s * ph_f / steps)
+                self.slm.updateBp(self.gen_hol(3, 0.561, self.abbD, [0, 0, 0]), 'd')
+            except Exception as e:
+                self.show_text(f'{e}')
 
-
-    # functions for operation
     def standardCapturePressed(self):
         # if not self.screen.slm_dev.isVisible():
         #     self.show_text('Open SLM!')
@@ -746,49 +752,7 @@ class HexSimMeasurement(Measurement):
         else:
             self.show_text('ROI raw images are not acquired.')
 
-    def genHolPressed(self):
-        if hasattr(self.slm, 'slm'):
-            if self.ui.hex_holRadioButton.isChecked():
-                self.show_text('Start holograms generation')
-                re = self.genHex()
-                if self.ui.repSaveCheckBox.isChecked():
-                    self.slm.writeRep('hexagons_' + re[2], len(re[0]), re[0])
-                    if self.ui.sendCheckBox.isChecked():
-                        self.slm.repSend(f'hexagons_{re[2]}.repz11')
-                        self.show_text('Repertoire updated')
-            elif self.ui.stripe_holRadioButton.isChecked():
-                re = self.genStr()
-                if self.ui.repSaveCheckBox.isChecked():
-                    self.slm.writeRep(f'stripes_{re[1]}', len(re[0]), re[0])
-                    if self.ui.sendCheckBox.isChecked():
-                        self.slm.repSend(f'stripes_{re[1]}.repz11')
-                        self.show_text('Repertoire updated')
 
-    def checkPSFPressed(self):
-        if hasattr(self.thorcam, 'thorCam'):
-            try:
-                self.thorcam.set_tm('ext')
-                self.thorcam.set_exp(0.003)
-                self.thorcam.updateHardware()
-                self.capturePSF()
-                plt.figure(figsize=(15, 5))
-                xg = xp.arange(self.phC.N)
-                yg = xg[:, xp.newaxis]
-                for i in range(3):
-                    plt.subplot(1, 3, i + 1)
-                    xcen = xp.sum(self.psfm[i] * xg) / xp.sum(self.psfm[i])
-                    ycen = xp.sum(self.psfm[i] * yg) / xp.sum(self.psfm[i])
-                    if xp == cp:
-                        plt.imshow((self.psfm[i]).get())
-                        plt.title(f'x centre:{xcen}\n'
-                                  f'y centre:{ycen}')
-                    else:
-                        plt.imshow(self.psfm[i])
-                        plt.title(f'x centre:{xcen}\n'
-                                  f'y centre:{ycen}')
-                    plt.show()
-            except Exception as e:
-                self.show_text({e})
 
     def capturePSF(self):
         if hasattr(self.thorcam, 'thorCam'):
@@ -829,13 +793,6 @@ class HexSimMeasurement(Measurement):
                 self.thorcam.thorCam.stop_acquisition()
                 self.ni_do.value.val = 0
                 self.ni_do.write_value()
-                self.show_text({e})
-
-    def sendBasePressed(self):
-        if hasattr(self.slm, 'slm'):
-            try:
-                self.slm.sendBaseRep()
-            except Exception as e:
                 self.show_text(str(e))
 
     def flashSlmCorrPressed(self):
@@ -857,19 +814,21 @@ class HexSimMeasurement(Measurement):
             try:
                 t0 = time.time()
                 if self.ui.hwt_checkBox.isChecked():
-                    self.slm.updateBp(self.phC.hex_bits0, 'c')
+                    self.slm.updateBp(self.gen_hol(1, 0.488, -self.phC.biasD, 0), 'c')
                 else:
-                    self.slm.updateBp(self.phC.hex_bits0, '2b')
+                    self.slm.updateBp(self.gen_hol(1, 0.488, -self.phC.biasD, 0), '2b')
                 t = time.time() - t0
                 self.show_text(f'Repertoire reloaded. Elapsed time: {t}')
             except Exception as e:
-                self.show_text({e})
-    def selectPressed(self):
-        # self.isCameraRun = False
-        # self.action = 'select_repertoire'
+                self.show_text(str(e))
+
+    def genHolPressed(self):
         if hasattr(self.slm, 'slm'):
-            selected_rep = self.select()
-            self.slm.repSend(selected_rep)
+            try:
+
+                self.show_text(f'Holograms sent.')
+            except Exception as e:
+                self.show_text(str(e))
 
 # functions for measurement
     def standardCapture(self):
