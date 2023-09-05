@@ -196,7 +196,7 @@ class SLMDev(object):
         e = ct.c_uint16(bp * 4 + 4 * n - 1)  # endBlock
         res = self.r11.R11_RpcSysReloadRepertoireImageSubset(s, e)
         t0 = time.time()
-        while self.getProgress() != 100:
+        while self.getProgress() < 100:
             time.sleep(0.050)
             self.getProgress()
         t = time.time() - t0

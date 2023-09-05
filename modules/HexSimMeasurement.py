@@ -252,7 +252,7 @@ class HexSimMeasurement(Measurement):
         self.ui.startCo_pushButton.clicked.connect(self.startCoPressed)
         self.ui.bp_pushButton.clicked.connect(self.updateBpPressed)
         self.ui.cr_pushButton.clicked.connect(self.checkResultPressed)
-        self.ui.sh_pushButton.clicked.connect()
+        self.ui.sh_pushButton.clicked.connect(self.sendHolPressed)
 
         self.imvRaw.ui.cellCombo.currentIndexChanged.connect(self.channelChanged)
 
@@ -443,29 +443,29 @@ class HexSimMeasurement(Measurement):
             # self.imvRAW.ui.cellCombo.setCurrentIndex(1)
 
     # functions for SLM
-    def gen_hol(self, beams, wl, abb, ph):
+    def gen_hol(self, beams, wl, bias=0, abb=0, ph=0):
         # beam numbers, wavelength, estimated aberration, phase
         try:
-            hex_bits = [None] * beams
-            Tau1 = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
+            Tau = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
             pp = 1 / (self.ui.dmask.value() * 1e-3 / (wl * 1e-6) / (self.phC.fl * 1e-6)) / (self.phC.d_s * 1e-6)
             theta = self.ui.orien_doubleSpinBox.value() / 360 * 2 * np.pi
             for i in range(beams):
                 xpSLM = self.slm.xpix / pp * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 2 + theta)
                 ypSLM = self.slm.ypix / pp * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 2 + theta)
-                Tau1[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM
+                Tau[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM + ph
 
-            Gb = xp.sum(xp.exp(1j * (Tau1 - abb + ph)), axis=0)  # calculate the terms needed for summation
-            Phib = np.pi * (xp.real(Gb) < 0) * self.phC.circD
+            self.Tau1 = Tau + bias  # phase tilt with bias
+            Gb = xp.sum(xp.exp(1j * (self.Tau1 - abb)), axis=0)  # calculate the terms needed for summation
+            self.Phib = np.pi * (xp.real(Gb) < 0) * self.phC.circD
 
             if xp == cp:
-                imgb = Phib.get()
+                imgb = self.Phib.get()
             else:
-                imgb = Phib
-            hex_bits = np.packbits(imgb.astype('int'), bitorder='little')
-            return hex_bits
+                imgb = self.Phib
+            hex_bit = np.packbits(imgb.astype('int'), bitorder='little')
         except Exception as e:
             self.show_text(f'{e}')
+        return hex_bit
 
     # functions for phase correction
     def show_animation(self, k, img, title=None, fs=8):
@@ -483,6 +483,47 @@ class HexSimMeasurement(Measurement):
             #     display.display(self.axes[k].get_figure())
 
     # functions for operation
+    def capturePSF(self):
+        if hasattr(self.thorcam, 'thorCam'):
+            try:
+                t = time.time()
+                self.slm.act()
+                xc = self.thorcam.settings.xcent.value
+                yc = self.thorcam.settings.ycent.value
+                self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
+                                             vstart=yc - self.phC.N / 2, vend=yc + self.phC.N / 2, hbin=1, vbin=1)
+                self.thorcam.thorCam.open()
+                self.thorcam.updateHardware()
+                self.thorcam.thorCam.start_acquisition()
+                self.ni_do.value.val = 1
+                self.ni_do.write_value()
+                while self.thorcam.thorCam.get_frames_status()[1] < 3:
+                    pass
+                self.thorcam.thorCam.stop_acquisition()
+
+                self.psfm = self.thorcam.thorCam.read_multiple_images()
+                self.thorcam.thorCam.clear_acquisition()
+
+                initial_psf = self.psfm[1]
+
+                for i in range(3):
+                    self.psfm[i] = np.fliplr(self.psfm[i])
+                    bgz = np.percentile(self.psfm[i].flatten(), 50)
+                    bg = np.percentile(self.psfm[i].flatten(), 95)
+                    print(f'bg zero: {bgz}. bg filter: {bg}')
+                    self.psfm[i] = (self.psfm[i] - bgz) * (self.psfm[i] > bg)
+                    self.psfm[i] = xp.array(self.psfm[i])
+                    self.psfi[i] = self.psfm[i] + 0j
+
+                self.ni_do.value.val = 0
+                self.ni_do.write_value()
+                print(f'capture PSF {time.time() - t}s')
+            except Exception as e:
+                self.thorcam.thorCam.stop_acquisition()
+                self.ni_do.value.val = 0
+                self.ni_do.write_value()
+                self.show_text(str(e))
+
     def checkPSFPressed(self):
         if hasattr(self.thorcam, 'thorCam'):
             try:
@@ -637,21 +678,11 @@ class HexSimMeasurement(Measurement):
                 #             print(cuml_z)
 
                 # Recalculate the holograms
-                G = xp.exp(1j * (self.phC.Tau - self.abbD + self.phC.Psi))  # calculate the terms needed for summation
-                Phi = np.pi * (xp.real(G) < 0) * self.phC.circD
-
-                self.show_animation(11, Phi[1], 'one SLM hologram')
-
-
-                for k in range(3):
-                    if xp == cp:
-                        self.phC.img[k] = Phi[k].get()
-                    else:
-                        self.phC.img[k] = Phi[k]
-                    self.phC.hex_bits[k] = np.packbits(self.phC.img[k].astype('int'), bitorder='little')
-
-                self.slm.updateBp(self.phC.hex_bits, 'c')
-
+                hols = np.zeros((3, 524288))
+                for i in range(3):
+                    hols[i] = self.gen_hol(1, 0.488, bias=self.phC.biasD[i], abb=self.abbD)
+                self.show_animation(11, self.Phib, 'one SLM hologram')
+                self.slm.updateBp(hols, 'c')
 
                 # grab new psf images
                 self.thorcam.thorCam.start_acquisition()
@@ -690,8 +721,7 @@ class HexSimMeasurement(Measurement):
     def checkResultPressed(self):
         if hasattr(self.slm, 'slm'):
             try:
-                self.slm.updateBp(self.gen_hol(3, 0.488, self.abbD, 6), '3b')
-                del self.abbD
+                self.slm.updateBp(self.gen_hol(3, 0.488, abb=self.abbD), '3b')
                 plt.figure(figsize=(20, 20))
                 plt.grid(visible=True)
                 plt.imshow(self.thorcam.fullScreenCheck())
@@ -704,13 +734,13 @@ class HexSimMeasurement(Measurement):
         if hasattr(self.slm, 'slm'):
             try:
                 steps = 10
-                hols = np.zeros((2, 7, steps))  # for two wavemengths
+                hols = np.zeros((14, steps, 524288))  # for two wavelengths
                 for f in range(7):
                     ph_f = f * 2 * np.pi / 7  # phase between frames
                     for s in range(steps):
-                        hols[0, f, s] = self.gen_hol(3, 0.488, self.abbD, s * ph_f / steps)
-                        hols[0, f, s] = self.gen_hol(3, 0.561, self.abbD, s * ph_f / steps)
-                self.slm.updateBp(self.gen_hol(3, 0.561, self.abbD, [0, 0, 0]), 'd')
+                        hols[f * 2, s] = self.gen_hol(3, 0.488, self.abbD, s * ph_f / steps)
+                        hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, self.abbD, s * ph_f / steps)
+                self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'd')
             except Exception as e:
                 self.show_text(f'{e}')
 
@@ -752,81 +782,19 @@ class HexSimMeasurement(Measurement):
         else:
             self.show_text('ROI raw images are not acquired.')
 
-
-
-    def capturePSF(self):
-        if hasattr(self.thorcam, 'thorCam'):
-            try:
-                t = time.time()
-                self.slm.act()
-                xc = self.thorcam.settings.xcent.value
-                yc = self.thorcam.settings.ycent.value
-                self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
-                                             vstart=yc - self.phC.N / 2, vend=yc + self.phC.N / 2, hbin=1, vbin=1)
-                self.thorcam.thorCam.open()
-                self.thorcam.updateHardware()
-                self.thorcam.thorCam.start_acquisition()
-                self.ni_do.value.val = 1
-                self.ni_do.write_value()
-                while self.thorcam.thorCam.get_frames_status()[1] < 3:
-                    pass
-                self.thorcam.thorCam.stop_acquisition()
-
-                self.psfm = self.thorcam.thorCam.read_multiple_images()
-                self.thorcam.thorCam.clear_acquisition()
-
-                initial_psf = self.psfm[1]
-
-                for i in range(3):
-                    self.psfm[i] = np.fliplr(self.psfm[i])
-                    bgz = np.percentile(self.psfm[i].flatten(), 50)
-                    bg = np.percentile(self.psfm[i].flatten(), 95)
-                    print(f'bg zero: {bgz}. bg filter: {bg}')
-                    self.psfm[i] = (self.psfm[i] - bgz) * (self.psfm[i] > bg)
-                    self.psfm[i] = xp.array(self.psfm[i])
-                    self.psfi[i] = self.psfm[i] + 0j
-
-                self.ni_do.value.val = 0
-                self.ni_do.write_value()
-                print(f'capture PSF {time.time() - t}s')
-            except Exception as e:
-                self.thorcam.thorCam.stop_acquisition()
-                self.ni_do.value.val = 0
-                self.ni_do.write_value()
-                self.show_text(str(e))
-
-    def flashSlmCorrPressed(self):
-        if hasattr(self.slm, 'slm'):
-            try:
-                t0 = time.time()
-                self.show_text('Start write SLM correction holograms in the flash')
-                self.slm.manualCorrection(self.ui.astValue1.value(), self.ui.astValue2.value(),
-                                       self.ui.comaValue1.value(), self.ui.comaValue2.value(),
-                                       self.ui.trefValue1.value(), self.ui.trefValue2.value())
-                t = time.time()-t0
-                print(f'Repertoire reloaded. Elapsed time: {t}')
-                self.slm.updateHardware()
-            except Exception as e:
-                self.show_text({e})
-
     def updateBpPressed(self):
         if hasattr(self.slm, 'slm'):
             try:
                 t0 = time.time()
+                hols = np.zeros((3, 524288))
+                for i in range(3):
+                    hols[i] = self.gen_hol(1, 0.488, bias=self.phC.biasD[i])
                 if self.ui.hwt_checkBox.isChecked():
-                    self.slm.updateBp(self.gen_hol(1, 0.488, -self.phC.biasD, 0), 'c')
+                    self.slm.updateBp(hols, 'c')
                 else:
-                    self.slm.updateBp(self.gen_hol(1, 0.488, -self.phC.biasD, 0), '2b')
+                    self.slm.updateBp(hols, '2b')
                 t = time.time() - t0
                 self.show_text(f'Repertoire reloaded. Elapsed time: {t}')
-            except Exception as e:
-                self.show_text(str(e))
-
-    def genHolPressed(self):
-        if hasattr(self.slm, 'slm'):
-            try:
-
-                self.show_text(f'Holograms sent.')
             except Exception as e:
                 self.show_text(str(e))
 

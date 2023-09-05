@@ -159,17 +159,12 @@ class Phase_correction:
         xv, yv = self.interleaving(distortion)
         if self.xp == cp:
             # place the pixels in negative and positive axes
-            xSLM = (self.xp.array(xv) - self.xpix / 2) / (self.xpix)
-            ySLM = (self.xp.array(yv) - self.ypix / 2) / (self.ypix)
+            self.xSLM = (self.xp.array(xv) - self.xpix / 2) / (self.xpix)
+            self.ySLM = (self.xp.array(yv) - self.ypix / 2) / (self.ypix)
         else:
             # place the pixels in negative and positive axes
-            xSLM = (xv - self.xpix / 2) / (self.xpix)
-            ySLM = (yv - self.ypix / 2) / (self.ypix)
-
-        Phi = self.xp.random.random((3, self.ypix, self.xpix)) * 2 * np.pi
-        Tau = self.xp.zeros((1, self.ypix, self.xpix), dtype=self.xp.double)  # phase tilt
-        self.Psi = self.xp.zeros((3, self.ypix, self.xpix), dtype=self.xp.double)
-        self.img = [None] * 3
+            self.xSLM = (xv - self.xpix / 2) / (self.xpix)
+            self.ySLM = (yv - self.ypix / 2) / (self.ypix)
 
         # Calculte Chebyshev polynomials for 2048 * 2048 pixels
         ND = 2048
@@ -182,30 +177,11 @@ class Phase_correction:
         self.c_a_pD = self.xp.reshape(chsD, (self.n_c ** 2, ND, ND))  # Chebyshev aberration for phase
 
         self.bias = [4 * (chs[0, 2] + chs[2, 0]), 8 * chs[2, 2], -4 * (chs[0, 2] + chs[2, 0])]
-        self.biasD = [4 * (chsD[0, 2] + chsD[2, 0]), 8 * chsD[2, 2], -4 * (chsD[0, 2] + chsD[2, 0])]
+        self.biasD = self.xp.zeros((3, self.ypix, self.xpix), dtype=self.xp.double)
+        self.biasD[0] = 4 * (chsD[0, 2] + chsD[2, 0])
+        self.biasD[1] = 8 * chsD[2, 2]
+        self.biasD[2] = -4 * (chsD[0, 2] + chsD[2, 0])
 
-        D = 2e-3  # radious of 3 pinholes
-        p = 1 / (D / (self.l * 1e-6) / (self.fl * 1e-6)) / (self.d_s * 1e-6)
-        self.hex_bits = [None] * 3
-
-
-        xpSLM = self.xpix / p * 2 * np.pi * cp.cos(np.pi / 2)
-        ypSLM = self.ypix / p * 2 * np.pi * cp.sin(np.pi / 2)
-        Tau[0, :, :] = xSLM * xpSLM + ySLM * ypSLM
-
-        Psi0 = 0
-        for b in range(3):
-            self.Psi[b] = Psi0 + self.biasD[b]
-
-        G = self.xp.exp(1j * (Tau + self.Psi))  # calculate the terms needed for summation
-        Phi = np.pi * (self.xp.real(G) < 0) * self.circD
-
-        for k in range(3):
-            if self.xp == cp:
-                self.img[k] = Phi[k].get()
-            else:
-                self.img[k] = Phi[k]
-            self.hex_bits0[k] = np.packbits(self.img[k].astype('int'), bitorder='little')
 
         self.ri2 = (-18 * chs[1, 1] + 5 * chs[2, 2]
                - 7 * chs[3, 1] + 11 * chs[3, 3]) * self.circ / 4  # starting random input phase
@@ -214,8 +190,6 @@ class Phase_correction:
         self.c_a_i = c_a_i
         self.c_a_ps = c_a_ps
         self.normval_ps = normval_ps
-        self.Tau = Tau
-
 if __name__ == '__main__':
     t = time.time()
     phc = Phase_correction()

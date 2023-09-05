@@ -19,6 +19,7 @@ class SLMHW(HardwareComponent):
         # self.settings.BPn = self.add_logged_quantity(name='Bitplane count', spinbox_step=1, dtype=int, ro=True)
         self.settings.roIndex = self.add_logged_quantity(name='Running Order index', spinbox_step=1, dtype=int, ro=False)
         self.settings.roName = self.add_logged_quantity(name='Running Order name', dtype=str, ro=True)
+        self.add_operation(name='send baseRep', op_func=self.sendBaseRep)
         # self.add_operation(name='Rep to Repz11', op_func=self.repBuild)
         # self.add_operation(name='Repsend', op_func=self.sendRep)
         # self.sendBitplane = self.settings.New(name='sendBitplane', dtype=str,
@@ -248,59 +249,6 @@ class SLMHW(HardwareComponent):
             imgNameList.append(imgN)
         return img, imgNameList, timestamp
 
-    def writeRep(self, fns, n_frames, imgns):
-        """write a text file of the repertoire and save it as .rep format, and then build it to a .repz11 file"""
-        os.chdir('./gen_repertoires')
-        with open(f'{fns}.txt', 'w') as f:
-            data = ("ID\n"
-                    '"V1.0 ${date(\\"yyyy-MMM-dd HH:mm:ss\\")}"\n'
-                    "ID_END\n\n"
-                    "PLATFORM\n"
-                    '"R11"\n'
-                    "PLATFORM_END\n\n"
-                    "DISPLAY\n"
-                    '"QXGA"\n'
-                    "DISPLAY_END\n\n"
-                    "FORMATVERSION\n"
-                    '"FV4"\n'
-                    "FORMATVERSION_END\n\n"
-                    "SEQUENCES\n")
-            f.write(data)
-
-            data2 = ('A "48061 2ms 1-bit Balanced.seq11"\n'
-                     'SEQUENCES_END\n\n'
-                     'IMAGES\n')
-            f.write(data2)
-
-            for i in range(n_frames):
-                data3 =(f' 1 "{imgns[i]}"\n')
-                f.write(data3)
-
-            data4 = ('IMAGES_END\n'
-                     'DEFAULT "RO1"\n'
-                     '[HWA h\n')
-            f.write(data4)
-
-            for i in range(n_frames):
-                data5 = ('{f (A,%d)}\n'%i)
-                f.write(data5)
-
-            data6 = (']')
-            f.write(data6)
-
-        os.rename(f'{fns}.txt', f'{fns}.rep')
-        print('New rep file created')
-
-        # build the rep to a repz11 file
-        output = subprocess.run(['RepBuild', fns + '.rep', '-c', fns + '.repz11'], shell=True,
-                                stdout=subprocess.PIPE)
-        if output.returncode == 0:
-            print(output.stdout.decode())
-            print('repz11 file created')
-        else:
-            print(output.stderr)
-        os.chdir('..')
-
     def sendBaseRep(self, fns=f'base_{time.strftime("%d%m%y_%H%M%S", time.localtime())}', imgns='hol.png'):
         """write a text file repertoire as a base and save it as '.rep' format,and then build it to a '.repz11' file.
         This repertoire only needs to be sent once."""
@@ -326,39 +274,40 @@ class SLMHW(HardwareComponent):
             for i in range(3):
                 data.append(f' 1 "{imgns}"\n')
 
-            data.append('IMAGES_END\n'
+            data.append('IMAGES_END\n\n'
                         'DEFAULT "2-beam_0"\n'
                         '[HWA \n'
-                        '<(A,9) >]')
+                        '<(A,9) >]\n')
             for i in range(10, 18):
-                data.append(f'"2-beam_{i}"\n'
+                data.append(f'"2-beam_{i - 9}"\n'
                             '[HWA \n'
                             f'<(A,{i}) >]\n')
 
             for k in range(18, 27):
-                data.append(f'"3-beam_{k}"\n'
+                data.append(f'"3-beam_{k - 18}"\n'
                             '[HWA \n'
                             f'<(A,{k}) >]\n')
 
             for i in range(3):
-                data.append(f'"3-beam_{i + 27}"\n'
-                            '[HWA h\n')
-                for p in range(7):
+                data.append(f'"Hex_{i}"\n'
+                            '[HWA \n')
+                for p in range(14):
                     data.append('{f')
                     for k in range(10):
-                        data.append(f'(A, {27 + i * 70 + p * 10 + k})')
+                        data.append(f'(A, {27 + i * 140 + p * 10 + k})')
                     data.append('}\n')
-                data.append(']')
+                data.append(']\n')
 
-            for i in range(177):
-                data.append(f'"correction_{237 + i}"\n'
+            for i in range(107):
+                data.append(f'"correction_{i}"\n'
                             '[HWA \n'
                             '<t')
                 for q in range(3):
-                    data.append(f'(A,{237 + i * 3 + q})')
+                    data.append(f'(A,{447 + i * 3 + q})')
                 data.append('>]\n')
             f.write(''.join(data))
 
+        subprocess.call(f'copy {fns}.txt r_{fns}.txt', shell=True)
         os.rename(f'{fns}.txt', f'{fns}.rep')
         print('New rep file created')
 
@@ -372,11 +321,16 @@ class SLMHW(HardwareComponent):
         else:
             print(f'rep to repz11 failed, error: {output.stderr}')
         self.repSendBP(fns + '.repz11')
-        self.slm.reloadSkipImgs()
+
+    def sendHexRep(self):
+        pass
 
     def flashCorrection(self, bp_img, bp):
-        for k in range(len(bp_img)):
-            self.slm.sendBitplane(bp_img[k], bp + k)
+        if len(bp_img.shape) > 1:
+            for k in range(bp_img.shape[0]):
+                self.slm.sendBitplane(bp_img[k], bp + k)
+        else:
+            self.slm.sendBitplane(bp_img, bp)
 
     def updateBp(self, imgs, mode):
         # mode
@@ -391,16 +345,16 @@ class SLMHW(HardwareComponent):
             n_bp = 1
         elif mode == 'd':
             roIndex = randrange(18, 21)
-            bp = 27 + (roIndex - 18) * 70
-            n_bp = 70
+            bp = 27 + (roIndex - 18) * 140
+            n_bp = 140
         elif mode == 'c':
-            roIndex = randrange(21, 198)
-            bp = 237 + (roIndex - 21) * 3
+            roIndex = randrange(21, 128)
+            bp = 447 + (roIndex - 21) * 3
             n_bp = 3
         self.flashCorrection(imgs, bp)
         self.slm.repReload(bp, n_bp)
         self.slm.setRO(roIndex)
-        # print(f'Repertoire updated in {time.time() - t0}s')
+        self.updateHardware()
 
     def updateHardware(self):
         if hasattr(self, 'slm'):

@@ -12,12 +12,11 @@ class ThorCamHW(HardwareComponent):
 
     def setup(self):
         self.settings.trigger_mode = self.add_logged_quantity(name='trigger mode', dtype=str,
-                                                            choices=['int', 'ext', 'bulb'], initial=' ', ro=False)
+                                                            choices=['int', 'ext', 'bulb'], initial='int', ro=False)
         self.settings.exposure = self.add_logged_quantity(name='exposure', spinbox_step=0.001, spinbox_decimals=3,
                                                           dtype=float, unit='s', initial=0.001, ro=False)
         self.settings.xcent = self.add_logged_quantity(name='roi x center', dtype=int, spinbox_step=1, ro=False, initial=577)
-        self.settings.ycent = self.add_logged_quantity(name='roi y center', dtype=int, spinbox_step=1, ro=False, initial=703)
-        self.add_operation(name='set roi', op_func=self.psf_roi)
+        self.settings.ycent = self.add_logged_quantity(name='roi y center', dtype=int, spinbox_step=1, ro=False, initial=750)
 
     def connect(self):
         # create an instance of the Device
@@ -36,11 +35,6 @@ class ThorCamHW(HardwareComponent):
             del self.thorCam
 
     # define operations
-    def psf_roi(self):
-        N = 256
-        x = self.settings.xcent.value
-        y = self.settings.ycent.value
-        self.thorCam.set_roi(hstart=x - N / 2, hend=x + N / 2, vstart=y - N / 2, vend=y + N / 2, hbin=1, vbin=1)
     def get_exp(self):
         return self.thorCam.get_exposure()
 
@@ -55,7 +49,6 @@ class ThorCamHW(HardwareComponent):
 
     def fullScreenCheck(self):
         self.set_tm('int')
-        self.set_exp(0.010)
         self.thorCam.set_roi(hstart=0, hend=None, vstart=0, vend=None, hbin=1, vbin=1)
         return self.thorCam.snap()
 
