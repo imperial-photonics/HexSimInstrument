@@ -443,16 +443,18 @@ class HexSimMeasurement(Measurement):
             # self.imvRAW.ui.cellCombo.setCurrentIndex(1)
 
     # functions for SLM
-    def gen_hol(self, beams, wl, bias=0, abb=0, ph=0):
-        # beam numbers, wavelength, estimated aberration, phase
+    def gen_hol(self, beams, wl, bias=0, abb=0, ph=0, ps=0):
+        # beams: beam numbers, wl: wavelength, bias: introduced bias, abb: estimated aberration, ph: phase of beams
+        # ps: phase stepping
         try:
             Tau = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
             pp = 1 / (self.ui.dmask.value() * 1e-3 / (wl * 1e-6) / (self.phC.fl * 1e-6)) / (self.phC.d_s * 1e-6)
             theta = self.ui.orien_doubleSpinBox.value() / 360 * 2 * np.pi
             for i in range(beams):
+                ph_t = [0 + ps, ph + ps, 3 * ph + ps]  # total phase
                 xpSLM = self.slm.xpix / pp * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 2 + theta)
                 ypSLM = self.slm.ypix / pp * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 2 + theta)
-                Tau[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM + ph
+                Tau[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM + ph_t[i]
 
             self.Tau1 = Tau + bias  # phase tilt with bias
             Gb = xp.sum(xp.exp(1j * (self.Tau1 - abb)), axis=0)  # calculate the terms needed for summation
@@ -736,10 +738,11 @@ class HexSimMeasurement(Measurement):
                 steps = 10
                 hols = np.zeros((14, steps, 524288))  # for two wavelengths
                 for f in range(7):
-                    ph_f = f * 2 * np.pi / 7  # phase between frames
                     for s in range(steps):
-                        hols[f * 2, s] = self.gen_hol(3, 0.488, self.abbD, s * ph_f / steps)
-                        hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, self.abbD, s * ph_f / steps)
+                        hols[f * 2, s] = self.gen_hol(3, 0.488, abb=self.abbD, ph=f * 2 * np.pi / 7,
+                                                      ps=s * np.pi / steps)
+                        hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, abb=self.abbD, ph=f * 2 * np.pi / 7,
+                                                          ps=s * np.pi / steps)
                 self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'd')
             except Exception as e:
                 self.show_text(f'{e}')
