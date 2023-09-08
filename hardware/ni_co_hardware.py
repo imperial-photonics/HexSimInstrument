@@ -25,11 +25,11 @@ class NI_CO_hw(HardwareComponent):
                                                 spinbox_decimals=3, unit='s')
         self.initial_delay_chan1 = self.add_logged_quantity('initial_delay_chan1', dtype=float, initial=0, vmin=0,
                                                             spinbox_decimals=6, unit='s')
-        self.initial_delay_chan2 = self.add_logged_quantity('initial_delay_chan2', dtype=float, initial=0, vmin=0,
-                                                            spinbox_decimals=6, unit='s')
+        # self.initial_delay_chan2 = self.add_logged_quantity('initial_delay_chan2', dtype=float, initial=0, vmin=0,
+                                                            # spinbox_decimals=6, unit='s')
 
         self.trigger = self.add_logged_quantity('trigger', dtype=bool, initial=True)
-        self.trigger_source = self.add_logged_quantity('trigger_source', dtype=str, choices=trig, initial=trig[0])
+        self.trigger_source = self.add_logged_quantity('trigger_source', dtype=str, choices=trig, initial=trig[1])
         self.trigger_edge = self.add_logged_quantity('trigger_edge', dtype=str, choices=['rising', 'falling'],
                                                      initial='rising')
 
@@ -45,7 +45,7 @@ class NI_CO_hw(HardwareComponent):
 
         self.CO_device = NI_CO_device(channel1=self.channel1.val, channel2=self.channel2.val,
                                       initial_delay_chan1=self.initial_delay_chan1.val,
-                                      initial_delay_chan2=self.initial_delay_chan2.val,
+                                      # initial_delay_chan2=self.initial_delay_chan2.val,
                                       high_time1=self.high_time1.val, low_time1=self.low_time1.val,
                                       high_time2=self.high_time2.val, period2=self.period2.val,
                                       trigger=self.trigger.val, trigger_source=self.trigger_source.val,
@@ -53,7 +53,7 @@ class NI_CO_hw(HardwareComponent):
 
         # connect logged quantities
         self.initial_delay_chan1.hardware_set_func = self.CO_device.set_initial_delay_chan1
-        self.initial_delay_chan2.hardware_set_func = self.CO_device.set_initial_delay_chan2
+        # self.initial_delay_chan2.hardware_set_func = self.CO_device.set_initial_delay_chan2
         self.high_time1.hardware_set_func = self.CO_device.set_high_time1
         self.low_time1.hardware_set_func = self.CO_device.set_low_time1
         self.high_time2.hardware_set_func = self.CO_device.set_high_time2
@@ -63,7 +63,7 @@ class NI_CO_hw(HardwareComponent):
         self.trigger_edge.hardware_set_func = self.CO_device.set_trigger_edge
 
         self.initial_delay_chan1.hardware_read_func = self.get_initial_delay_chan1
-        self.initial_delay_chan2.hardware_read_func = self.get_initial_delay_chan2
+        # self.initial_delay_chan2.hardware_read_func = self.get_initial_delay_chan2
         self.high_time1.hardware_read_func = self.get_high_time1
         self.low_time1.hardware_read_func = self.get_low_time1
         self.high_time2.hardware_read_func = self.get_high_time2
@@ -120,9 +120,9 @@ class NI_CO_hw(HardwareComponent):
 
         return float("{0:.6f}".format(self.initial_delay_chan1.val))
 
-    def get_initial_delay_chan2(self):
+    # def get_initial_delay_chan2(self):
 
-        return float("{0:.6f}".format(self.initial_delay_chan2.val))
+        # return float("{0:.6f}".format(self.initial_delay_chan2.val))
 
     def get_high_time1(self):
 
