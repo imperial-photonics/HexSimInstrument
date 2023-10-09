@@ -4,7 +4,6 @@ import numpy as np
 import cupy as cp
 import pyqtgraph as pg
 import tifffile as tif
-import tkinter as tk
 import matplotlib.pyplot as plt
 import opt_einsum as oe
 
@@ -21,9 +20,6 @@ from utils.MessageWindow import CalibrationResults
 from utils.StackImageViewer import StackImageViewer, list_equal
 # from utils.StackImageViewer import StackImageViewer
 from utils.ImageSegmentation import ImageSegmentation
-from tkinter import filedialog
-
-
 from PyQt5.QtCore import QTimer
 
 xp = cp
@@ -65,7 +61,7 @@ class HexSimMeasurement(Measurement):
         # self.screen = self.app.hardware['ScreenHardware']
         self.slm = self.app.hardware['SLM_hardware']
         # self.stage = self.app.hardware['NanoDriveHardware']
-        # self.z_stage = self.app.hardware['MCLNanoDriveHardware']
+        self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
         self.ni_do = self.app.hardware['NI_DO_hw']
@@ -447,6 +443,10 @@ class HexSimMeasurement(Measurement):
         # beams: beam numbers, wl: wavelength, bias: introduced bias, abb: estimated aberration, ph: phase of beams
         # ps: phase stepping
         try:
+            if self.ui.wl_spinBox.value() == 488:
+                ab = abb
+            else:
+                ab = abb * 488 / 561
             Tau = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
             pp = 1 / (self.ui.dmask.value() * 1e-3 / (wl * 1e-6) / (self.phC.fl * 1e-6)) / (self.phC.d_s * 1e-6)
             theta = self.ui.orien_doubleSpinBox.value() / 360 * 2 * np.pi
@@ -457,7 +457,7 @@ class HexSimMeasurement(Measurement):
                 Tau[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM + ph_t[i]
 
             self.Tau1 = Tau + bias  # phase tilt with bias
-            Gb = xp.sum(xp.exp(1j * (self.Tau1 - abb)), axis=0)  # calculate the terms needed for summation
+            Gb = xp.sum(xp.exp(1j * (self.Tau1 - ab)), axis=0)  # calculate the terms needed for summation
             self.Phib = np.pi * (xp.real(Gb) < 0) * self.phC.circD
 
             if xp == cp:
@@ -495,7 +495,6 @@ class HexSimMeasurement(Measurement):
                 self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
                                              vstart=yc - self.phC.N / 2, vend=yc + self.phC.N / 2, hbin=1, vbin=1)
                 self.thorcam.thorCam.open()
-                self.thorcam.updateHardware()
                 self.thorcam.thorCam.start_acquisition()
                 self.ni_do.value.val = 1
                 self.ni_do.write_value()
@@ -551,6 +550,7 @@ class HexSimMeasurement(Measurement):
                     plt.show()
             except Exception as e:
                 self.show_text({e})
+
     def startCoPressed(self):
         # phase correction loop
         f = plt.figure(figsize=(18, 18))
@@ -723,7 +723,14 @@ class HexSimMeasurement(Measurement):
     def checkResultPressed(self):
         if hasattr(self.slm, 'slm'):
             try:
-                self.slm.updateBp(self.gen_hol(3, 0.488, abb=self.abbD), '3b')
+                print(f'ui {self.ui.wl_spinBox.value()}')
+                steps = 3
+                hols = np.zeros((7, steps, 524288))  # for two wavelengths
+                for f in range(7):
+                    for s in range(steps):
+                        hols[f, s] = self.gen_hol(3, self.ui.wl_spinBox.value() * 1e-3, abb=self.abbD,
+                                                  ph=f * 2 * np.pi / 7, ps=0)
+                self.slm.updateBp(np.reshape(hols, (7 * steps, 524288)), '3b')
                 plt.figure(figsize=(20, 20))
                 plt.grid(visible=True)
                 plt.imshow(self.thorcam.fullScreenCheck())
@@ -739,11 +746,20 @@ class HexSimMeasurement(Measurement):
                 hols = np.zeros((14, steps, 524288))  # for two wavelengths
                 for f in range(7):
                     for s in range(steps):
-                        hols[f * 2, s] = self.gen_hol(3, 0.488, abb=self.abbD, ph=f * 2 * np.pi / 7,
-                                                      ps=s * np.pi / steps)
-                        hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, abb=self.abbD, ph=f * 2 * np.pi / 7,
+                        if self.ui.phs_checkBox.isChecked():
+                            hols[f * 2, s] = self.gen_hol(3, 0.488, abb=self.abbD, ph=f * 2 * np.pi / 7,
                                                           ps=s * np.pi / steps)
-                self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'd')
+                            hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, abb=self.abbD * 488 / 561, ph=f * 2 * np.pi / 7,
+                                                              ps=s * np.pi / steps)
+                        else:
+                            hols[f * 2, s] = self.gen_hol(3, 0.488, abb=self.abbD, ph=f * 2 * np.pi / 7,
+                                                          ps=0)
+                            hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, abb=self.abbD, ph=f * 2 * np.pi / 7,
+                                                              ps=0)
+                if self.ui.phs_checkBox.isChecked():
+                    self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'dps')
+                else:
+                    self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'd')
             except Exception as e:
                 self.show_text(f'{e}')
 
@@ -815,8 +831,8 @@ class HexSimMeasurement(Measurement):
                                  np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
                 frames = self.getFrameStack(n_stack * 2)
                 for i in range(n_stack):
-                    self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
-                    self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
+                    self.imageRAW[0][i, :, :] = frames[2 * i]
+                    self.imageRAW[1][i, :, :] = frames[2 * i + 1]
             else:
                 self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
                 for a in range(self.ui.nStack.value()):
@@ -834,21 +850,15 @@ class HexSimMeasurement(Measurement):
             step_size = self.z_stage.stepsize.val
             stage_offset = n_stack * step_size
             pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
-            self.z_stage.movePositionHW(pos)
-            if self.ui.dualWavelength.isChecked():
-                # extend the raw image storage of stacks
-                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                                 np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-                frames = self.getFrameStack(n_stack * 2)
-                for i in range(n_stack):
-                    self.imageRAW[0][i, :, :] = frames[2 * i, :, :]
-                    self.imageRAW[1][i, :, :] = frames[2 * i + 1, :, :]
-            else:
-                self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-                for i in range(n_stack):
-                    self.imageRAW[0][i, :, :] = self.getOneFrame()
-                    self.show_text(f'Capture frame: {i + 1} / {n_stack}')
-                    self.z_stage.moveUpHW()
+            # self.z_stage.movePositionHW(pos)
+            frames = self.getFrameStack(2 * n_stack)
+            # extend the raw image storage of stacks
+            self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                             np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+            for i in range(n_stack):
+                self.imageRAW[0][i, :, :] = frames[2 * i]
+                self.imageRAW[1][i, :, :] = frames[2 * i + 1]
+            # self.z_stage.moveUpHW()
         except Exception as e:
             self.show_text(f'Batch capture encountered an error: {e}')
 
@@ -1013,27 +1023,21 @@ class HexSimMeasurement(Measurement):
         else:
             self.last_image = np.zeros([self.eff_subarrayv, self.eff_subarrayh])
             print("Camera buffer empty")
-
         return self.last_image[np.newaxis, :, :]
 
-    def getFrameStack(self, n_frames):
-        self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n_frames)
+    def getFrameStack(self, n):
+        self.camera.hamamatsu.setACQMode("fixed_length", number_frames=n)
         self.camera.hamamatsu.startAcquisition()
-        if self.ni_do.value.val == 1:
-            self.ni_do.value.val = 0
-            self.ni_do.write_value()
-        self.ni_do.value.val = 1
-        self.ni_do.write_value()
-        [frames, dims] = self.camera.hamamatsu.getFrames_2wl(self.z_stage.moveUpHW())
+        [frames, dims] = self.camera.hamamatsu.getFrames()
         self.camera.hamamatsu.stopAcquisition()
-        self.image_stack = np.zeros((n_frames, dims[1], dims[0]))
-        if len(frames) == n_frames:
-            for i in range(n_frames):
-                self.image_stack[i, :, :] = np.reshape(frames[i].getData().astype(np.uint16), (dims[1], dims[0]))
+        if len(frames) > 0:
+            for i in range(len(frames)):
+                frames[i] = np.reshape(frames[i].getData().astype(np.uint16), dims)
+                re = frames
         else:
-            self.image_stack = None
-            print("Frame number is incorrect")
-        return self.image_stack
+            re = np.zeros([self.eff_subarrayv, self.eff_subarrayh])[np.newaxis, :, :]
+            print("Camera buffer empty")
+        return re
 
     def cameraRun(self):
 

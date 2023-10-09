@@ -269,6 +269,7 @@ class SLMHW(HardwareComponent):
                         "FORMATVERSION_END\n\n"
                         "SEQUENCES\n")
             data.append('A "48163 10ms 1-bit Balanced.seq11"\n'
+                        'B "48160 1ms 1-bit Balanced.seq11"\n'
                         'SEQUENCES_END\n\n'
                         'IMAGES\n')
             for i in range(3):
@@ -278,32 +279,60 @@ class SLMHW(HardwareComponent):
                         'DEFAULT "2-beam_0"\n'
                         '[HWA \n'
                         '<(A,9) >]\n')
-            for i in range(10, 18):
+            for i in range(10, 16):
                 data.append(f'"2-beam_{i - 9}"\n'
                             '[HWA \n'
                             f'<(A,{i}) >]\n')
-
-            for k in range(18, 27):
-                data.append(f'"3-beam_{k - 18}"\n'
-                            '[HWA \n'
-                            f'<(A,{k}) >]\n')
-
             for i in range(3):
-                data.append(f'"Hex_{i}"\n'
-                            '[HWA \n')
-                for p in range(14):
-                    data.append('{f')
-                    for k in range(10):
-                        data.append(f'(A, {27 + i * 140 + p * 10 + k})')
-                    data.append('}\n')
-                data.append(']\n')
+                data.append(f'"3-beam_{i}"\n'
+                            '[HWA \n'
+                            '<')
+                for k in range(21):
+                    data.append(f'(B,{16 + i * 21 + k}) ')
+                data.append('>]\n')
 
-            for i in range(107):
+            data.append('"Hex_phS_phC"\n'
+                        '[HWA h \n')
+            for p in range(14):
+                data.append('{f')
+                for k in range(10):
+                    data.append(f'(B, {79 + p * 10 + k})')
+                data.append('}\n')
+            data.append(']\n')
+
+            data.append('"Hex_phS"\n'
+                        '[HWA h \n')
+            for p in range(14):
+                data.append('{f')
+                for k in range(10):
+                    data.append(f'(B, {219 + p * 10 + k})')
+                data.append('}\n')
+            data.append(']\n')
+
+            data.append('"Hex_phC"\n'
+                        '[HWA h \n')
+            for p in range(14):
+                data.append('{f')
+                for k in range(10):
+                    data.append(f'(B, {359 + p * 10 + k})')
+                data.append('}\n')
+            data.append(']\n')
+
+            data.append('"Hex"\n'
+                        '[HWA h \n')
+            for p in range(14):
+                data.append('{f')
+                for k in range(10):
+                    data.append(f'(B, {499 + p * 10 + k})')
+                data.append('}\n')
+            data.append(']\n')
+
+            for i in range(43):
                 data.append(f'"correction_{i}"\n'
                             '[HWA \n'
                             '<t')
                 for q in range(3):
-                    data.append(f'(A,{447 + i * 3 + q})')
+                    data.append(f'(A,{639 + i * 3 + q})')
                 data.append('>]\n')
             f.write(''.join(data))
 
@@ -333,24 +362,31 @@ class SLMHW(HardwareComponent):
             self.slm.sendBitplane(bp_img, bp)
 
     def updateBp(self, imgs, mode):
-        # mode
-        # 2b: 2-beam checking; 3b: corrected 3-beam checking; d: holograms display; c: correction loop
-        if mode == '2b':
-            roIndex = randrange(9)
+        if mode == '2b':  # check 2-beam
+            roIndex = randrange(7)
             bp = 9 + roIndex
             n_bp = 1
-        elif mode == '3b':
-            roIndex = randrange(9, 18)
-            bp = 18 + (roIndex - 9)
-            n_bp = 1
-        elif mode == 'd':
-            roIndex = randrange(18, 21)
-            bp = 27 + (roIndex - 18) * 140
+        elif mode == '3b':  # check corrected 3-beam
+            roIndex = randrange(7, 10)
+            bp = 16 + (roIndex - 7) * 21
+            n_bp = 21
+        elif mode == 'h_psc':  # display phase-stepping holograms with the phase correction
+            bp = 79
             n_bp = 140
-        elif mode == 'c':
-            roIndex = randrange(21, 128)
-            bp = 447 + (roIndex - 21) * 3
+        elif mode == 'h_ps':  # display phase-stepping holograms
+            bp = 219
+            n_bp = 140
+        elif mode == 'h_pc':  # display holograms with the phase correction
+            bp = 359
+            n_bp = 140
+        elif mode == 'h':  # display holograms
+            bp = 499
+            n_bp = 140
+        elif mode == 'c':  # correction loop
+            roIndex = randrange(43)
+            bp = 639 + roIndex * 3
             n_bp = 3
+
         self.flashCorrection(imgs, bp)
         self.slm.repReload(bp, n_bp)
         self.slm.setRO(roIndex)

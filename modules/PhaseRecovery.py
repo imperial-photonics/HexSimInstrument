@@ -156,6 +156,7 @@ class Phase_correction:
 
         # Initial input
         distortion = np.sqrt(1 - (1.5 / 7) ** 2)  # distortion in x
+        distortion = 1
         xv, yv = self.interleaving(distortion)
         if self.xp == cp:
             # place the pixels in negative and positive axes

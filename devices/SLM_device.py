@@ -73,6 +73,16 @@ class SLMDev(object):
             print(f'SLM tempreture: {dispTemp}')
         else:
             raise Exception
+
+    def get_timeout(self):
+        """retrieve the timeout for all I/0 operations."""
+        timeout = ct.c_uint16(0)
+        re = self.r11.FDD_DevGetTimeout(ct.byref(timeout))
+        if re == 0:
+            print(f'timeout: {timeout.value}')
+        else:
+            raise Exception(f'Fail to get timeout. Error code: {re}')
+
     def activate(self,):
         res = self.r11.R11_RpcRoActivate(ct.c_void_p())
         if res != 0:
@@ -197,8 +207,7 @@ class SLMDev(object):
         res = self.r11.R11_RpcSysReloadRepertoireImageSubset(s, e)
         t0 = time.time()
         while self.getProgress() < 100:
-            time.sleep(0.050)
-            self.getProgress()
+            pass
         t = time.time() - t0
         print(f'Elapsed time of reloading: {t}')
         if res != 0:

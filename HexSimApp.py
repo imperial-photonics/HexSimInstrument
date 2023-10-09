@@ -40,9 +40,9 @@ class HexSimApp(BaseMicroscopeApp):
         from hardware.CameraHardware import HamamatsuHardware
         from hardware.LaserHardware import Laser488HW, Laser561HW
         # from hardware.ScreenHardware import ScreenHW
-        from hardware.NanoScanHardware import NanoScanHW
+        # from hardware.NanoScanHardware import NanoScanHW
         from hardware.SLM_hardware import SLMHW
-        # from hardware.ni_co_hardware import NI_CO_hw
+        from hardware.ni_co_hardware import NI_CO_hw
         from hardware.ni_do_hardware import NI_DO_hw
         from hardware.MCL_Nanodrive_hardware import NanoDriveHW
         from hardware.ThorCam_hardware import ThorCamHW
@@ -52,10 +52,10 @@ class HexSimApp(BaseMicroscopeApp):
         self.add_hardware(HamamatsuHardware(self))
         self.add_hardware(Laser488HW(self))
         self.add_hardware(Laser561HW(self))
-        self.add_hardware(NanoScanHW(self))
-        # self.add_hardware(NI_CO_hw(self))
+        # self.add_hardware(NanoScanHW(self))
+        self.add_hardware(NI_CO_hw(self))
         self.add_hardware(NI_DO_hw(self))
-        # self.add_hardware(NanoDriveHW(self))
+        self.add_hardware(NanoDriveHW(self))
         self.add_hardware(ThorCamHW(self))
 
         print("Adding measurement components")

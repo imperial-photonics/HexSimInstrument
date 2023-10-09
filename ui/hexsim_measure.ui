@@ -536,27 +536,14 @@
          <layout class="QGridLayout" name="gridLayout_10">
           <item row="0" column="0">
            <layout class="QGridLayout" name="gridLayout_7">
-            <item row="1" column="1">
-             <widget class="QDoubleSpinBox" name="dmask">
-              <property name="decimals">
-               <number>1</number>
-              </property>
-              <property name="value">
-               <double>2.000000000000000</double>
+            <item row="5" column="2">
+             <widget class="QPushButton" name="startCo_pushButton">
+              <property name="text">
+               <string>start correction</string>
               </property>
              </widget>
             </item>
-            <item row="1" column="2">
-             <widget class="QDoubleSpinBox" name="orien_doubleSpinBox">
-              <property name="prefix">
-               <string comment="&quot;°&quot;"/>
-              </property>
-              <property name="decimals">
-               <number>1</number>
-              </property>
-             </widget>
-            </item>
-            <item row="6" column="2">
+            <item row="7" column="2">
              <widget class="QPushButton" name="sh_pushButton">
               <property name="text">
                <string>send holograms</string>
@@ -577,13 +564,6 @@
               </property>
              </widget>
             </item>
-            <item row="6" column="1">
-             <widget class="QPushButton" name="cr_pushButton">
-              <property name="text">
-               <string>check Hex</string>
-              </property>
-             </widget>
-            </item>
             <item row="2" column="1">
              <widget class="QCheckBox" name="hwt_checkBox">
               <property name="text">
@@ -594,26 +574,85 @@
               </property>
              </widget>
             </item>
-            <item row="5" column="2">
-             <widget class="QPushButton" name="startCo_pushButton">
-              <property name="text">
-               <string>start correction</string>
-              </property>
-             </widget>
+            <item row="0" column="2">
+             <layout class="QHBoxLayout" name="horizontalLayout_4">
+              <item>
+               <widget class="QLabel" name="label_3">
+                <property name="text">
+                 <string>orientation(°)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QDoubleSpinBox" name="orien_doubleSpinBox">
+                <property name="prefix">
+                 <string/>
+                </property>
+                <property name="decimals">
+                 <number>1</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
             <item row="0" column="1">
-             <widget class="QLabel" name="label">
+             <layout class="QHBoxLayout" name="horizontalLayout_5">
+              <item>
+               <widget class="QLabel" name="label">
+                <property name="text">
+                 <string>d_mask(um)</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QDoubleSpinBox" name="dmask">
+                <property name="decimals">
+                 <number>2</number>
+                </property>
+                <property name="value">
+                 <double>2.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="7" column="1">
+             <widget class="QCheckBox" name="phs_checkBox">
               <property name="text">
-               <string>d_mask</string>
+               <string>phase stepping</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
-            <item row="0" column="2">
-             <widget class="QLabel" name="label_3">
+            <item row="6" column="2">
+             <widget class="QPushButton" name="cr_pushButton">
               <property name="text">
-               <string>orientation</string>
+               <string>check Hex</string>
               </property>
              </widget>
+            </item>
+            <item row="6" column="1">
+             <layout class="QHBoxLayout" name="horizontalLayout_6">
+              <item>
+               <widget class="QLabel" name="label_5">
+                <property name="text">
+                 <string>wavelength</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSpinBox" name="wl_spinBox">
+                <property name="maximum">
+                 <number>1000</number>
+                </property>
+                <property name="value">
+                 <number>488</number>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </item>
            </layout>
           </item>

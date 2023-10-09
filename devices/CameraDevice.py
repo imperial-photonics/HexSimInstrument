@@ -1222,6 +1222,7 @@ class HamamatsuDevice(object):
 
         if self.debug:
             print(new_frames)
+        print(new_frames)
 
         return new_frames
 
@@ -1322,33 +1323,6 @@ class HamamatsuDevice(object):
         """
         frames = []
         for n in self.newFrames():
-            paramlock = DCAMBUF_FRAME(
-                0, 0, 0, n, None, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-            paramlock.size = ctypes.sizeof(paramlock)
-
-            # Lock the frame in the camera buffer & get address.
-            self.checkStatus(self.dcam.dcambuf_lockframe(self.camera_handle,
-                                                         ctypes.byref(paramlock)),
-                             "dcambuf_lockframe")
-
-            # Create storage for the frame & copy into this storage.
-            hc_data = HCamData(self.frame_bytes)
-            hc_data.copyData(paramlock.buf)
-
-            frames.append(hc_data)
-
-        return [frames, [self.frame_x, self.frame_y]]
-
-    def getFrames_2wl(self, func):
-
-        """
-        Get frame stack with 2 wavelengths. A modification of getFrames. The z position will only change after the
-        collecting 2 frames.
-        """
-        frames = []
-        for n in self.newFrames():
-            if n % 2 == 0:
-                func()
             paramlock = DCAMBUF_FRAME(
                 0, 0, 0, n, None, 0, 0, 0, 0, 0, 0, 0, 0, 0)
             paramlock.size = ctypes.sizeof(paramlock)

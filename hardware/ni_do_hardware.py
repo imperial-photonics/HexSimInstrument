@@ -14,7 +14,7 @@ class NI_DO_hw(HardwareComponent):
         board, terminals=self.update_channels()
         
         self.devices = self.add_logged_quantity('device',  dtype=str, initial=board)        
-        self.channel = self.add_logged_quantity('channel', dtype=str, choices=terminals, initial='Dev1/port1/line0')
+        self.channel = self.add_logged_quantity('channel', dtype=str, choices=terminals, initial='Dev1/port1/line1')
         self.value = self.add_logged_quantity('value', dtype=int, initial='0', vmax=1, vmin=0)
         self.add_operation("write_value", self.write_value)
       

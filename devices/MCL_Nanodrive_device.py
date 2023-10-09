@@ -48,6 +48,7 @@ class MCLPiezo(object):
         """
         self.mcl.MCL_SingleReadZ.restype = ct.c_double
         re = self.mcl.MCL_SingleReadZ(self.handle)
+        print(f're: {re}')
         self.checkError(re)
         return re
 
@@ -182,6 +183,7 @@ class MCLPiezo(object):
     def checkError(code):
         for n, e in err_dict.items():
             if (code == n) & (code != 0):
+                print(n, e)
                 raise Exception(f'Error code: {n, e}')
 
 
@@ -196,10 +198,11 @@ if __name__ == "__main__":
     # stage.singleWriteZ(30)
     # time.sleep(1)
     print(stage.singleReadZ())
-    stage.zScan(0, 10, 20)
+    stage.singleWriteZ(50)
+    # stage.zScan(0, 10, 20)
 
 
-    time.sleep(8)
+    # time.sleep(8)
     print(stage.singleReadZ())
 
     #

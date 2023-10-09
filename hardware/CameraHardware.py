@@ -87,7 +87,7 @@ class HamamatsuHardware(HardwareComponent):
                                                    reread_from_hardware_after_write=True)
 
         self.tractive = self.add_logged_quantity('trigger_active', dtype=str, si=False, ro=0,
-                                                 choices=["edge", "level", "syncreadout"], initial='level',
+                                                 choices=["edge", "level", "syncreadout"], initial='syncreadout',
                                                  reread_from_hardware_after_write=True)
 
         self.ouchannel1 = self.add_logged_quantity('output_channel1', dtype=str, si=False, ro=0,
@@ -110,7 +110,7 @@ class HamamatsuHardware(HardwareComponent):
                                                     initial='readout_start', reread_from_hardware_after_write=True)
         self.outrsource3 = self.add_logged_quantity('output_trigger_source3', dtype=str, si=False, ro=0,
                                                     choices=["readout_start", "readout_end", "input_trigger_signal"],
-                                                    initial='readout_end', reread_from_hardware_after_write=True)
+                                                    initial='readout_start', reread_from_hardware_after_write=True)
 
     #         self.preset_sizes = self.add_logged_quantity('preset_sizes', dtype=str, si=False, ro = 0,
     #                                                      choices = ["2048x2048",
