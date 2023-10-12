@@ -757,9 +757,15 @@ class HexSimMeasurement(Measurement):
                             hols[f * 2 + 1, s] = self.gen_hol(3, 0.561, abb=self.abbD, ph=f * 2 * np.pi / 7,
                                                               ps=0)
                 if self.ui.phs_checkBox.isChecked():
-                    self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'dps')
+                    if self.abbD.any() == (xp.zeros((self.phC.xpix, self.phC.ypix))).any():
+                        self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'h_ps')
+                    else:
+                        self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'h_psc')
                 else:
-                    self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'd')
+                    if self.abbD.any() == (xp.zeros((self.phC.xpix, self.phC.ypix))).any():
+                        self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'h')
+                    else:
+                        self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'h_pc')
             except Exception as e:
                 self.show_text(f'{e}')
 
@@ -846,6 +852,7 @@ class HexSimMeasurement(Measurement):
 
     def batchCapture(self):
         try:
+            self.slm.slm.act()
             n_stack = 7 * self.ui.nStack.value()
             step_size = self.z_stage.stepsize.val
             stage_offset = n_stack * step_size
@@ -859,6 +866,7 @@ class HexSimMeasurement(Measurement):
                 self.imageRAW[0][i, :, :] = frames[2 * i]
                 self.imageRAW[1][i, :, :] = frames[2 * i + 1]
             # self.z_stage.moveUpHW()
+            self.slm.slm.deact()
         except Exception as e:
             self.show_text(f'Batch capture encountered an error: {e}')
 

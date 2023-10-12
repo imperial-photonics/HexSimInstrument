@@ -371,20 +371,24 @@ class SLMHW(HardwareComponent):
             bp = 16 + (roIndex - 7) * 21
             n_bp = 21
         elif mode == 'h_psc':  # display phase-stepping holograms with the phase correction
+            roIndex = 10
             bp = 79
             n_bp = 140
         elif mode == 'h_ps':  # display phase-stepping holograms
+            roIndex = 11
             bp = 219
             n_bp = 140
         elif mode == 'h_pc':  # display holograms with the phase correction
+            roIndex = 12
             bp = 359
             n_bp = 140
         elif mode == 'h':  # display holograms
+            roIndex = 13
             bp = 499
             n_bp = 140
         elif mode == 'c':  # correction loop
-            roIndex = randrange(43)
-            bp = 639 + roIndex * 3
+            roIndex = randrange(14, 57)
+            bp = 639 + (roIndex - 14) * 3
             n_bp = 3
 
         self.flashCorrection(imgs, bp)
