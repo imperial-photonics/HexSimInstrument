@@ -152,4 +152,3 @@ class NI_CO_hw(HardwareComponent):
 
         return self.trigger_edge.val
 
-

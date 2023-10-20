@@ -1,9 +1,8 @@
 import nidaqmx
 # import warnings
 # import math
-# import numpy as np
-#
-# from nidaqmx import stream_writers
+import numpy as np
+
 
 
 class NI_CO_device(object):
@@ -25,6 +24,7 @@ class NI_CO_device(object):
         self.trigger_source = trigger_source
         self.trigger_edge = trigger_edge
 
+
     def create_task(self):
         self.task_ni = nidaqmx.Task()
         self.task_ni.co_channels.add_co_pulse_chan_time(counter=self.channel1,
@@ -42,6 +42,13 @@ class NI_CO_device(object):
             self.task_ni.triggers.start_trigger.trig_type = nidaqmx.constants.TriggerType.DIGITAL_EDGE
             self.task_ni.triggers.start_trigger.cfg_dig_edge_start_trig(trigger_source=self.trigger_source,
                                                                         trigger_edge=self.dict.get(self.trigger_edge))
+
+
+    def create_stream(self):
+        self.stream_ni = nidaqmx.stream_writers.CounterWriter.write_many_sample_pulse_time(np.array([20, 50]), np.array([30, 30]))
+        with nidaqmx.Task() as self.task_ni:
+            self.task_ni
+
 
     def start_task(self):
         print('Task started')
@@ -89,3 +96,4 @@ class NI_CO_device(object):
 
     def close(self):
         self.task_ni.close()  # close the task
+        # self.task_co_ni.close()
