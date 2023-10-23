@@ -16,21 +16,21 @@ class NI_device(object):
             "Dev1/port0/line0:3", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
         self.task.do_channels.add_do_chan(lines='Dev1/port1/line0')
 
-    def write_h(self, bl, read, yel):
+    def write_h(self, bl, low, yel):
         '''writes signal in two channels for HexSIM
-        bl: blue high time; read: low time; also the readout time; yel:  yellow high time'''
+        bl: blue high time; low: low time; yel:  yellow high time'''
         data1 = [0]  # trigger of camera/s exposure
         for f in range(14):
             for i in range(bl):
                 data1.append(1)
-            for i in range(read):
+            for i in range(low):
                 data1.append(0)
             for i in range(yel):
                 data1.append(1)
-            for i in range(read):
+            for i in range(low):
                 data1.append(0)
         data2 = []
-        for i in range(14 * (bl + read * 2 + yel)):
+        for i in range(14 * (bl + low * 2 + yel)):
             data2.append(1)
         data2.append(0)
         print(len(data1), len(data2))
