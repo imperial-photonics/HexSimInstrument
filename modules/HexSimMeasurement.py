@@ -491,6 +491,7 @@ class HexSimMeasurement(Measurement):
                 t = time.time()
                 self.slm.act()
                 self.ni.start_p()
+                self.ni.ph_write(0)
                 xc = self.thorcam.settings.xcent.value
                 yc = self.thorcam.settings.ycent.value
                 self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
@@ -852,23 +853,24 @@ class HexSimMeasurement(Measurement):
 
     def batchCapture(self):
         try:
-            self.slm.slm.act()
-            self.ni.start_h()
+            self.slm.act()
+            # self.ni.start_h()
             n_stack = 7 * self.ui.nStack.value()
-            step_size = self.z_stage.stepsize.val
-            stage_offset = n_stack * step_size
-            pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
-            # self.z_stage.movePositionHW(pos)
+            # step_size = self.z_stage.stepsize.val
+            # stage_offset = n_stack * step_size
+            # # pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+            # # self.z_stage.movePositionHW(pos)
+
             frames = self.getFrameStack(2 * n_stack)
-            self.ni.hex_write()
+            # self.ni.hex_write()
             # extend the raw image storage of stacks
             self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
             for i in range(n_stack):
                 self.imageRAW[0][i, :, :] = frames[2 * i]
                 self.imageRAW[1][i, :, :] = frames[2 * i + 1]
-            # self.z_stage.moveUpHW()
-            self.slm.slm.deact()
+            # # self.z_stage.moveUpHW()
+            self.slm.deact()
             self.ni.close_task()
         except Exception as e:
             self.ni.close_task()

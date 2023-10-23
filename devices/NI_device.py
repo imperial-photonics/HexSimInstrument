@@ -14,7 +14,7 @@ class NI_device(object):
         self.task = nidaqmx.Task()
         self.task.do_channels.add_do_chan(
             "Dev1/port0/line0:3", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
-        self.task.do_channels.add_do_chan(lines='Dev1/port1/line0')
+        self.task.do_channels.add_do_chan(lines='Dev1/port1/line1')
 
     def write_h(self, bl, low, yel):
         '''writes signal in two channels for HexSIM
@@ -33,9 +33,8 @@ class NI_device(object):
         for i in range(14 * (bl + low * 2 + yel)):
             data2.append(1)
         data2.append(0)
-        print(len(data1), len(data2))
         data = [data1, data2]
-        print(self.task.write(data, auto_start=True))
+        self.task.write(data, auto_start=True)
 
     def initiate_p(self):
         '''Adds channels and create a task for phase recovery'''
