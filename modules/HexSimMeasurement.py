@@ -64,7 +64,7 @@ class HexSimMeasurement(Measurement):
         self.z_stage = self.app.hardware['MCLNanoDriveHardware']
         self.laser488 = self.app.hardware['Laser488Hardware']
         self.laser561 = self.app.hardware['Laser561Hardware']
-        self.ni_do = self.app.hardware['NI_DO_hw']
+        self.ni = self.app.hardware['NI_hw']
         self.thorcam = self.app.hardware['ThorCam_hardware']
         # Measurement component settings
         self.settings.New('refresh_period', dtype=float, unit='s', spinbox_decimals=4, initial=0.02, hardware_set_func=self.setRefresh, vmin=0)
@@ -490,14 +490,14 @@ class HexSimMeasurement(Measurement):
             try:
                 t = time.time()
                 self.slm.act()
+                self.ni.start_p()
                 xc = self.thorcam.settings.xcent.value
                 yc = self.thorcam.settings.ycent.value
                 self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
                                              vstart=yc - self.phC.N / 2, vend=yc + self.phC.N / 2, hbin=1, vbin=1)
                 self.thorcam.thorCam.open()
                 self.thorcam.thorCam.start_acquisition()
-                self.ni_do.value.val = 1
-                self.ni_do.write_value()
+                self.ni.ph_write(1)
                 while self.thorcam.thorCam.get_frames_status()[1] < 3:
                     pass
                 self.thorcam.thorCam.stop_acquisition()
@@ -516,13 +516,13 @@ class HexSimMeasurement(Measurement):
                     self.psfm[i] = xp.array(self.psfm[i])
                     self.psfi[i] = self.psfm[i] + 0j
 
-                self.ni_do.value.val = 0
-                self.ni_do.write_value()
+                self.ni.ph_write(0)
+                self.ni.close_task()
                 print(f'capture PSF {time.time() - t}s')
             except Exception as e:
                 self.thorcam.thorCam.stop_acquisition()
-                self.ni_do.value.val = 0
-                self.ni_do.write_value()
+                self.ni.ph_write(0)
+                self.ni.close_task()
                 self.show_text(str(e))
 
     def checkPSFPressed(self):
@@ -688,8 +688,8 @@ class HexSimMeasurement(Measurement):
 
                 # grab new psf images
                 self.thorcam.thorCam.start_acquisition()
-                self.ni_do.value.val = 1
-                self.ni_do.write_value()
+                self.ni.start_p()
+                self.ni.ph_write(1)
                 while self.thorcam.thorCam.get_frames_status()[1] < 3:
                     pass
                 self.thorcam.thorCam.stop_acquisition()
@@ -705,8 +705,7 @@ class HexSimMeasurement(Measurement):
                     self.psfm[i] = cp.array(self.psfm[i])
                     self.psfi[i] = self.psfm[i] + 0j
 
-                self.ni_do.value.val = 0
-                self.ni_do.write_value()
+                self.ni.ph_write(0)
 
                 # Stop if rms is small enough for two consecutive iterations
                 if rms_dz < 0.15 and last_rms < 0.15:
@@ -719,6 +718,7 @@ class HexSimMeasurement(Measurement):
             nits = nits + 1
 
         plt.show()
+        self.ni.close_task()
 
     def checkResultPressed(self):
         if hasattr(self.slm, 'slm'):
@@ -853,12 +853,14 @@ class HexSimMeasurement(Measurement):
     def batchCapture(self):
         try:
             self.slm.slm.act()
+            self.ni.start_h()
             n_stack = 7 * self.ui.nStack.value()
             step_size = self.z_stage.stepsize.val
             stage_offset = n_stack * step_size
             pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
             # self.z_stage.movePositionHW(pos)
             frames = self.getFrameStack(2 * n_stack)
+            self.ni.hex_write()
             # extend the raw image storage of stacks
             self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
@@ -867,7 +869,9 @@ class HexSimMeasurement(Measurement):
                 self.imageRAW[1][i, :, :] = frames[2 * i + 1]
             # self.z_stage.moveUpHW()
             self.slm.slm.deact()
+            self.ni.close_task()
         except Exception as e:
+            self.ni.close_task()
             self.show_text(f'Batch capture encountered an error: {e}')
 
 # functions for processing
