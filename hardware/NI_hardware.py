@@ -28,7 +28,6 @@ class NI_hw(HardwareComponent):
 
     def hex_write(self):
         if hasattr(self, 'ni_device'):
-            print(self.high_time1.val, self.low_time.val, self.high_time2.val)
             self.ni_device.write_h(self.high_time1.val, self.low_time.val, self.high_time2.val)
             self.updateHardware()
 
@@ -46,7 +45,8 @@ class NI_hw(HardwareComponent):
     def close_task(self):
         try:
             self.ni_device.close()
-            print('Task is closed.')
+            del self.ni_device.task
+            print('Task is closed and deleted.')
         except Exception as e:
             print(e)
 
@@ -63,8 +63,11 @@ class NI_hw(HardwareComponent):
         re = (self.high_time2.val + self.low_time.val) * 1.2 - readout
         return re
     def disconnect(self):
-        if hasattr(self,'ni_device'):
+        if hasattr(self, 'ni_device'):
+            if hasattr(self.ni_device, 'task'):
+                self.close_task()
             del self.ni_device
+
 
     def updateHardware(self):
         if hasattr(self, 'ni_device'):
