@@ -37,8 +37,6 @@ class NI_CO_hw(HardwareComponent):
         self.add_operation("stop_task", self.stop)
 
     def connect(self):
-        # continuous_to_constant = {False:10178, True:10123} #create a dictionary for mapping the mode with the corresponding constants in nidaqmx
-
         # open connection to hardware
         self.channel1.change_readonly(True)
         self.channel2.change_readonly(True)

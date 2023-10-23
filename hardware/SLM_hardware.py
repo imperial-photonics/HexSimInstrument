@@ -1,9 +1,8 @@
 from ScopeFoundry import HardwareComponent
 from devices.SLM_device import SLMDev
 import numpy as np
-from numpy import meshgrid, sin, cos, pi, sqrt, floor
-import subprocess, os, tifffile, cv2, time
-import cupy as cp
+from numpy import meshgrid, sin, cos, pi, sqrt
+import subprocess, os, cv2, time
 from random import randrange
 
 use_cupy = True
