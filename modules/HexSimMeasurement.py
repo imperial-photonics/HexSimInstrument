@@ -574,6 +574,7 @@ class HexSimMeasurement(Measurement):
         last_rms = 10.0
 
         t0 = time.time()
+        self.ni.start_p()
 
         while nits < n * 10 + 1:
             for ii in range(3):
@@ -689,7 +690,6 @@ class HexSimMeasurement(Measurement):
 
                 # grab new psf images
                 self.thorcam.thorCam.start_acquisition()
-                self.ni.start_p()
                 self.ni.ph_write(1)
                 while self.thorcam.thorCam.get_frames_status()[1] < 3:
                     pass
@@ -862,7 +862,6 @@ class HexSimMeasurement(Measurement):
             # # self.z_stage.movePositionHW(pos)
 
             frames = self.getFrameStack(2 * n_stack)
-            # self.ni.hex_write()
             # extend the raw image storage of stacks
             self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
