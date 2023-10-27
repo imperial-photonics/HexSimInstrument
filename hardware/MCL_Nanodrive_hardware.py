@@ -9,7 +9,7 @@ class NanoDriveHW(HardwareComponent):
     def setup(self):
         self.settings.absolute_position = self.add_logged_quantity(name='Absolute position', dtype=float, unit='μm',
                                                                    vmin=0, vmax=300, initial=150, ro=False)
-        self.stepsize = self.settings.New(name='Step size', dtype=float, unit='μm', vmin=0, vmax=50, initial=0.02, ro=False)
+        self.stepsize = self.settings.New(name='Step size', dtype=float, unit='μm', vmin=0, vmax=50, initial=0.3, ro=False)
         self.add_operation(name='Z scan', op_func=self.zScanHW)
         self.settings.n_frame = self.add_logged_quantity('n_frame', dtype=int, initial=20, vmin=0)
 

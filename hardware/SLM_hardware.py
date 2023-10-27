@@ -291,7 +291,7 @@ class SLMHW(HardwareComponent):
                 data.append('>]\n')
 
             data.append('"Hex_phS_phC"\n'
-                        '[HWA h \n')
+                        '[HWA s \n')
             for p in range(14):
                 data.append('{f')
                 for k in range(10):
@@ -300,7 +300,7 @@ class SLMHW(HardwareComponent):
             data.append(']\n')
 
             data.append('"Hex_phS"\n'
-                        '[HWA h \n')
+                        '[HWA s \n')
             for p in range(14):
                 data.append('{f')
                 for k in range(10):
@@ -309,7 +309,7 @@ class SLMHW(HardwareComponent):
             data.append(']\n')
 
             data.append('"Hex_phC"\n'
-                        '[HWA h \n')
+                        '[HWA s \n')
             for p in range(14):
                 data.append('{f')
                 for k in range(10):
@@ -318,7 +318,7 @@ class SLMHW(HardwareComponent):
             data.append(']\n')
 
             data.append('"Hex"\n'
-                        '[HWA h \n')
+                        '[HWA s \n')
             for p in range(14):
                 data.append('{f')
                 for k in range(10):

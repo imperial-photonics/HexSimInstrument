@@ -50,7 +50,6 @@ class MCLPiezo(object):
             self.handle = self.mcl.MCL_InitHandleOrGetExisting()
         self.mcl.MCL_SingleReadZ.restype = ct.c_double
         re = self.mcl.MCL_SingleReadZ(self.handle)
-        print(f're: {re}')
         self.checkError(re)
         return re
 
@@ -64,7 +63,7 @@ class MCLPiezo(object):
             raise ValueError('The command position should be from 0 to 300 inclusive.')
         else:
             re = self.mcl.MCL_SingleWriteZ(ct.c_double(position), self.handle)
-            time.sleep(0.1)
+            # time.sleep(0.1)
             self.checkError(re)
 
     def wfLoad(self, axis, DataPoints, ms, waveform):

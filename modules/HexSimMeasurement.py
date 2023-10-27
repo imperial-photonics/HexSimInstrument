@@ -829,25 +829,31 @@ class HexSimMeasurement(Measurement):
         try:
             n_stack = 7 * self.ui.nStack.value()
             step_size = self.z_stage.stepsize.val
-            stage_offset = n_stack * step_size
-            pos = self.z_stage.settings.absolute_position.val - stage_offset / 2.0
+            stage_offset = n_stack * step_size / 7
+            pos = 150 - stage_offset / 2.0
             self.z_stage.movePositionHW(pos)
-            if self.ui.dualWavelength.isChecked():
-                # extend the raw image storage of stacks
-                self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
-                                 np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
-                frames = self.getFrameStack(n_stack * 2)
-                for i in range(n_stack):
-                    self.imageRAW[0][i, :, :] = frames[2 * i]
-                    self.imageRAW[1][i, :, :] = frames[2 * i + 1]
-            else:
-                self.imageRAW[0] = np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)
-                for a in range(self.ui.nStack.value()):
-                    for i in range(7):
-                        n_frame = 7 * a + i
-                        self.imageRAW[0][n_frame, :, :] = self.getOneFrame()
-                        self.show_text(f'Capture frame: {n_frame + 1} / {n_stack}')
-                    self.z_stage.moveUpHW()
+            # if self.ui.dualWavelength.isChecked():
+            #     # extend the raw image storage of stacks
+            #     self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+            #                      np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+            #     frames = self.getFrameStack(n_stack * 2)
+            #     for i in range(n_stack):
+            #         self.imageRAW[0][i, :, :] = frames[2 * i]
+            #         self.imageRAW[1][i, :, :] = frames[2 * i + 1]
+            # else:
+            self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
+                             np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
+            frames = np.zeros((self.ui.nStack.value(), 14, self.eff_subarrayv, self.eff_subarrayh))
+            for f in range(self.ui.nStack.value()):
+                self.slm.act()
+                frames[f] = self.getFrameStack(14)
+                self.z_stage.movePositionHW(pos + (f + 1) * step_size)
+                self.slm.deact()
+            self.ni.close_task()
+            for f in range(self.ui.nStack.value()):
+                for i in range(7):
+                    self.imageRAW[0][int(i + f * 7), :, :] = frames[f, 2 * i]
+                    self.imageRAW[1][int(i + f * 7), :, :] = frames[f, 2 * i + 1]
         except Exception as e:
             self.show_text(f'Standard capture encountered an error \n{e}')
 
