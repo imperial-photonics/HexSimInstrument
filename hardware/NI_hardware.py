@@ -8,32 +8,34 @@ class NI_hw(HardwareComponent):
 
     def setup(self):
         #createloggedquantities,thatarerelatedtothegraphicalinterface
-        self.high_time1=self.add_logged_quantity('high_timeY',dtype=int,initial=50,vmin=0, unit='*1.2ms')
-        self.low_time=self.add_logged_quantity('low_time', dtype=int,initial=17,  vmin=0, unit='*1.2ms')
-        self.high_time2=self.add_logged_quantity('high_timeB',dtype=int,initial=30,vmin=0,unit='*1.2ms')
-        self.settings.y_exp = self.add_logged_quantity('yell_exp',dtype=float,initial=0.000, vmin=0.000, spinbox_decimals=3,
-                                            unit='ms')
-        self.settings.b_exp = self.add_logged_quantity('blue_exp', dtype=float, initial=0.000, vmin=0.000, spinbox_decimals=3,
-                                              unit='ms')
+        self.high_time1=self.add_logged_quantity('high_timeY',dtype=int, initial=100, vmin=0, unit='ms')
+        self.low_time=self.add_logged_quantity('low_time', dtype=int,initial=40,  vmin=0, unit='ms')
+        self.high_time2=self.add_logged_quantity('high_timeB',dtype=int,initial=80, vmin=0,unit='ms')
+        self.settings.n_frame = self.add_logged_quantity('n_frame', dtype=int, initial=20, vmin=0)
+        # self.settings.y_exp = self.add_logged_quantity('yell_exp',dtype=float,initial=0.000, vmin=0.000, spinbox_decimals=3,
+        #                                     unit='ms')
+        # self.settings.b_exp = self.add_logged_quantity('blue_exp', dtype=float, initial=0.000, vmin=0.000, spinbox_decimals=3,
+        #                                       unit='ms')
         self.add_operation(name='HexSIM signal', op_func=self.hex_wrap)
 
     def connect(self):
         self.ni_device=NI_device()
-        self.settings.b_exp.connect_to_hardware(read_func=self.get_bExp)
-        self.settings.y_exp.connect_to_hardware(read_func=self.get_yExp)
+        # self.settings.b_exp.connect_to_hardware(read_func=self.get_bExp)
+        # self.settings.y_exp.connect_to_hardware(read_func=self.get_yExp)
 
     def start_h(self):
         print('starts HexSIM signal')
         self.ni_device.initiate_h()
 
-    def hex_write(self):
+    def hex_write(self, n):
         if hasattr(self, 'ni_device'):
-            self.ni_device.write_h(self.high_time1.val, self.low_time.val, self.high_time2.val)
-            self.updateHardware()
+            self.ni_device.write_h(self.high_time1.val, self.low_time.val, self.high_time2.val, n)
+            # self.updateHardware()
 
     def hex_wrap(self):
         self.start_h()
-        self.hex_write()
+        print(self.settings.n_frame.val)
+        self.hex_write(self.settings.n_frame.val)
 
     def start_p(self):
         print('starts phase recovery signal')
@@ -50,18 +52,18 @@ class NI_hw(HardwareComponent):
         except Exception as e:
             print(e)
 
-    def get_bExp(self):
-        vn = 1024  # for a 1024 * 1024 frame
-        readout = (vn + 5) * 18.64706e-3
-        re = (self.high_time2.val + self.low_time.val) * 1.2 - readout
-        # self.settings.y_exp.val = (self.high_time2.val + self.low_time.val) * 1.2 - readout
-        return re
-
-    def get_yExp(self):
-        vn = 1024  # for a 1024 * 1024 frame
-        readout = (vn + 5) * 18.64706e-3
-        re = (self.high_time1.val + self.low_time.val) * 1.2 - readout
-        return re
+    # def get_bExp(self):
+    #     vn = 1024  # for a 1024 * 1024 frame
+    #     readout = (vn + 5) * 18.64706e-3
+    #     re = (self.high_time2.val + self.low_time.val) * 1.2 - readout
+    #     # self.settings.y_exp.val = (self.high_time2.val + self.low_time.val) * 1.2 - readout
+    #     return re
+    #
+    # def get_yExp(self):
+    #     vn = 1024  # for a 1024 * 1024 frame
+    #     readout = (vn + 5) * 18.64706e-3
+    #     re = (self.high_time1.val + self.low_time.val) * 1.2 - readout
+    #     return re
     def disconnect(self):
         if hasattr(self, 'ni_device'):
             if hasattr(self.ni_device, 'task'):
@@ -69,9 +71,9 @@ class NI_hw(HardwareComponent):
             del self.ni_device
 
 
-    def updateHardware(self):
-        if hasattr(self, 'ni_device'):
-            self.settings.b_exp.read_from_hardware()
-            self.settings.y_exp.read_from_hardware()
+    # def updateHardware(self):
+    #     if hasattr(self, 'ni_device'):
+            # self.settings.b_exp.read_from_hardware()
+            # self.settings.y_exp.read_from_hardware()
 
 

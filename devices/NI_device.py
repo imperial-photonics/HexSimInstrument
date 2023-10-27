@@ -14,34 +14,33 @@ class NI_device(object):
             self.close()
             del self.task
         self.task = nidaqmx.Task()
-        self.task.do_channels.add_do_chan(
-            "Dev1/port0/line0:3", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
-        self.task.do_channels.add_do_chan(lines='Dev1/port1/line0')
+        self.task.do_channels.add_do_chan("Dev1/port0/line0:3", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
 
-    def write_h(self, bl, low, yel):
+    def write_h(self, bl, low, yel, n, frame_wait=10):
         '''writes signal in two channels for HexSIM
-        bl: blue high time; low: low time; yel:  yellow high time'''
-        data1 = [0]  # trigger of camera/s exposure
-        for f in range(14):
-            for i in range(bl):
-                data1.append(1)
-            for i in range(low):
-                data1.append(0)
-            for i in range(yel):
-                data1.append(1)
-            for i in range(low):
-                data1.append(0)
-        # add one readout at the end
-        for i in range(low):
+        bl: blue high time; low: low time; yel:  yellow high time; n: number of frames'''
+        data1 = []  # trigger of camera/s exposure
+        for f in range(n):
             data1.append(0)
-        data2 = [0]
-        for i in range(14 * (bl + low * 2 + yel)):
-            data2.append(1)
-        for i in range(low):
-            data2.append(0)
-        print(len(data1), len(data2))
-        data = [data1, data2]
-        self.task.write(data, auto_start=True)
+            for k in range(14):
+                for i in range(bl):
+                    data1.append(1)
+                for i in range(low):
+                    data1.append(0)
+                for i in range(yel):
+                    data1.append(1)
+                for i in range(low):
+                    data1.append(0)
+            # add wait time at the end for the z stage movement
+            for i in range(frame_wait):
+                data1.append(0)
+            # data2 = [0]
+            # for i in range(14 * (bl + low * 2 + yel)):
+            #     data2.append(1)
+            # for i in range(frame_wait):
+            #     data2.append(0)
+        self.task.timing.cfg_samp_clk_timing(1000, samps_per_chan=len(data1))
+        self.task.write(data1, auto_start=True)
 
     def initiate_p(self):
         '''Adds channels and create a task for phase recovery'''

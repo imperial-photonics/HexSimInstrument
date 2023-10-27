@@ -38,7 +38,7 @@ class HexSimApp(BaseMicroscopeApp):
         print("Adding Hardware Components")
 
         from hardware.CameraHardware import HamamatsuHardware
-        from hardware.LaserHardware import Laser488HW, Laser561HW
+        # from hardware.LaserHardware import Laser488HW, Laser561HW
         # from hardware.ScreenHardware import ScreenHW
         # from hardware.NanoScanHardware import NanoScanHW
         from hardware.SLM_hardware import SLMHW
@@ -47,11 +47,11 @@ class HexSimApp(BaseMicroscopeApp):
         from hardware.ThorCam_hardware import ThorCamHW
 
         # self.add_hardware(ScreenHW(self))
-        self.add_hardware(SLMHW(self))
         self.add_hardware(HamamatsuHardware(self))
-        self.add_hardware(Laser488HW(self))
-        self.add_hardware(Laser561HW(self))
+        # self.add_hardware(Laser488HW(self))
+        # self.add_hardware(Laser561HW(self))
         # self.add_hardware(NanoScanHW(self))
+        self.add_hardware(SLMHW(self))
         self.add_hardware(NI_hw(self))
         self.add_hardware(NanoDriveHW(self))
         self.add_hardware(ThorCamHW(self))

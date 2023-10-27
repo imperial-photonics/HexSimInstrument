@@ -46,6 +46,8 @@ class MCLPiezo(object):
         """
         Returns the current z-position.
         """
+        if not hasattr(self, 'handle'):
+            self.handle = self.mcl.MCL_InitHandleOrGetExisting()
         self.mcl.MCL_SingleReadZ.restype = ct.c_double
         re = self.mcl.MCL_SingleReadZ(self.handle)
         print(f're: {re}')
@@ -56,6 +58,8 @@ class MCLPiezo(object):
         """
         Moves the stage to the absolute position in μm.
         """
+        if not hasattr(self, 'handle'):
+            self.handle = self.mcl.MCL_InitHandleOrGetExisting()
         if (position < 0) | (position > 300):
             raise ValueError('The command position should be from 0 to 300 inclusive.')
         else:
@@ -72,22 +76,32 @@ class MCLPiezo(object):
         waveform(int): Pointer to an array of commanded positions.
         handle		[IN]	Specifies which Nano-Drive to communicate with.
         """
+        self.handle = self.mcl.MCL_InitHandleOrGetExisting()
         re = self.mcl.MCL_LoadWaveFormN(axis, DataPoints, ct.c_double(ms), waveform, self.handle)
+        del self.handle
         self.checkError(re)
 
-    def zScan(self, pos, nStep, stepSize):
+    def zScan(self, pos, nStep, stepSize, t=260):
         """
         Scans from the current position to the relative highest position. The waveform is a stairs-shape square wave.
+        t: exp1 + exp2 + low time * 2
         pos(μm): the current position
         nStep: the number of steps along z axis.
         stepSize(μm): the size of the step.
         """
-        nPoints = 2  # nPoints * rate(ms) should be slightly longer than the exposure of the camera
-        data = np.zeros(nPoints) + pos
+        stage_offset = nStep * stepSize
+        pos0 = pos - stage_offset / 2.0
+        self.singleWriteZ(pos0)
+
+        rate = 5  # ms
+        n0 = int(t / rate)  # number of the square wave
+        data = np.zeros(n0) + pos0
         for i in range(1, nStep):
-            data = np.append(data, pos + np.ones(nPoints) * i * stepSize)
+            data = np.append(data, pos0 + np.ones(n0) * i * stepSize)
+        print(len(data))
+        print(data)
         ctData = (ct.c_double * len(data))(*data)
-        self.wfLoad(3, len(data), 5, ctData)
+        self.wfLoad(3, len(data), rate, ctData)
 
     def WfAcquisition(self, sign):
     # def WfAcquisition(self):
