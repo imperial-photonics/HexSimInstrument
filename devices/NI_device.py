@@ -5,6 +5,7 @@ Python code to control the NI USB 6351. Functions are tailored for HexSIM.
 """
 
 import nidaqmx
+import time
 from nidaqmx.constants import LineGrouping
 
 class NI_device(object):
@@ -16,13 +17,15 @@ class NI_device(object):
         self.task = nidaqmx.Task()
         self.task.do_channels.add_do_chan("Dev1/port0/line0:3", line_grouping=LineGrouping.CHAN_FOR_ALL_LINES)
 
-    def write_h(self, bl, low, yel, n, frame_wait=10):
+    def write_h(self, bl, low, yel, n, frame_wait=0):
         '''writes signal in two channels for HexSIM
         bl: blue high time; low: low time; yel:  yellow high time; n: number of frames'''
         data1 = []  # trigger of camera/s exposure
         for f in range(n):
-            data1.append(0)
-            for k in range(14):
+            data1.append(1)
+            for w in range(bl + yel + 2 * low):
+                data1.append(0)
+            for k in range(7):
                 for i in range(bl):
                     data1.append(1)
                 for i in range(low):
@@ -40,7 +43,9 @@ class NI_device(object):
             # for i in range(frame_wait):
             #     data2.append(0)
         self.task.timing.cfg_samp_clk_timing(1000, samps_per_chan=len(data1))
+        print(f'HexSIM signal length: {len(data1)}')
         self.task.write(data1, auto_start=True)
+        time.sleep(len(data1) / 1000)
 
     def initiate_p(self):
         '''Adds channels and create a task for phase recovery'''
