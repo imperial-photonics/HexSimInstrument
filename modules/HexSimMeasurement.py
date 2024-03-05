@@ -6,6 +6,8 @@ import pyqtgraph as pg
 import tifffile as tif
 import matplotlib.pyplot as plt
 import opt_einsum as oe
+import pickle
+
 
 from pathlib import Path
 from PyQt5.QtWidgets import QFileDialog
@@ -249,6 +251,7 @@ class HexSimMeasurement(Measurement):
         self.ui.bp_pushButton.clicked.connect(self.updateBpPressed)
         self.ui.cr_pushButton.clicked.connect(self.checkResultPressed)
         self.ui.sh_pushButton.clicked.connect(self.sendHolPressed)
+        self.ui.corr_pushButton.clicked.connect(self.loadCorrection)
 
         self.imvRaw.ui.cellCombo.currentIndexChanged.connect(self.channelChanged)
 
@@ -506,10 +509,11 @@ class HexSimMeasurement(Measurement):
                 self.psfm = self.thorcam.thorCam.read_multiple_images()
                 self.thorcam.thorCam.clear_acquisition()
 
-                initial_psf = self.psfm[1]
-
                 for i in range(3):
-                    self.psfm[i] = np.fliplr(self.psfm[i])
+                    if self.thorcam.settings.cor_PSF.val == 'left':
+                        self.psfm[i] = np.fliplr(self.psfm[i])
+                    else:
+                        self.psfm[i] = np.flipud(self.psfm[i])
                     bgz = np.percentile(self.psfm[i].flatten(), 50)
                     bg = np.percentile(self.psfm[i].flatten(), 95)
                     print(f'bg zero: {bgz}. bg filter: {bg}')
@@ -602,10 +606,21 @@ class HexSimMeasurement(Measurement):
             # Constrain intensity in pupil to have slowly varying values by fitting to Zernike polynomials, up to radial order
             # 4 to help with gaussian illumination
             if do_int:
-                c_i = oe.contract('ijk, jk, jk, i -> i', self.phC.c_a_i, xp.abs(Q), self.phC.wt, self.phC.normval_i)
+                if method == 'weighted':
+                    c_i = oe.contract('ijk, jk, jk, i -> i', self.phC.c_a_i, xp.abs(Q), self.phC.wt, self.phC.normval_i)
+                else:
+                    if xp == cp:
+                        Q_s = cp.array(interpolate.interpn((self.phC.xx[self.phC.m].get(), self.phC.xx[self.phC.m].get()),
+                                                            Q[self.phC.circ].reshape((self.phC.nm, self.phC.nm)).get(),
+                                                            self.phC.xi.get(), method='splinef2d'))
+                    else:
+                        Q_s = interpolate.interpn((self.phC.xx[self.phC.m], self.phC.xx[self.phC.m]),
+                                                   Qc[self.phC.circ].reshape((self.phC.nm, self.phC.nm)),
+                                                   self.phC.xi, method='splinef2d')
+                    c_i = oe.contract('ijk, jk, i -> i', self.phC.c_a_is, Q_s, self.phC.normval_is)
                 Qb = oe.contract('ijk, i -> jk', self.phC.c_a_i, c_i)
             else:  # Set the amplitude to a uniform pupil if the phase is still changing a lot
-                if last_rms < 2 * np.pi:
+                if last_rms < np.pi:
                     do_int = True
                 Qb = self.phC.circ
 
@@ -699,7 +714,10 @@ class HexSimMeasurement(Measurement):
                 self.thorcam.thorCam.clear_acquisition()
 
                 for i in range(3):
-                    self.psfm[i] = np.fliplr(self.psfm[i])
+                    if self.thorcam.settings.cor_PSF.val == 'left':
+                        self.psfm[i] = np.fliplr(self.psfm[i])
+                    else:
+                        self.psfm[i] = np.flipud(self.psfm[i])
                     bgz = np.percentile(self.psfm[i].flatten(), 50)
                     bg = np.percentile(self.psfm[i].flatten(), 95)
                     self.psfm[i] = (self.psfm[i] - bgz) * (self.psfm[i] > bg)
@@ -720,6 +738,9 @@ class HexSimMeasurement(Measurement):
 
         plt.show()
         self.ni.close_task()
+        timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
+        with open(f'abbD-{timestamp}.obj', 'wb') as f:
+            pickle.dump(self.abbD, f)
 
     def checkResultPressed(self):
         if hasattr(self.slm, 'slm'):
@@ -741,6 +762,7 @@ class HexSimMeasurement(Measurement):
                 self.show_text(f'{e}')
 
     def sendHolPressed(self):
+        '''sends two sets of holograms'''
         if hasattr(self.slm, 'slm'):
             try:
                 steps = 10
@@ -769,6 +791,13 @@ class HexSimMeasurement(Measurement):
                         self.slm.updateBp(np.reshape(hols, (14 * steps, 524288)), 'h_pc')
             except Exception as e:
                 self.show_text(f'{e}')
+
+    def loadCorrection(self):
+        try:
+            file = open(f'{self.ui.corr_lineEdit.text()}.obj', 'rb')
+            self.abbD = pickle.load(file)
+        except Exception as e:
+            self.show_text(f'{e}')
 
     def standardCapturePressed(self):
         # if not self.screen.slm_dev.isVisible():
@@ -828,10 +857,10 @@ class HexSimMeasurement(Measurement):
     def standardCapture(self):
         try:
             n_stack = 7 * self.ui.nStack.value()
-            step_size = self.z_stage.stepsize.val
-            stage_offset = n_stack * step_size / 7
-            pos = 150 - stage_offset / 2.0
-            self.z_stage.movePositionHW(pos)
+            # step_size = self.z_stage.stepsize.val
+            # stage_offset = n_stack * step_size / 7
+            # pos = 150 - stage_offset / 2.0
+            # self.z_stage.movePositionHW(pos)
             # if self.ui.dualWavelength.isChecked():
             #     # extend the raw image storage of stacks
             #     self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
@@ -844,12 +873,11 @@ class HexSimMeasurement(Measurement):
             self.imageRAW = [np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16),
                              np.zeros((n_stack, self.eff_subarrayv, self.eff_subarrayh), dtype=np.uint16)]
             frames = np.zeros((self.ui.nStack.value(), 14, self.eff_subarrayv, self.eff_subarrayh))
+            self.slm.act()
             for f in range(self.ui.nStack.value()):
-                self.slm.act()
                 frames[f] = self.getFrameStack(14)
-                self.z_stage.movePositionHW(pos + (f + 1) * step_size)
-                self.slm.deact()
-            self.ni.close_task()
+                # self.z_stage.movePositionHW(pos + (f + 1) * step_size)
+            self.slm.deact()
             for f in range(self.ui.nStack.value()):
                 for i in range(7):
                     self.imageRAW[0][int(i + f * 7), :, :] = frames[f, 2 * i]
@@ -1053,7 +1081,7 @@ class HexSimMeasurement(Measurement):
         if len(frames) > 0:
             for i in range(len(frames)):
                 frames[i] = np.reshape(frames[i].getData().astype(np.uint16), dims)
-                re = frames
+            re = frames
         else:
             re = np.zeros([self.eff_subarrayv, self.eff_subarrayh])[np.newaxis, :, :]
             print("Camera buffer empty")
