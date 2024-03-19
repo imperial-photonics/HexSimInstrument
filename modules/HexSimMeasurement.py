@@ -16,6 +16,7 @@ from ScopeFoundry.helper_funcs import load_qt_ui_file
 from qtwidgets import Toggle
 from scipy import interpolate
 
+
 from HexSimProcessor.SIM_processing.hexSimProcessor import HexSimProcessor
 from modules.PhaseRecovery import Phase_correction
 from utils.MessageWindow import CalibrationResults
@@ -77,6 +78,8 @@ class HexSimMeasurement(Measurement):
                           hardware_set_func = self.setReconstructor)
         self.settings.New('gpu', dtype=bool, initial=True,
                           hardware_set_func = self.setReconstructor)
+        self.settings.New('show_phre', dtype=bool, initial=True,
+                          hardware_set_func = self.setReconstructor)
         self.settings.New('compact', dtype=bool, initial=True,
                           hardware_set_func = self.setReconstructor)
         self.settings.New('axial', dtype=bool, initial=False,
@@ -109,6 +112,7 @@ class HexSimMeasurement(Measurement):
         self.settings.New('hex_orientation', dtype=float, initial=18)
 
         # initialize condition labels
+        self.isShowImg = True
         self.isStreamRun = False
         self.isCameraRun = False
         self.isSnapshot = False
@@ -395,6 +399,7 @@ class HexSimMeasurement(Measurement):
         return self.imvRaw.ui.cellCombo.currentIndex()
 # functions for HexSIM
     def setReconstructor(self, *args):
+        self.isShowImg = self.settings['show_phre']
         self.isFindCarrier = self.settings['find_carrier']
         self.isGpuenable = self.settings['gpu']
         self.isCompact = self.settings['compact']
@@ -473,8 +478,7 @@ class HexSimMeasurement(Measurement):
         return hex_bit
 
     # functions for phase correction
-    def show_animation(self, k, img, title=None, fs=8):
-        # self.axes[k].clear()
+    def show_animation(self, k, img, title=None, fs=14):
         plt.subplot(4, 3, k+1)
         if xp == cp:
             self.axes[k].imshow(img.get())
@@ -491,22 +495,14 @@ class HexSimMeasurement(Measurement):
     def capturePSF(self):
         if hasattr(self.thorcam, 'thorCam'):
             try:
-                t = time.time()
-                self.slm.act()
-                self.ni.start_p()
-                self.ni.ph_write(0)
-                xc = self.thorcam.settings.xcent.value
-                yc = self.thorcam.settings.ycent.value
-                self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
-                                             vstart=yc - self.phC.N / 2, vend=yc + self.phC.N / 2, hbin=1, vbin=1)
-                self.thorcam.thorCam.open()
                 self.thorcam.thorCam.start_acquisition()
+                t = time.time()
                 self.ni.ph_write(1)
-                while self.thorcam.thorCam.get_frames_status()[1] < 3:
-                    pass
+                time.sleep(0.050)
                 self.thorcam.thorCam.stop_acquisition()
-
                 self.psfm = self.thorcam.thorCam.read_multiple_images()
+                print(f'capture PSF in {(time.time() - t)} s')
+
                 self.thorcam.thorCam.clear_acquisition()
 
                 for i in range(3):
@@ -516,14 +512,14 @@ class HexSimMeasurement(Measurement):
                         self.psfm[i] = np.flipud(self.psfm[i])
                     bgz = np.percentile(self.psfm[i].flatten(), 50)
                     bg = np.percentile(self.psfm[i].flatten(), 95)
-                    print(f'bg zero: {bgz}. bg filter: {bg}')
+                    # print(f'bg zero: {bgz}. bg filter: {bg}')
                     self.psfm[i] = (self.psfm[i] - bgz) * (self.psfm[i] > bg)
                     self.psfm[i] = xp.array(self.psfm[i])
                     self.psfi[i] = self.psfm[i] + 0j
 
                 self.ni.ph_write(0)
                 self.ni.close_task()
-                print(f'capture PSF {time.time() - t}s')
+
             except Exception as e:
                 self.thorcam.thorCam.stop_acquisition()
                 self.ni.ph_write(0)
@@ -536,6 +532,14 @@ class HexSimMeasurement(Measurement):
                 self.thorcam.set_tm('ext')
                 self.thorcam.set_exp(0.002)
                 self.thorcam.updateHardware()
+                self.slm.act()
+                self.ni.start_p()
+                self.ni.ph_write(0)
+                xc = self.thorcam.settings.xcent.value
+                yc = self.thorcam.settings.ycent.value
+                self.thorcam.thorCam.set_roi(hstart=xc - self.phC.N / 2, hend=xc + self.phC.N / 2,
+                                             vstart=yc - self.phC.N / 2, vend=yc + self.phC.N / 2, hbin=1, vbin=1)
+                self.thorcam.thorCam.open()
                 self.capturePSF()
                 plt.figure(figsize=(15, 5))
                 xg = xp.arange(self.phC.N)
@@ -558,10 +562,11 @@ class HexSimMeasurement(Measurement):
 
     def startCoPressed(self):
         # phase correction loop
-        f = plt.figure(figsize=(18, 18))
-        self.axes = []
-        for i in range(12):
-            self.axes.append(f.add_subplot(4, 3, i + 1))
+        if self.isShowImg:
+            f = plt.figure(figsize=(18, 18))
+            self.axes = []
+            for i in range(12):
+                self.axes.append(f.add_subplot(4, 3, i + 1))
         qq = [None] * 3
         QQ = [None] * 3
         cuml_phase = xp.zeros((self.phC.N))
@@ -585,10 +590,11 @@ class HexSimMeasurement(Measurement):
                 qq[ii] = xp.fft.fftshift(xp.fft.fft2(Q * xp.exp(1j * self.phC.bias[ii])))
 
             if xp.mod(nits, n) == 0:
-                self.show_animation(0, self.psfm[0])
-                self.show_animation(1, self.psfm[1], f'Elapsed time: {let}s')
-                self.show_animation(2, self.psfm[2])
-                self.show_animation(3, xp.abs(qq[0]) ** 2, 'Estimated corrected PSF')
+                if self.isShowImg:
+                        self.show_animation(0, self.psfm[0])
+                        self.show_animation(1, self.psfm[1], 'PSFs')
+                        self.show_animation(2, self.psfm[2])
+                        self.show_animation(3, xp.abs(qq[0]) ** 2, 'Estimated corrected PSF')
 
             Q = 0
             for i in range(3):
@@ -599,9 +605,11 @@ class HexSimMeasurement(Measurement):
             Qc = xp.angle(Q) * self.phC.circ
 
             if xp.mod(nits, n) == 0:
-                rms = xp.std(Qc[self.phC.circ])
-                self.show_animation(4, Qc, f'estimated pupil phase, rms={rms:.3f}')
-                self.show_animation(5, abs(Q), 'estimated pupil intensity')
+                if self.isShowImg:
+                    rms = xp.std(Qc[self.phC.circ])
+                    self.show_animation(4, Qc, f'estimated pupil phase, rms={rms:.3f}')
+                    self.show_animation(5, abs(Q), 'estimated pupil intensity')
+
 
             # Constrain intensity in pupil to have slowly varying values by fitting to Zernike polynomials, up to radial order
             # 4 to help with gaussian illumination
@@ -611,7 +619,7 @@ class HexSimMeasurement(Measurement):
                 else:
                     if xp == cp:
                         Q_s = cp.array(interpolate.interpn((self.phC.xx[self.phC.m].get(), self.phC.xx[self.phC.m].get()),
-                                                            Q[self.phC.circ].reshape((self.phC.nm, self.phC.nm)).get(),
+                                                            xp.abs(Q[self.phC.circ].reshape((self.phC.nm, self.phC.nm))).get(),
                                                             self.phC.xi.get(), method='splinef2d'))
                     else:
                         Q_s = interpolate.interpn((self.phC.xx[self.phC.m], self.phC.xx[self.phC.m]),
@@ -638,7 +646,8 @@ class HexSimMeasurement(Measurement):
                 Qc = xp.flipud(xp.fliplr(Qc)) * self.phC.circ
 
                 rms_d = xp.std(Qc[self.phC.circ])
-                self.show_animation(7, Qc, f'unwrapped pupil phase, rms={rms_d:.3f}')
+                if self.isShowImg:
+                    self.show_animation(7, Qc, f'unwrapped pupil phase, rms={rms_d:.3f}')
 
                 # Constrain intensity in pupil to have slowly varying values by fitting to Chebyshev
                 if method == 'weighted':
@@ -656,21 +665,23 @@ class HexSimMeasurement(Measurement):
                 diff = oe.contract('ijk, i -> jk', self.phC.c_a_p, diff_c)
                 diff_r = diff - oe.contract('ijk, i -> jk', self.phC.c_a_p[[0, 1, self.phC.n_c], :, :], diff_c[[0, 1, self.phC.n_c]])
 
-                # self.axes[6].clear()
-                if xp == cp:
-                    self.axes[6].matshow(diff_c.get().reshape((self.phC.n_c, self.phC.n_c)))
-                    # axes[6].bar(range(n_c * n_c), diff_c.get())
-                else:
-                    self.axes[6].bar(range(self.phC.n_c * self.phC.n_c), diff_c)
-                self.axes[6].set_axis_off()
-                            # axes[6].set_title('Chebyshev polynomials', fontsize=fsize)
+                if self.isShowImg:
+                    # self.axes[6].clear()
+                    if xp == cp:
+                        self.axes[6].matshow(diff_c.get().reshape((self.phC.n_c, self.phC.n_c)))
+                        # axes[6].bar(range(n_c * n_c), diff_c.get())
+                    else:
+                        self.axes[6].bar(range(self.phC.n_c * self.phC.n_c), diff_c)
+                    self.axes[6].set_axis_off()
+                                # axes[6].set_title('Chebyshev polynomials', fontsize=fsize)
 
                 # subtract the fitted phase from our current pupil guess
                 Q = Q * xp.exp(-1j * diff)
 
                 # Calculate rms of fitted phase
                 rms_dz = np.std(diff_r)
-                self.show_animation(8, diff, f'Chebyshev fitted pupil phase, nits{nits}, rms={rms_dz:.3f}', )
+                if self.isShowImg:
+                    self.show_animation(8, diff, f'Chebyshev fitted pupil phase, it {len(rms_plot)}, rms={rms_dz:.3f}')
 
                 #         if rms_dz < 0.2:
                 #             diff /= 2
@@ -681,15 +692,16 @@ class HexSimMeasurement(Measurement):
                     rms_plot.append(rms_dz.get())
                 else:
                     rms_plot.append(rms_dz)
-
-                self.axes[9].clear()
-                self.axes[9].set_title('RMS phase correction', fontsize=8)
-                self.axes[9].plot(rms_plot)
+                if self.isShowImg:
+                    self.axes[9].clear()
+                    self.axes[9].set_title('RMS phase correction', fontsize=8)
+                    self.axes[9].plot(rms_plot)
 
                 # calculate the cummulative Chebyshev values and reconstruct the cummulative phase
                 cuml_c += diff_c
                 cuml_phase = oe.contract('ijk,i->jk', self.phC.c_a_p, cuml_c)
-                self.show_animation(10, xp.angle(xp.exp(1j * cuml_phase)), 'accumulated estimated phase in pupil')
+                if self.isShowImg:
+                    self.show_animation(10, xp.angle(xp.exp(1j * cuml_phase)), 'accumulated estimated phase in pupil')
 
                 oe.contract('ijk,i->jk', self.phC.c_a_pD, cuml_c, out=self.abbD)
 
@@ -700,14 +712,14 @@ class HexSimMeasurement(Measurement):
                 hols = np.zeros((3, 524288))
                 for i in range(3):
                     hols[i] = self.gen_hol(1, 0.488, bias=self.phC.biasD[i], abb=self.abbD)
-                self.show_animation(11, self.Phib, 'one SLM hologram')
+                if self.isShowImg:
+                    self.show_animation(11, self.Phib, 'one SLM hologram')
                 self.slm.updateBp(hols, 'c')
 
                 # grab new psf images
                 self.thorcam.thorCam.start_acquisition()
                 self.ni.ph_write(1)
-                while self.thorcam.thorCam.get_frames_status()[1] < 3:
-                    pass
+                time.sleep(0.050)
                 self.thorcam.thorCam.stop_acquisition()
 
                 self.psfm = self.thorcam.thorCam.read_multiple_images()
@@ -726,18 +738,20 @@ class HexSimMeasurement(Measurement):
 
                 self.ni.ph_write(0)
 
+                if self.isShowImg:
+                    plt.pause(0.01)
+
                 # Stop if rms is small enough for two consecutive iterations
                 if rms_dz < 0.15 and last_rms < 0.15:
                     break
                 else:
                     last_rms = rms_dz
+
                 let = time.time() - t0
-                plt.pause(0.01)
 
             nits = nits + 1
+        self.show_text(f'Phase correction finished in {let}s after {len(rms_plot)} iterations, last rms: {rms_dz}')
 
-        plt.show()
-        self.ni.close_task()
         timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
         with open(f'abbD-{timestamp}.obj', 'wb') as f:
             pickle.dump(self.abbD, f)
