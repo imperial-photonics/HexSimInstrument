@@ -8,14 +8,15 @@ class NI_hw(HardwareComponent):
 
     def setup(self):
         #createloggedquantities,thatarerelatedtothegraphicalinterface
-        self.high_time1=self.add_logged_quantity('high_timeY',dtype=int, initial=100, vmin=0, unit='ms')
+        self.high_time1=self.add_logged_quantity('high_timeY',dtype=int, initial=160, vmin=0, unit='ms')
         self.low_time=self.add_logged_quantity('low_time', dtype=int,initial=40,  vmin=0, unit='ms')
-        self.high_time2=self.add_logged_quantity('high_timeB',dtype=int,initial=80, vmin=0,unit='ms')
-        self.settings.n_frame = self.add_logged_quantity('n_frame', dtype=int, initial=20, vmin=0)
+        self.high_time2=self.add_logged_quantity('high_timeB',dtype=int,initial=120, vmin=0,unit='ms')
+        self.settings.n_frame = self.add_logged_quantity('n_frame', dtype=int, initial=1, vmin=0)
         # self.settings.y_exp = self.add_logged_quantity('yell_exp',dtype=float,initial=0.000, vmin=0.000, spinbox_decimals=3,
         #                                     unit='ms')
         # self.settings.b_exp = self.add_logged_quantity('blue_exp', dtype=float, initial=0.000, vmin=0.000, spinbox_decimals=3,
         #                                       unit='ms')
+        self.add_operation(name='HexSIM initial', op_func=self.hex_ini)
         self.add_operation(name='HexSIM signal', op_func=self.hex_wrap)
 
     def connect(self):
@@ -31,10 +32,10 @@ class NI_hw(HardwareComponent):
         if hasattr(self, 'ni_device'):
             self.ni_device.write_h(self.high_time1.val, self.low_time.val, self.high_time2.val, n)
             # self.updateHardware()
-
+    def hex_ini(self):
+        self.ni_device.write_ini()
     def hex_wrap(self):
         self.start_h()
-        print(self.settings.n_frame.val)
         self.hex_write(self.settings.n_frame.val)
 
     def start_p(self):

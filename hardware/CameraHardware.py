@@ -96,7 +96,7 @@ class HamamatsuHardware(HardwareComponent):
 
         self.ouchannel2 = self.add_logged_quantity('output_channel2', dtype=str, si=False, ro=0,
                                                    choices=["low", "exposure", "programmable", "trigger ready", "high"],
-                                                   initial='trigger ready', reread_from_hardware_after_write=True)
+                                                   initial='exposure', reread_from_hardware_after_write=True)
 
         self.ouchannel3 = self.add_logged_quantity('output_channel3', dtype=str, si=False, ro=0,
                                                    choices=["low", "exposure", "programmable", "trigger ready", "high"],

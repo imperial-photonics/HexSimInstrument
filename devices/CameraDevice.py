@@ -1222,7 +1222,6 @@ class HamamatsuDevice(object):
 
         if self.debug:
             print(new_frames)
-        print(new_frames)
 
         return new_frames
 

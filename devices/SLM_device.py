@@ -137,7 +137,7 @@ class SLMDev(object):
         res = self.r11.R11_RpcRoSetSelected(roindex)
         if res == 0:
             num = roindex.value
-            print(f'Order is set to {num}')
+            # print(f'Order is set to {num}')
         else:
             raise Exception('Failed to set the order')
 
@@ -170,7 +170,7 @@ class SLMDev(object):
     #     return x, y
 
     def sendBitplane(self, data, frameno):
-        print(f'sending frame number {frameno}')
+        # print(f'sending frame number {frameno}')
         t0 = time.time()
         for block in range(4):
             block_address = 0x01000000 + block * 64 + frameno * 256
@@ -189,7 +189,7 @@ class SLMDev(object):
                 res = self.r11.R11_FlashBurn(page_address)
                 if res != 0:
                     raise Exception(f'Fail burn block {block}: page {page}')
-        print(f'bitplane sent in {time.time() - t0}')
+        # print(f'bitplane sent in {time.time() - t0}')
 
     def eraseBitplane(self, frameno):
         for block in range(4):
@@ -209,7 +209,7 @@ class SLMDev(object):
         while self.getProgress() < 100:
             pass
         t = time.time() - t0
-        print(f'Elapsed time of reloading: {t}')
+        # print(f'Elapsed time of reloading: {t}')
         if res != 0:
             raise Exception('Fail reload repertoire')
 

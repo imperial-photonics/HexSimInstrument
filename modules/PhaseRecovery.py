@@ -96,11 +96,15 @@ class Phase_correction:
         y0 = np.arange(self.ypix)
 
         nr = np.arange(8)
-        for i in range(64):
-            x0[(i * 32):(i * 32 + 8)] = nr + i * 8
-            x0[(i * 32 + 8):(i * 32 + 16)] = nr + i * 8 + 512
-            x0[(i * 32 + 16):(i * 32 + 24)] = nr + i * 8 + 1024
-            x0[(i * 32 + 24):(i * 32 + 32)] = nr + i * 8 + 1536
+        # for i in range(64):
+        #     x0[(i * 32):(i * 32 + 8)] = nr + i * 8
+        #     x0[(i * 32 + 8):(i * 32 + 16)] = nr + i * 8 + 512
+        #     x0[(i * 32 + 16):(i * 32 + 24)] = nr + i * 8 + 1024
+        #     x0[(i * 32 + 24):(i * 32 + 32)] = nr + i * 8 + 1536
+
+        for i in range(int(self.xpix / 8)):
+            x0[i * 8: i * 8 + 8] = ((i % 4) * 64 + i // 4) * 8 + nr
+
         # x0 is now an array of interleaved x values in the correct places for sending to the SLM
 
         x, y = np.meshgrid(x0 * x_dis, y0)
@@ -155,7 +159,7 @@ class Phase_correction:
                                                         self.xi, method='splinef2d')
 
         # Initial input
-        distortion = np.sqrt(1 - (1.5 / 7) ** 2)  # distortion in x
+        # distortion = np.sqrt(1 - (1.5 / 7) ** 2)  # distortion in x
         distortion = 1
         xv, yv = self.interleaving(distortion)
         if self.xp == cp:
@@ -190,7 +194,9 @@ class Phase_correction:
         self.c_a_p = c_a_p
         self.c_a_i = c_a_i
         self.c_a_ps = c_a_ps
+        self.c_a_is = c_a_is
         self.normval_ps = normval_ps
+        self.normval_is = normval_is
 if __name__ == '__main__':
     t = time.time()
     phc = Phase_correction()

@@ -768,7 +768,7 @@ class HexSimMeasurement(Measurement):
                                                   ph=f * 2 * np.pi / 7, ps=0)
                 self.slm.updateBp(np.reshape(hols, (7 * steps, 524288)), '3b')
                 plt.figure(figsize=(20, 20))
-                plt.grid(visible=True)
+                # plt.grid(visible=True)
                 plt.imshow(self.thorcam.fullScreenCheck())
                 self.thorcam.updateHardware()
                 plt.show()

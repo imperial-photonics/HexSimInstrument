@@ -15,8 +15,12 @@ class ThorCamHW(HardwareComponent):
                                                             choices=['int', 'ext', 'bulb'], initial='int', ro=False)
         self.settings.exposure = self.add_logged_quantity(name='exposure', spinbox_step=0.001, spinbox_decimals=3,
                                                           dtype=float, unit='s', initial=0.001, ro=False)
-        self.settings.xcent = self.add_logged_quantity(name='roi x center', dtype=int, spinbox_step=1, ro=False, initial=577)
-        self.settings.ycent = self.add_logged_quantity(name='roi y center', dtype=int, spinbox_step=1, ro=False, initial=750)
+        self.settings.xcent = self.add_logged_quantity(name='roi x center', dtype=int, spinbox_step=1, ro=False,
+                                                       initial=489)
+        self.settings.ycent = self.add_logged_quantity(name='roi y center', dtype=int, spinbox_step=1, ro=False,
+                                                       initial=494)
+        self.settings.cor_PSF = self.add_logged_quantity(name='correct PSF', dtype=str,
+                                                              choices=['left', 'right'], initial='left', ro=False)
 
     def connect(self):
         # create an instance of the Device

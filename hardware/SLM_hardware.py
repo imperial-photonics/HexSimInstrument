@@ -65,12 +65,19 @@ class SLMHW(HardwareComponent):
 
     def act(self):
         if hasattr(self, 'slm'):
+            print('Activating SLM')
             self.slm.activate()
+            while (self.slm.getState() != 0x55) & (self.slm.getState() != 0x56):
+                self.slm.activate()
             self.updateHardware()
 
     def deact(self):
         if hasattr(self, 'slm'):
+            print('Deactivating SLM')
             self.slm.deactivate()
+            while (self.slm.getState() != 0x52) & (
+                    self.slm.getState() != 0x53):
+                self.slm.deactivate()
             self.updateHardware()
 
     def repName(self):
