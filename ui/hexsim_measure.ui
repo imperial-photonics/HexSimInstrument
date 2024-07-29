@@ -71,7 +71,7 @@
           <bool>true</bool>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>1</number>
          </property>
          <widget class="QWidget" name="imgReconstructedTab">
           <attribute name="title">
@@ -95,6 +95,35 @@
            </property>
            <item row="0" column="0">
             <layout class="QGridLayout" name="simImageLayout">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="tab">
+          <attribute name="title">
+           <string>Exposure Log</string>
+          </attribute>
+          <layout class="QVBoxLayout" name="verticalLayout_4">
+           <property name="spacing">
+            <number>0</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <layout class="QVBoxLayout" name="exposure_logLayout">
              <property name="spacing">
               <number>0</number>
              </property>
@@ -199,7 +228,7 @@
           </font>
          </property>
          <property name="currentIndex">
-          <number>3</number>
+          <number>2</number>
          </property>
          <widget class="QWidget" name="imgStreamTab">
           <attribute name="title">
@@ -541,7 +570,7 @@
               <item>
                <widget class="QLabel" name="label">
                 <property name="text">
-                 <string>d_mask(um)</string>
+                 <string>d_mask(mm)</string>
                 </property>
                </widget>
               </item>

@@ -16,7 +16,6 @@ class NI_hw(HardwareComponent):
         #                                     unit='ms')
         # self.settings.b_exp = self.add_logged_quantity('blue_exp', dtype=float, initial=0.000, vmin=0.000, spinbox_decimals=3,
         #                                       unit='ms')
-        self.add_operation(name='HexSIM initial', op_func=self.hex_ini)
         self.add_operation(name='HexSIM signal', op_func=self.hex_wrap)
 
     def connect(self):
@@ -30,10 +29,9 @@ class NI_hw(HardwareComponent):
 
     def hex_write(self, n):
         if hasattr(self, 'ni_device'):
-            self.ni_device.write_h(self.high_time1.val, self.low_time.val, self.high_time2.val, n)
+            self.ni_device.write_h(self.high_time2.val, self.low_time.val, self.high_time1.val, n)
             # self.updateHardware()
-    def hex_ini(self):
-        self.ni_device.write_ini()
+
     def hex_wrap(self):
         self.start_h()
         self.hex_write(self.settings.n_frame.val)

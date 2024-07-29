@@ -7,6 +7,7 @@ import tifffile as tif
 import matplotlib.pyplot as plt
 import opt_einsum as oe
 import pickle
+from collections import Counter
 
 
 from pathlib import Path
@@ -173,11 +174,19 @@ class HexSimMeasurement(Measurement):
         self.imv = pg.ImageView()
         self.imv.ui.roiBtn.hide()
         self.imv.ui.menuBtn.hide()
+        self.imv.ui.histogram.hide()
+
 
         # image viewers
         self.imvRaw     = StackImageViewer(image_sets=self.imageRAW[0], set_levels=[1, 1])
-        self.imvWF      = StackImageViewer(image_sets=self.imageWF, set_levels=[1,1])
-        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI, set_levels=[1,1])
+        self.imvWF      = StackImageViewer(image_sets=self.imageWF, set_levels=[1, 1])
+        self.imvWF_ROI  = StackImageViewer(image_sets=self.imageWF_ROI, set_levels=[1, 1])
+
+        self.exposure_log = pg.ImageView()
+        self.exposure_log.ui.roiBtn.hide()
+        self.exposure_log.ui.menuBtn.hide()
+        self.exposure_log.ui.histogram.hide()
+
         self.imvSIM     = StackImageViewer(image_sets=self.imageSIM, set_levels=[0, 0.8])
         self.imvSIM_ROI = StackImageViewer(image_sets=self.imageSIM_ROI, set_levels=[0, 0.8])
 
@@ -196,6 +205,9 @@ class HexSimMeasurement(Measurement):
         self.ui.rawImageLayout.addWidget(self.imvRaw)
         self.ui.wfImageLayout.addWidget(self.imvWF)
         self.ui.roiWFLayout.addWidget(self.imvWF_ROI)
+
+        self.ui.exposure_logLayout.addWidget(self.exposure_log)
+
         self.ui.simImageLayout.addWidget(self.imvSIM)
         self.ui.roiSIMLayout.addWidget(self.imvSIM_ROI)
         self.ui.calibrationResultLayout.addWidget(self.imvCalibration)
@@ -270,7 +282,59 @@ class HexSimMeasurement(Measurement):
 
         # update camera viewer
         if self.isStreamRun or self.isCameraRun:
-            self.imv.setImage(self.imageCAM.T, autoLevels = True, autoRange = True)
+            self.imv.setImage(self.imageCAM.T, autoLevels=True, autoRange=True)
+
+
+            image_array = self.imageCAM.T.flatten()
+            # proportion = 0.01
+            # sample_size = int(len(image_array) * proportion)
+            # image_array = np.random.choice(image_array, size=sample_size, replace=False)
+            # image_array = np.concatenate([np.round(np.log2(image_array+1) * 10), np.arange(0,160)])
+            # image_array = image_array.astype(int)
+            #
+            # histogram = np.zeros(161)
+            #
+            # counts = np.bincount(image_array)
+            #
+            # for number, count in enumerate(counts):
+            #     if count > 0:
+            #         histogram[number] = count
+            #
+            #
+            # histogram = np.round(histogram / np.sum(histogram) * 100)
+            # print(histogram)
+            #
+            # histogram_2D = np.zeros((len(histogram), 101))
+            #
+            # for i in range(len(histogram)):
+            #     histogram_2D[i, histogram[i].astype(int)] = 1
+
+            resolution = 100
+            sample_rate = 0.01
+
+            image_1d = image_array
+            sample_size = int(len(image_1d) * sample_rate)
+            sample_image_1d = np.random.choice(image_1d, size=sample_size, replace=False)
+            sample_image_1d[sample_image_1d == 0] = 1
+
+            log_image_1d = np.log2(sample_image_1d)
+
+            log_image_1d = np.round(log_image_1d * resolution)
+
+            log_image_1d = log_image_1d.astype(np.uint16)
+
+            Histogram = np.bincount(log_image_1d, minlength=16 * resolution)
+            Histogram = Histogram / (np.max(Histogram) + 1)
+            His_len = len(Histogram)
+            Histogram_2D = np.zeros((His_len, His_len))
+
+            for n in range(His_len):
+                position = int(Histogram[n] * His_len)
+                Histogram_2D[His_len - position:His_len, n] = 1
+
+
+            self.exposure_log.setImage(Histogram_2D.T)
+
         else:
             pass
 
@@ -458,8 +522,8 @@ class HexSimMeasurement(Measurement):
             Tau = xp.zeros((beams, self.slm.ypix, self.slm.xpix), dtype=xp.double)  # phase tilt
             pp = 1 / (self.ui.dmask.value() * 1e-3 / (wl * 1e-6) / (self.phC.fl * 1e-6)) / (self.phC.d_s * 1e-6)
             theta = self.ui.orien_doubleSpinBox.value() / 360 * 2 * np.pi
+            ph_t = [0 + ps, ph + ps, 3 * ph + ps]  # total phase
             for i in range(beams):
-                ph_t = [0 + ps, ph + ps, 3 * ph + ps]  # total phase
                 xpSLM = self.slm.xpix / pp * 2 * np.pi * cp.cos(2 * i * np.pi / 3 + np.pi / 2 + theta)
                 ypSLM = self.slm.ypix / pp * 2 * np.pi * cp.sin(2 * i * np.pi / 3 + np.pi / 2 + theta)
                 Tau[i, :, :] = self.phC.xSLM * xpSLM + self.phC.ySLM * ypSLM + ph_t[i]
@@ -571,7 +635,7 @@ class HexSimMeasurement(Measurement):
         QQ = [None] * 3
         cuml_phase = xp.zeros((self.phC.N))
         Q = self.phC.circ * xp.exp(1j * self.phC.ri2)
-        cuml_c = xp.zeros(len(self.phC.c_a_p))  # accumulated Chebyshev polynonials indices
+        self.cuml_c = xp.zeros(len(self.phC.c_a_p))  # accumulated Chebyshev polynonials indices
         let = 0  # last elapsed time
         rms_plot = []
         # method = 'weighted'  # two methods for chebyshev orthogonality, "weighted' or 'sampled'
@@ -698,12 +762,12 @@ class HexSimMeasurement(Measurement):
                     self.axes[9].plot(rms_plot)
 
                 # calculate the cummulative Chebyshev values and reconstruct the cummulative phase
-                cuml_c += diff_c
-                cuml_phase = oe.contract('ijk,i->jk', self.phC.c_a_p, cuml_c)
+                self.cuml_c += diff_c
+                cuml_phase = oe.contract('ijk,i->jk', self.phC.c_a_p, self.cuml_c)
                 if self.isShowImg:
                     self.show_animation(10, xp.angle(xp.exp(1j * cuml_phase)), 'accumulated estimated phase in pupil')
 
-                oe.contract('ijk,i->jk', self.phC.c_a_pD, cuml_c, out=self.abbD)
+                oe.contract('ijk,i->jk', self.phC.c_a_pD, self.cuml_c, out=self.abbD)
 
                 #         with np.printoptions(precision=3, suppress=True):
                 #             print(cuml_z)
@@ -755,6 +819,7 @@ class HexSimMeasurement(Measurement):
         timestamp = time.strftime("%y%m%d_%H%M%S", time.localtime())
         with open(f'abbD-{timestamp}.obj', 'wb') as f:
             pickle.dump(self.abbD, f)
+            print('coefficients are saved')
 
     def checkResultPressed(self):
         if hasattr(self.slm, 'slm'):
@@ -891,11 +956,11 @@ class HexSimMeasurement(Measurement):
             for f in range(self.ui.nStack.value()):
                 frames[f] = self.getFrameStack(14)
                 # self.z_stage.movePositionHW(pos + (f + 1) * step_size)
-            self.slm.deact()
             for f in range(self.ui.nStack.value()):
                 for i in range(7):
                     self.imageRAW[0][int(i + f * 7), :, :] = frames[f, 2 * i]
                     self.imageRAW[1][int(i + f * 7), :, :] = frames[f, 2 * i + 1]
+            self.slm.deact()
         except Exception as e:
             self.show_text(f'Standard capture encountered an error \n{e}')
 
@@ -1284,9 +1349,9 @@ class HexSimMeasurement(Measurement):
             self.roiRect = []
 
     def raw2WideFieldImage(self,rawImages):
-        wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1],rawImages.shape[2]))
+        wfImages = np.zeros((rawImages.shape[0]//7,rawImages.shape[1], rawImages.shape[2]))
         for idx in range(rawImages.shape[0]//7):
-            wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7,:,:],axis=0)/7
+            wfImages[idx,:,:] = np.sum(rawImages[idx*7:(idx+1)*7, :, :],axis=0)/7
         return wfImages
 
 # functions for ROI
